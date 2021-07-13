@@ -1,0 +1,5 @@
+*.DS_Store
+*.pdf
+*.jpg
+test_data/*
+*__pycache__*
