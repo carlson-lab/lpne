@@ -236,7 +236,7 @@ if __name__ == '__main__':
     print('Thal_MD_L_02' in data)
 
     channel_map = get_default_channel_map(list(data.keys()))
-``
+
     to_remove = get_removed_channels_from_file(chans_fn)
 
     channel_map = remove_channels(channel_map, to_remove)

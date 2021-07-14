@@ -18,6 +18,9 @@ from .data import \
 from .make_features import make_features
 
 
+from .plotting import plot_power
+
+
 
 if __name__ == '__main__':
     pass

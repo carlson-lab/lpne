@@ -1,13 +1,30 @@
 """
 An example feature extraction pipeline.
 
-Expected directory structure:
+Required directory structure:
 
-exp_dir
-.
-.
-.
+::
 
+    exp_dir
+    │
+    ├── Data
+    │   ├── foo_LFP.mat
+    │   ├── bar_LFP.mat
+    │   └── baz_LFP.mat
+    │
+    ├── CHANS
+    │   ├── foo_CHANS.mat
+    │   ├── bar_CHANS.mat
+    │   └── baz_CHANS.mat
+    │
+    └── features
+        ├── foo.npy
+        ├── bar.npy
+        └── baz.npy
+
+
+The subdirectories `Data` and `CHANS` are inputs to this pipeline and the
+subdirectory `features` is the output.
 
 """
 __date__ = "July 2021"
@@ -74,8 +91,11 @@ if __name__ == '__main__':
         # Make features.
         features = lpne.make_features(lfps)
 
+        # Plot the first window for fun.
+        lpne.plot_power(features['power'][0], features['rois'])
+
         # Save features.
-        fn = os.path.split(lfp_fns[file_num])[-1][:len(LFP_SUFFIX)] + '.npy'
+        fn = os.path.split(lfp_fns[file_num])[-1][:-len(LFP_SUFFIX)] + '.npy'
         fn = os.path.join(feature_dir, fn)
         lpne.save_features(features, fn)
 
