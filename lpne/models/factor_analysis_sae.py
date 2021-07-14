@@ -1,6 +1,9 @@
 """
 Factor Analysis-regularized logistic regression.
 
+TO DO
+-----
+* Regularize the weight matrices
 """
 __date__ = "June - July 2021"
 
@@ -152,7 +155,6 @@ class FaSae(torch.nn.Module):
         predictions : numpy.ndarray
             Shape: [batch]
         """
-        # To torch tensors.
         features = torch.tensor(features, dtype=FLOAT)
         with torch.no_grad():
             probs = self.predict_proba(features, to_numpy=False)

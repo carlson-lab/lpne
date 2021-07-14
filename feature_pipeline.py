@@ -36,7 +36,7 @@ import sys
 import lpne
 
 
-USAGE = "Usage:\n$ python pipeline.py <experiment_directory>"
+USAGE = "Usage:\n$ python feature_pipleline.py <experiment_directory>"
 LFP_SUBDIR = 'Data'
 CHANS_SUBDIR = 'CHANS'
 FEATURE_SUBDIR = 'features'

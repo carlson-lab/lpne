@@ -30,7 +30,7 @@ import lpne
 from lpne.models import FaSae
 
 
-USAGE = "Usage:\n$ python predict_labels.py <experiment_directory>"
+USAGE = "Usage:\n$ python prediction_pipeline.py <experiment_directory>"
 FEATURE_SUBDIR = 'features'
 LABEL_SUBDIR = 'labels'
 

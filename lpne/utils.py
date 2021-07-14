@@ -205,7 +205,7 @@ def get_feature_label_filenames(feature_dir, label_dir):
             if fn.endswith(LABEL_FN_SUFFIX)
     ]
     if len(label_fns) == 0:
-        warnings.warn(f"No feature files in {label_dir}!")
+        warnings.warn(f"No label files in {label_dir}!")
     assert len(feature_fns) == len(label_fns), \
             f"{len(feature_fns)} != {len(label_fns)}"
     for i in range(len(feature_fns)):

@@ -8,14 +8,17 @@ __date__ = "July 2021"
 __version__ = "0.0.1"
 
 
+from .channel_maps import \
+        average_channels, \
+        get_default_channel_map, \
+        remove_channels, \
+        get_removed_channels_from_file
+
 from .data import \
         load_lfps, \
-        get_default_channel_map, \
-        get_removed_channels_from_file, \
-        remove_channels, \
-        average_channels, \
         save_features, \
         load_features, \
+        save_labels, \
         load_labels
 
 from .make_features import make_features
