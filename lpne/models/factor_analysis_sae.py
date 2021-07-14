@@ -129,8 +129,8 @@ class FaSae(torch.nn.Module):
         for epoch in range(1,epochs+1):
             epoch_loss = 0.0
             for batch in loader:
-                model.zero_grad()
-                loss = model(*batch)
+                self.zero_grad()
+                loss = self(*batch)
                 epoch_loss += loss.item()
                 loss.backward()
                 optimizer.step()
@@ -253,6 +253,16 @@ class FaSae(torch.nn.Module):
         self.reg_strength = params['reg_strength']
         self.class_weights = params['class_weights']
         self.load_state_dict(params['model_state_dict'])
+
+
+    def save_state(self, fn):
+        """Save parameters for this estimator."""
+        np.save(fn, self.get_params())
+
+
+    def load_state(self, fn):
+        """Load and set the parameters for this estimator."""
+        self.set_params(np.load(f, allow_pickle=True).item())
 
 
 

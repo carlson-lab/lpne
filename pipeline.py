@@ -59,25 +59,12 @@ if __name__ == '__main__':
     if not os.path.exists(feature_dir):
         os.makedirs(feature_dir)
 
-    # Get the filenames straight.
-    lfp_fns = [fn for fn in sorted(os.listdir(lfp_dir))]
-    lfp_fns = [
-        os.path.join(lfp_dir,fn) for fn in lfp_fns if fn.endswith('.mat')
-    ]
-    chans_fns = [fn for fn in sorted(os.listdir(chans_dir))]
-    chans_fns = [
-        os.path.join(chans_dir,fn) for fn in chans_fns if fn.endswith('.mat')
-    ]
-    assert len(lfp_fns) == len(chans_fns)
-    for i in range(len(lfp_fns)):
-        assert lfp_fns[i].endswith(LFP_SUFFIX)
-        lfp_fn = os.path.split(lfp_fns[i])[-1][:-len(LFP_SUFFIX)]
-        chans_fn = os.path.split(chans_fns[i])[-1][:-len(CHANS_SUFFIX)]
-        assert lfp_fn == chans_fn
+    # Get the filenames.
+    lfp_fns, chans_fns = lpne.get_lfp_chans_filenames(lfp_dir, chans_dir)
 
     for file_num in range(len(lfp_fns)):
         # Load LFP data.
-        lfps = lpne.load_data(lfp_fns[file_num])
+        lfps = lpne.load_lfps(lfp_fns[file_num])
 
         # Get the default channel grouping.
         channel_map = lpne.get_default_channel_map(list(lfps.keys()))
@@ -101,5 +88,7 @@ if __name__ == '__main__':
         fn = os.path.split(lfp_fns[file_num])[-1][:-len(LFP_SUFFIX)] + '.npy'
         fn = os.path.join(feature_dir, fn)
         lpne.save_features(features, fn)
+
+
 
 ###

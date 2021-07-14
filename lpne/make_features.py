@@ -28,7 +28,7 @@ SHARED_PARAMS = {
 
 
 def make_features(lfps, fs=1000, min_freq=0.0, max_freq=55.0,
-    window_duration=10.0, window_overlap=0.0):
+    window_duration=5.0, window_overlap=0.0):
     """
     Main function: make features from an LFP waveform.
 

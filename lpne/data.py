@@ -19,7 +19,7 @@ IGNORED_KEYS = [
 
 
 
-def load_data(fn):
+def load_lfps(fn):
     """
 
     Parameters
@@ -220,6 +220,81 @@ def save_features(features, fn):
         raise NotImplementedError(f"Unsupported file type: {fn}")
 
 
+def load_features(fn):
+    """
+    Load the features saved in the given filename.
+
+    Raises
+    ------
+    * NotImplementedError if `fn` is an unsupported file type.
+
+    Paramters
+    ---------
+    fn : str
+        Where the data is saved.
+
+    Returns
+    -------
+    features : dict
+        LFP features
+    """
+    assert isinstance(fn, str)
+    if fn.endswith('.npy'):
+        return np.load(fn, allow_pickle=True).item()
+    else:
+        raise NotImplementedError(f"Unsupported file type: {fn}")
+
+
+def save_labels(labels, fn):
+    """
+    Save the labels to the given filename.
+
+    Raises
+    ------
+    * NotImplementedError if `fn` is an unsupported file type.
+
+    Paramters
+    ---------
+    labels : numpy.ndarray
+        ...
+    fn : str
+        Where to save the data.
+    """
+    assert isinstance(fn, str)
+    if fn.endswith('.npy'):
+        np.save(fn, labels)
+    else:
+        raise NotImplementedError(f"Unsupported file type: {fn}")
+
+
+def load_labels(fn):
+    """
+    Load the labels saved in the given filename.
+
+    Raises
+    ------
+    * NotImplementedError if `fn` is an unsupported file type.
+
+    Paramters
+    ---------
+    fn : str
+        Where the data is saved.
+
+    Returns
+    -------
+    labels : numpy.ndarray
+        LFP window labels.
+        Shape: [n_windows]
+    """
+    assert isinstance(fn, str)
+    if fn.endswith('.npy'):
+        labels = np.load(fn)
+    else:
+        raise NotImplementedError(f"Unsupported file type: {fn}")
+    assert len(labels.shape) == 1, f"len({labels.shape}) != 1"
+    return labels
+
+
 
 if __name__ == '__main__':
     lfp_fn = 'test_data/example_LFP.mat'
@@ -240,7 +315,6 @@ if __name__ == '__main__':
 
     data = average_channels(data, channel_map)
     print(list(data.keys()))
-
 
 
 
