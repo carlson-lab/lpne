@@ -1,8 +1,9 @@
 """
-Data utilities.
+Data utilities
 
 """
 __date__ = "July 2021"
+
 
 import numpy as np
 from scipy.io import loadmat
@@ -230,10 +231,6 @@ if __name__ == '__main__':
     }
 
     data = load_data(lfp_fn)
-    print(list(data.keys()))
-    print('Amy_CeA_L_01' in data)
-    print('Cx_OF_L_01' in data)
-    print('Thal_MD_L_02' in data)
 
     channel_map = get_default_channel_map(list(data.keys()))
 

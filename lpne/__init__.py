@@ -1,6 +1,8 @@
 """
 LPNE feature pipeline
 
+Some general info about lpne...
+
 """
 __date__ = "July 2021"
 __version__ = "0.0.1"

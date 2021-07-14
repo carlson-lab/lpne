@@ -1,6 +1,10 @@
 """
 Make features
 
+TO DO
+-----
+* Add window overlap
+
 """
 __date__ = "July 2021"
 
@@ -24,7 +28,7 @@ SHARED_PARAMS = {
 
 
 def make_features(lfps, fs=1000, min_freq=0.0, max_freq=55.0,
-    window_duration=10.0):
+    window_duration=10.0, window_overlap=0.0):
     """
     Main function: make features from an LFP waveform.
 
@@ -63,40 +67,31 @@ def make_features(lfps, fs=1000, min_freq=0.0, max_freq=55.0,
         'rois' : list of str
             Sorted list of grouped channel names.
     """
+    if window_overlap != 0.0:
+        raise NotImplementedError("Non-zero window overlap!")
+
     rois = sorted(lfps.keys())
     n = len(rois)
     window_samp = int(fs * window_duration)
 
-    print("TEMP: TRUNCATING FILES")
-    for key in lfps:
-        lfps[key] = lfps[key].flatten()[:3*window_samp]
-
-    # Make power features for each ROI.
-    for i, roi in enumerate(rois):
-        lfp_i = lfps[roi].flatten()
-        if i == 0:
-            n_window = int(np.floor(len(lfp_i) / window_samp))
-            f, _ = welch(lfp_i, fs=fs, **SHARED_PARAMS)
-            i1, i2 = np.searchsorted(f, [min_freq, max_freq])
-            power = np.zeros((n_window, (n*(n+1))//2, i2-i1))
-        idx = (i * (i + 1)) // 2 + i
-        for k in range(n_window):
-            k1, k2 = k*window_samp, (k+1)*window_samp
-            _, Pxx = welch(lfp_i[k1:k2], fs=fs, **SHARED_PARAMS)
-            power[k,idx] = Pxx[i1:i2]
-
     # Make cross power spectral density features for each pair of ROIs.
-    for j in range(len(rois)-1):
+    for i in range(len(rois)):
         lfp_i = lfps[rois[i]].flatten()
-        for i in range(j+1, len(rois)):
+        for j in range(i+1):
             lfp_j = lfps[rois[j]].flatten()
+            if i == 0 and j == 0:
+                k = window_samp
+                n_window = int(np.floor(len(lfp_i) / window_samp))
+                f, _ = csd(lfp_i[:k], lfp_j[:k], fs=fs, **SHARED_PARAMS)
+                i1, i2 = np.searchsorted(f, [min_freq, max_freq])
+                power = np.zeros((n_window, (n*(n+1))//2, i2-i1))
             idx = (i * (i + 1)) // 2 + j
             for k in range(n_window):
                 k1, k2 = k*window_samp, (k+1)*window_samp
                 _, Cxy = csd(lfp_i[k1:k2], lfp_j[k1:k2], fs=fs, **SHARED_PARAMS)
                 power[k,idx] = np.abs(Cxy[i1:i2])
 
-    # Get 1/f-scaled power features. 
+    # Get 1/f-scaled power features.
     freq = f[i1:i2]
     power[:,:] *= freq
 

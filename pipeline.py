@@ -41,6 +41,7 @@ LFP_SUBDIR = 'Data'
 CHANS_SUBDIR = 'CHANS'
 FEATURE_SUBDIR = 'features'
 LFP_SUFFIX = '_LFP.mat'
+CHANS_SUFFIX = '_CHANS.mat'
 
 
 
@@ -70,7 +71,9 @@ if __name__ == '__main__':
     assert len(lfp_fns) == len(chans_fns)
     for i in range(len(lfp_fns)):
         assert lfp_fns[i].endswith(LFP_SUFFIX)
-        assert os.path.split(lfp_fns[i][-1]) == os.path.split(chans_fns[i][-1])
+        lfp_fn = os.path.split(lfp_fns[i])[-1][:-len(LFP_SUFFIX)]
+        chans_fn = os.path.split(chans_fns[i])[-1][:-len(CHANS_SUFFIX)]
+        assert lfp_fn == chans_fn
 
     for file_num in range(len(lfp_fns)):
         # Load LFP data.
