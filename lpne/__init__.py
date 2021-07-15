@@ -25,7 +25,9 @@ from .make_features import make_features
 
 from .normalize import normalize_features
 
-from .plotting import plot_power
+from .plotting import \
+        plot_factor, \
+        plot_power
 
 from .utils import \
         write_fake_labels, \

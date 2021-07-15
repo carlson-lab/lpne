@@ -22,7 +22,7 @@ INT = torch.int64
 class FaSae(torch.nn.Module):
 
     def __init__(self, n_features, n_classes, reg_strength=1.0, z_dim=20,
-        class_weights=None):
+        class_weights=None, weight_reg=1.0):
         """
         Some notes...
 
@@ -44,6 +44,8 @@ class FaSae(torch.nn.Module):
         class_weights : None or numpy.ndarray
             Used to upweight rarer labels. No upweighting is performed if this
             is `None`.
+        weight_reg : float, optional
+            Model L2 weight regularization.
         """
         super(FaSae, self).__init__()
         assert n_classes > 1, f"{n_classes} <= 1"
@@ -58,6 +60,7 @@ class FaSae(torch.nn.Module):
         else:
             self.class_weights = torch.tensor(class_weights, dtype=FLOAT)
         self.z_dim = z_dim
+        self.weight_reg = weight_reg
         self.recognition_model = torch.nn.Linear(self.n_features, self.z_dim)
         self.model = torch.nn.Linear(self.z_dim, self.n_features)
 
@@ -97,8 +100,10 @@ class FaSae(torch.nn.Module):
         if self.class_weights is not None:
             weight_vector = self.class_weights[labels]
             log_probs = weight_vector * log_probs
+        # Regularize the model weights.
+        l2_loss = self.weight_reg * torch.norm(self.model.weight)
         # Combine all the terms into a loss.
-        loss = self.reg_strength * rec_loss - log_probs
+        loss = self.reg_strength * rec_loss - log_probs + l2_loss
         return torch.mean(loss)
 
 
@@ -265,6 +270,21 @@ class FaSae(torch.nn.Module):
     def load_state(self, fn):
         """Load and set the parameters for this estimator."""
         self.set_params(np.load(f, allow_pickle=True).item())
+
+
+    def get_factor(self, factor_num=0):
+        """
+        Get a linear factor.
+
+        Parameters
+        ----------
+        feature_num : int
+            Which factor to return. 0 <= `factor_num` < self.z_dim
+        """
+        assert isinstance(factor_num, int)
+        assert factor_num >= 0 and factor_num < self.z_dim
+        weights = self.model.weight.data[:,factor_num].detach().cpu().numpy()
+        return weights
 
 
 

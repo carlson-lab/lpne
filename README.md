@@ -1,4 +1,4 @@
-## LPNE feature extraction pipeline
+## LPNE feature extraction and classification pipeline
 
 
 ```python3
@@ -8,9 +8,10 @@ print("Hello world")
 
 
 ### TO DO
-* normalization
-* window overlap
-* add some models?
+* improve normalization
+* implement window overlap
+* add some more models?
 * remove bad windows
 * labels
 * unit tests
+* add option to combine channels across hemispheres

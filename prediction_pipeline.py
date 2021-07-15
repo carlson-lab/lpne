@@ -57,7 +57,9 @@ if __name__ == '__main__':
     # Collect all the features and labels.
     features, labels = [], []
     for feature_fn, label_fn in zip(feature_fns, label_fns):
-        features.append(lpne.load_features(feature_fn)['power'])
+        temp = lpne.load_features(feature_fn)
+        rois = temp['rois']
+        features.append(temp['power'])
         labels.append(lpne.load_labels(label_fn))
     features = np.concatenate(features, axis=0)
     labels = np.concatenate(labels, axis=0)
@@ -90,6 +92,11 @@ if __name__ == '__main__':
     # Fit the model.
     print("Training model...")
     model.fit(features[train_idx], labels[train_idx])
+
+    # Get factor.
+    factor = model.get_factor(0)
+    lpne.plot_factor(factor, rois)
+    quit()
 
     # Save the model.
     model.save_state(os.path.join(exp_dir, 'model_state.npy'))
