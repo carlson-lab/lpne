@@ -63,6 +63,9 @@ class FaSae(torch.nn.Module):
         self.weight_reg = weight_reg
         self.recognition_model = torch.nn.Linear(self.n_features, self.z_dim)
         self.model = torch.nn.Linear(self.z_dim, self.n_features)
+        self.model_weight = torch.nn.Parameter(
+            torch.randn(1, self.z_dim, self.n_features),
+        )
 
 
     def forward(self, features, labels):
@@ -82,29 +85,34 @@ class FaSae(torch.nn.Module):
             Shape: []
         """
         # Feed through the recognition network to get latents.
-        zs = self.recognition_model(features)
+        zs = F.softplus(self.recognition_model(features))
         # Reconstruct the features.
-        features_rec = self.model(zs)
+        # features_rec = self.model(zs)
+        A = F.softplus(self.model_weight)
+        features_rec = zs.unsqueeze(1) @ A
+        features_rec = features_rec.squeeze(1)
         # Calculate a reconstruction loss.
         rec_loss = torch.mean(features - features_rec, dim=1) # [b]
         # Predict the labels.
         logits = zs[:,:self.n_classes-1]
-        zeros = torch.zeros(
+        ones = torch.ones(
                 logits.shape[0],
                 1,
                 dtype=logits.dtype,
                 device=logits.device,
         )
-        logits = torch.cat([logits, zeros], dim=1)
-        log_probs = Categorical(logits=logits).log_prob(labels)
+        logits = torch.cat([logits, ones], dim=1)
+        log_probs = Categorical(logits=logits).log_prob(labels) # [b]
         if self.class_weights is not None:
             weight_vector = self.class_weights[labels]
             log_probs = weight_vector * log_probs
         # Regularize the model weights.
-        l2_loss = self.weight_reg * torch.norm(self.model.weight)
+        l2_loss = self.weight_reg * torch.norm(A)
+        l2_loss = l2_loss + 1e-2 * torch.sum(zs.pow(2), dim=1).mean()
+        # l2_loss = self.weight_reg * torch.sum(A)
         # Combine all the terms into a loss.
-        loss = self.reg_strength * rec_loss - log_probs + l2_loss
-        return torch.mean(loss)
+        loss = torch.mean(self.reg_strength * rec_loss - log_probs) + l2_loss
+        return loss
 
 
     def fit(self, features, labels, epochs=100, lr=1e-3, batch_size=64,
@@ -190,13 +198,13 @@ class FaSae(torch.nn.Module):
             zs = self.recognition_model(features)
             # Get class predictions.
             logits = zs[:,:self.n_classes-1]
-            zeros = torch.zeros(
+            ones = torch.ones(
                     logits.shape[0],
                     1,
                     dtype=logits.dtype,
                     device=logits.device,
             )
-            logits = torch.cat([logits, zeros], dim=1)
+            logits = torch.cat([logits, ones], dim=1)
             probs = F.softmax(logits, dim=1) # [b, n_classes]
         if to_numpy:
             return probs.cpu().numpy()
@@ -283,8 +291,10 @@ class FaSae(torch.nn.Module):
         """
         assert isinstance(factor_num, int)
         assert factor_num >= 0 and factor_num < self.z_dim
-        weights = self.model.weight.data[:,factor_num].detach().cpu().numpy()
-        return weights
+        with torch.no_grad():
+            A = F.softplus(self.model_weight[0,factor_num])
+            A = A.detach().cpu().numpy()
+        return A
 
 
 

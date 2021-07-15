@@ -23,7 +23,7 @@ def average_channels(lfps, channel_map, check_channel_map=True):
     """
     Average different channels in the the same region.
 
-    Expected behavior -- check everything in channel map is used
+    Expected behavior --
 
     Parameters
     ----------
@@ -32,7 +32,8 @@ def average_channels(lfps, channel_map, check_channel_map=True):
     channel_map : dict
         Maps ROI names to grouped ROI names.
     check_channel_map : bool, optional
-        Checks for expected behavior...
+        Checks whether all the channels in the channel map are present in the
+        LFPs.
 
     Returns
     -------
@@ -75,7 +76,7 @@ def _check_channel_map(lfps, channel_map):
             warnings.warn(f"Channel {channel} is not present!")
 
 
-def get_default_channel_map(channels):
+def get_default_channel_map(channels, combine_hemispheres=True):
     """
     Make a default channel map...
 
@@ -85,10 +86,15 @@ def get_default_channel_map(channels):
 
     Parameters
     ----------
+    channels : list of str
+        Names of channels.
+    combine_hemispheres : bool, optional
+        Combine channels from the left and right hemispheres.
 
     Returns
     -------
     channel_map : dict
+        Maps individual channel names to grouped channel names.
     """
     channel_map = {}
     for channel in channels:
@@ -106,7 +112,17 @@ def get_default_channel_map(channels):
                     f", ignoring."
                 )
                 continue
-            grouped_roi = '_'.join(split_str[:-1])
+            if combine_hemispheres:
+                if len(split_str) < 3 or split_str[-2] not in ['L', 'R']:
+                    warnings.warn(
+                        f"Unexpected channel name: {channel}"
+                        f", no hemisphere indication. Ignoring."
+                    )
+                    continue
+                else:
+                    grouped_roi = '_'.join(split_str[:-2])
+            else:
+                grouped_roi = '_'.join(split_str[:-1])
             channel_map[channel] = grouped_roi
     return channel_map
 
