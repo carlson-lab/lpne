@@ -1,9 +1,6 @@
 """
 Factor Analysis-regularized logistic regression.
 
-TO DO
------
-* Regularize the weight matrices
 """
 __date__ = "June - July 2021"
 
@@ -13,6 +10,7 @@ import torch
 from torch.distributions import Categorical
 import torch.nn.functional as F
 from torch.utils.data import TensorDataset, DataLoader
+import warnings
 
 FLOAT = torch.float32
 INT = torch.int64
@@ -22,9 +20,9 @@ INT = torch.int64
 class FaSae(torch.nn.Module):
 
     def __init__(self, n_features, n_classes, reg_strength=1.0, z_dim=20,
-        class_weights=None, weight_reg=1.0):
+        class_weights=None, weight_reg=1.0, nonnegative=False):
         """
-        Some notes...
+        Some notes ...
 
         Attributes
         ----------
@@ -46,11 +44,20 @@ class FaSae(torch.nn.Module):
             is `None`.
         weight_reg : float, optional
             Model L2 weight regularization.
+        nonnegative : bool, optional
+            Use nonnegative factorization.
         """
         super(FaSae, self).__init__()
         assert n_classes > 1, f"{n_classes} <= 1"
         assert z_dim >= n_classes, f"{z_dim} < {n_classes}"
         assert reg_strength >= 0.0
+        assert weight_reg >= 0.0
+        if nonnegative and weight_reg > 0.0:
+            weight_reg = 0.0
+            warnings.warn(
+                    f"Weight regularization should be 0.0 "
+                    f"for nonnegative factorization"
+            )
         self.trained = False # Has this model been trained yet?
         self.n_features = n_features
         self.reg_strength = reg_strength
@@ -61,10 +68,11 @@ class FaSae(torch.nn.Module):
             self.class_weights = torch.tensor(class_weights, dtype=FLOAT)
         self.z_dim = z_dim
         self.weight_reg = weight_reg
+        self.nonnegative = nonnegative
         self.recognition_model = torch.nn.Linear(self.n_features, self.z_dim)
         self.model = torch.nn.Linear(self.z_dim, self.n_features)
-        self.model_weight = torch.nn.Parameter(
-            torch.randn(1, self.z_dim, self.n_features),
+        self.logit_bias = torch.nn.Parameter(
+            torch.zeros(1,self.n_classes),
         )
 
 
@@ -85,14 +93,18 @@ class FaSae(torch.nn.Module):
             Shape: []
         """
         # Feed through the recognition network to get latents.
-        zs = F.softplus(self.recognition_model(features))
+        zs = self.recognition_model(features)
         # Reconstruct the features.
-        # features_rec = self.model(zs)
-        A = F.softplus(self.model_weight)
-        features_rec = zs.unsqueeze(1) @ A
-        features_rec = features_rec.squeeze(1)
+        if self.nonnegative:
+            A = F.softplus(self.model.weight)
+            features_rec = A.unsqueeze(0) @ F.softplus(zs).unsqueeze(-1)
+            features_rec = features_rec.squeeze(-1)
+        else:
+            A = self.model.weight
+            features_rec = self.model(zs)
         # Calculate a reconstruction loss.
-        rec_loss = torch.mean(features - features_rec, dim=1) # [b]
+        rec_loss = torch.mean((features - features_rec).pow(2), dim=1) # [b]
+        rec_loss = self.reg_strength * rec_loss
         # Predict the labels.
         logits = zs[:,:self.n_classes-1]
         ones = torch.ones(
@@ -101,21 +113,20 @@ class FaSae(torch.nn.Module):
                 dtype=logits.dtype,
                 device=logits.device,
         )
-        logits = torch.cat([logits, ones], dim=1)
+        logits = torch.cat([logits, ones], dim=1) + self.logit_bias
         log_probs = Categorical(logits=logits).log_prob(labels) # [b]
+        # Weight label log likes by class weights.
         if self.class_weights is not None:
             weight_vector = self.class_weights[labels]
             log_probs = weight_vector * log_probs
         # Regularize the model weights.
         l2_loss = self.weight_reg * torch.norm(A)
-        l2_loss = l2_loss + 1e-2 * torch.sum(zs.pow(2), dim=1).mean()
-        # l2_loss = self.weight_reg * torch.sum(A)
         # Combine all the terms into a loss.
-        loss = torch.mean(self.reg_strength * rec_loss - log_probs) + l2_loss
+        loss = torch.mean(rec_loss - log_probs) + l2_loss
         return loss
 
 
-    def fit(self, features, labels, epochs=100, lr=1e-3, batch_size=64,
+    def fit(self, features, labels, epochs=100, lr=1e-3, batch_size=256,
         verbose=True, print_freq=10):
         """
         Train the model on the given dataset.
@@ -204,7 +215,7 @@ class FaSae(torch.nn.Module):
                     dtype=logits.dtype,
                     device=logits.device,
             )
-            logits = torch.cat([logits, ones], dim=1)
+            logits = torch.cat([logits, ones], dim=1) + self.logit_bias
             probs = F.softmax(logits, dim=1) # [b, n_classes]
         if to_numpy:
             return probs.cpu().numpy()
@@ -222,7 +233,7 @@ class FaSae(torch.nn.Module):
         ----------
         features : numpy.ndarray
             Shape: [n_datapoints, n_features]
-        labels : numpoy.ndarray
+        labels : numpy.ndarray
             Shape: [n_datapoints]
         class_weights : None or numpy.ndarray
             Shape: [n_classes]
@@ -292,9 +303,11 @@ class FaSae(torch.nn.Module):
         assert isinstance(factor_num, int)
         assert factor_num >= 0 and factor_num < self.z_dim
         with torch.no_grad():
-            A = F.softplus(self.model_weight[0,factor_num])
-            A = A.detach().cpu().numpy()
-        return A
+            if self.nonnegative:
+                A = F.softplus(self.model.weight[:,factor_num])
+            else:
+                A = self.model.weight[:,factor_num]
+        return A.detach().cpu().numpy()
 
 
 

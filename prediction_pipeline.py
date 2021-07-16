@@ -87,16 +87,26 @@ if __name__ == '__main__':
     print("Class weights:", class_weights)
 
     # Make the model.
-    model = FaSae(n_features, n_classes, class_weights=class_weights)
+    model = FaSae(
+        n_features,
+        n_classes,
+        class_weights=class_weights,
+        reg_strength=1.0,
+        weight_reg=0.0,
+        nonnegative=True,
+    )
 
     # Fit the model.
     print("Training model...")
     model.fit(features[train_idx], labels[train_idx])
 
-    # Get factor.
+    # Plot factor.
     factor = model.get_factor(0)
-    lpne.plot_factor(factor, rois)
-    quit()
+    print("factor 1", np.min(factor), np.max(factor))
+    lpne.plot_factor(factor, rois, fn='factor_1.pdf')
+    factor = model.get_factor(1)
+    print("factor 2", np.min(factor), np.max(factor))
+    lpne.plot_factor(factor, rois, fn='factor_2.pdf')
 
     # Save the model.
     model.save_state(os.path.join(exp_dir, 'model_state.npy'))
@@ -105,9 +115,20 @@ if __name__ == '__main__':
     print("Making predictions...")
     predictions = model.predict(features[test_idx])
     print("Test labels:")
-    print(labels[test_idx])
+    true_labels = labels[test_idx]
+    print(true_labels)
     print("Test predictions:")
     print(predictions)
+
+    # Confusion matrix
+    confusion = np.zeros((n_classes, n_classes), dtype=int)
+    for i in range(n_classes):
+        idx_1 = np.argwhere(true_labels == i).flatten()
+        for j in range(n_classes):
+            idx_2 = np.argwhere(predictions == j).flatten()
+            confusion[i,j] = len(np.intersect1d(idx_1, idx_2))
+    print("Confusion matrix:")
+    print(confusion)
 
     # Calculate a weighted accuracy.
     weighted_acc = model.score(

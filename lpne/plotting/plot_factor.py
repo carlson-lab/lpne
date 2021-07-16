@@ -27,7 +27,6 @@ def plot_factor(factor, rois, fn='temp.pdf'):
         Image filename
     """
     pretty_rois = [roi.replace('_', ' ') for roi in rois]
-    # factor -= np.mean(factor)
     temp = 1.05 * np.max(np.abs(factor))
     ylim = (-temp, temp)
     n = len(rois)
