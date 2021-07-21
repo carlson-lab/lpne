@@ -17,7 +17,7 @@ def load_lfps(fn):
     Parameters
     ----------
     fn : str
-        File containing LFP data.
+        File containing LFP data. Supported file types: {'.mat'}
 
     Returns
     -------
@@ -47,7 +47,7 @@ def save_features(features, fn):
     features : dict
         ...
     fn : str
-        Where to save the data.
+        Where to save the data. Supported file types: {'.npy'}
     """
     assert isinstance(fn, str)
     if fn.endswith('.npy'):
@@ -67,7 +67,7 @@ def load_features(fn):
     Paramters
     ---------
     fn : str
-        Where the data is saved.
+        Where the data is saved. Supported file types: {'.npy'}
 
     Returns
     -------
@@ -94,7 +94,7 @@ def save_labels(labels, fn):
     labels : numpy.ndarray
         ...
     fn : str
-        Where to save the data.
+        Where to save the data. Supported file types: {'.npy'}
     """
     assert isinstance(fn, str)
     if fn.endswith('.npy'):
@@ -114,7 +114,7 @@ def load_labels(fn):
     Paramters
     ---------
     fn : str
-        Where the data is saved.
+        Where the data is saved. Supported file types: {'.npy'}
 
     Returns
     -------

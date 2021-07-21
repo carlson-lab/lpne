@@ -5,3 +5,4 @@ test_data/*
 *__pycache__*
 docs/source/_*
 docs/build/*
+*.zip

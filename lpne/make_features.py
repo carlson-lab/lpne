@@ -104,7 +104,6 @@ def make_features(lfps, fs=1000, min_freq=0.0, max_freq=55.0,
 
 
 
-
 if __name__ == '__main__':
     pass
 

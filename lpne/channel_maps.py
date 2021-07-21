@@ -145,6 +145,8 @@ def remove_channels(channel_map, to_remove):
     Returns
     -------
     """
+    assert isinstance(channel_map, dict)
+    assert isinstance(to_remove, list)
     for channel in to_remove:
         if channel not in channel_map:
             warnings.warn(f"Channel {channel} isn't in the channel map!")
