@@ -153,7 +153,6 @@ def remove_channels(channel_map, to_remove):
     return channel_map
 
 
-
 def get_removed_channels_from_file(fn):
     """
     Load a list of removed channels from a file.
