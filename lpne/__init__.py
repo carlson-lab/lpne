@@ -23,6 +23,8 @@ from .data import \
 
 from .make_features import make_features
 
+from .models import FaSae
+
 from .normalize import normalize_features
 
 from .plotting import \

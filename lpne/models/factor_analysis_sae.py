@@ -6,11 +6,18 @@ __date__ = "June - July 2021"
 
 
 import numpy as np
+import os
 import torch
-from torch.distributions import Categorical
+from torch.distributions import Categorical, Normal, kl_divergence
 import torch.nn.functional as F
 from torch.utils.data import TensorDataset, DataLoader
 import warnings
+
+
+# https://stackoverflow.com/questions/53014306/
+if float(torch.__version__[:3]) >= 1.9:
+    os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
+
 
 FLOAT = torch.float32
 INT = torch.int64
@@ -20,13 +27,15 @@ INT = torch.int64
 class FaSae(torch.nn.Module):
 
     def __init__(self, n_features, n_classes, reg_strength=1.0, z_dim=20,
-        class_weights=None, weight_reg=1.0, nonnegative=False):
+        class_weights=None, weight_reg=1.0, nonnegative=False,
+        variational=False, kl_factor=1.0):
         """
-        Some notes ...
+        A supervised autoencoder with nonnegative and variational options.
 
         Attributes
         ----------
-        ...
+        trained : bool
+            Whether the model is trained or not.
 
         Parameters
         ----------
@@ -46,6 +55,14 @@ class FaSae(torch.nn.Module):
             Model L2 weight regularization.
         nonnegative : bool, optional
             Use nonnegative factorization.
+        variational : bool, optional
+            Whether a variational autoencoder is used.
+        kl_factor : float, optional
+            How much to weight the KL divergence term in the variational
+            autoencoder (VAE). The standard setting is `1.0`. This is a distinct
+            regularization parameter from `reg_strength` that can be
+            independently set. This parameter is only used if `variational` is
+            `True`.
         """
         super(FaSae, self).__init__()
         assert n_classes > 1, f"{n_classes} <= 1"
@@ -58,6 +75,7 @@ class FaSae(torch.nn.Module):
                     f"Weight regularization should be 0.0 "
                     f"for nonnegative factorization"
             )
+        assert kl_factor >= 0.0, f"{kl_factor} < 0"
         self.trained = False # Has this model been trained yet?
         self.n_features = n_features
         self.reg_strength = reg_strength
@@ -69,7 +87,16 @@ class FaSae(torch.nn.Module):
         self.z_dim = z_dim
         self.weight_reg = weight_reg
         self.nonnegative = nonnegative
+        self.variational = variational
+        self.kl_factor = kl_factor
         self.recognition_model = torch.nn.Linear(self.n_features, self.z_dim)
+        self.rec_model_1 = torch.nn.Linear(self.n_features, self.z_dim)
+        self.rec_model_2 = torch.nn.Linear(self.n_features, self.z_dim)
+        self.linear_layer = torch.nn.Linear(self.z_dim, self.z_dim)
+        self.prior = Normal(
+            torch.zeros(self.z_dim),
+            torch.ones(self.z_dim)
+        )
         self.model = torch.nn.Linear(self.z_dim, self.n_features)
         self.logit_bias = torch.nn.Parameter(
             torch.zeros(1,self.n_classes),
@@ -92,8 +119,20 @@ class FaSae(torch.nn.Module):
         loss : torch.Tensor
             Shape: []
         """
-        # Feed through the recognition network to get latents.
-        zs = self.recognition_model(features)
+        if self.variational:
+            # Feed through the recognition network to get latents.
+            z_mus = self.rec_model_1(features)
+            z_log_stds = self.rec_model_2(features)
+            # Make the variational posterior and get a KL from the prior.
+            dist = Normal(z_mus, z_log_stds.exp())
+            kld = kl_divergence(dist, self.prior).sum(dim=1) # [b]
+            # Sample.
+            zs = dist.rsample() # [b,z]
+            # Project.
+            zs = self.linear_layer(zs)
+        else: # deterministic autoencoder
+            # Feed through the recognition network to get latents.
+            zs = self.recognition_model(features)
         # Reconstruct the features.
         if self.nonnegative:
             A = F.softplus(self.model.weight)
@@ -122,7 +161,10 @@ class FaSae(torch.nn.Module):
         # Regularize the model weights.
         l2_loss = self.weight_reg * torch.norm(A)
         # Combine all the terms into a loss.
-        loss = torch.mean(rec_loss - log_probs) + l2_loss
+        loss = rec_loss - log_probs
+        if self.variational:
+            loss = loss + self.kl_factor * kld
+        loss = torch.mean(loss) + l2_loss
         return loss
 
 
@@ -186,7 +228,7 @@ class FaSae(torch.nn.Module):
         return predictions.cpu().numpy()
 
 
-    def predict_proba(self, features, to_numpy=True):
+    def predict_proba(self, features, to_numpy=True, stochastic=False):
         """
         Probability estimates.
 
@@ -198,6 +240,8 @@ class FaSae(torch.nn.Module):
         ----------
         features : numpy.ndarray
             Shape: [batch, n_features]
+        to_numpy : bool, optional
+        stochastic : bool, optional
 
         Returns
         -------
@@ -205,8 +249,21 @@ class FaSae(torch.nn.Module):
             Shape: [batch, n_classes]
         """
         with torch.no_grad():
-            # Feed through the recognition network to get latents.
-            zs = self.recognition_model(features)
+            if self.variational:
+                # Feed through the recognition network to get latents.
+                z_mus = self.rec_model_1(features)
+                z_log_stds = self.rec_model_2(features)
+                if stochastic:
+                    # Make the variational posterior and sample.
+                    dist = Normal(z_mus, z_log_stds.exp())
+                    zs = dist.rsample() # [b,z]
+                else:
+                    zs = z_mus
+                # Project.
+                zs = self.linear_layer(zs)
+            else: # deterministic autoencoder
+                # Feed through the recognition network to get latents.
+                zs = self.recognition_model(features)
             # Get class predictions.
             logits = zs[:,:self.n_classes-1]
             ones = torch.ones(
@@ -261,6 +318,9 @@ class FaSae(torch.nn.Module):
             'n_classes': self.n_classes,
             'class_weights': self.class_weights,
             'z_dim': self.z_dim,
+            'nonnegative': self.nonnegative,
+            'variational': self.variational,
+            'kl_factor': self.kl_factor,
 		}
 
 
@@ -278,6 +338,9 @@ class FaSae(torch.nn.Module):
         self.trained = params['trained']
         self.reg_strength = params['reg_strength']
         self.class_weights = params['class_weights']
+        self.nonnegative = params['nonnegative']
+        self.variational = params['variational']
+        self.kl_factor = params['kl_factor']
         self.load_state_dict(params['model_state_dict'])
 
 
@@ -328,11 +391,19 @@ if __name__ == '__main__':
     print("Class weights:", class_weights)
 
     # Make the model.
-    model = FaSae(n_features, n_classes, class_weights=class_weights)
+    model = FaSae(
+            n_features,
+            n_classes,
+            class_weights=class_weights,
+            weight_reg=0.0,
+            nonnegative=True,
+            variational=True,
+            kl_factor=0.1,
+    )
 
     # Fit the model.
     print("Training model...")
-    model.fit(features, labels)
+    model.fit(features, labels, epochs=5000, print_freq=250)
 
     # Make some predictions.
     print("Making predictions...")
