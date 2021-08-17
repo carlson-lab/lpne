@@ -65,6 +65,7 @@ if __name__ == '__main__':
     labels = np.concatenate(labels, axis=0)
     n_classes = 1 + np.max(labels)
     n_features = features.shape[1] * features.shape[2]
+    print("Number of features:", n_features)
 
     # Define a test/train split.
     idx = int(round(0.7 * len(features)))
@@ -99,16 +100,17 @@ if __name__ == '__main__':
     # Fit the model.
     print("Training model...")
     model.fit(features[train_idx], labels[train_idx])
+    print("Done training.\n")
 
     # Plot factor.
+    print("Plotting factors...")
     factor = model.get_factor(0)
-    print("factor 1", np.min(factor), np.max(factor))
     lpne.plot_factor(factor, rois, fn='factor_1.pdf')
     factor = model.get_factor(1)
-    print("factor 2", np.min(factor), np.max(factor))
     lpne.plot_factor(factor, rois, fn='factor_2.pdf')
 
     # Save the model.
+    print("Saving model...")
     model.save_state(os.path.join(exp_dir, 'model_state.npy'))
 
     # Make some predictions.

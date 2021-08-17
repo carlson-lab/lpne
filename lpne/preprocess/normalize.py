@@ -3,7 +3,7 @@ Normalize features
 
 TO DO
 -----
-* methods for normalizing within mouse
+* add more normalization methods
 """
 __date__ = "July 2021"
 

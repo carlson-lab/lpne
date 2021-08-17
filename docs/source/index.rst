@@ -6,6 +6,14 @@
 Welcome to lpne's documentation!
 ================================
 
+**Installation**
+
+.. code-block:: bash
+
+   $ git clone https://github.com/carlson-lab/lpne.git
+   $ cd lpne
+   $ pip install .
+
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
@@ -13,6 +21,16 @@ Welcome to lpne's documentation!
 
 .. automodule:: lpne
   :members:
+
+
+  .. toctree::
+     :maxdepth: 1
+     :caption: Docs:
+
+     lpne.models
+     lpne.plotting
+     lpne.preprocess
+     lpne.utils
 
 
 Indices and tables

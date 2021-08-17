@@ -19,3 +19,6 @@ print("Hello world")
 7. add docstrings for channel maps
 9. Add a Tucker decomposition model? <- could be a good way to separate
    between-mouse differences
+10. PoE?
+11. Plot LFPs
+12. Manually remove regions from LFPs

@@ -1,8 +1,8 @@
 """
-Channel maps for deciding which channels to average together
+Channel maps are used to determine which channels to average together
 
 """
-__date__ = "July 2021"
+__date__ = "July - August 2021"
 
 
 import numpy as np
@@ -15,7 +15,7 @@ IGNORED_KEYS = [
     '__version__',
     '__globals__',
 ]
-"""Ignored keys in the LFP data file."""
+"""Ignored keys in the LFP data file"""
 
 
 
@@ -23,7 +23,7 @@ def average_channels(lfps, channel_map, check_channel_map=True):
     """
     Average different channels in the the same region.
 
-    Expected behavior --
+    Expected behavior -- ... finish this
 
     Parameters
     ----------
@@ -144,6 +144,8 @@ def remove_channels(channel_map, to_remove):
 
     Returns
     -------
+    channel_map : dict
+        The input channel map with deleted keys.
     """
     assert isinstance(channel_map, dict)
     assert isinstance(to_remove, list)
@@ -177,7 +179,7 @@ def get_removed_channels_from_file(fn):
     if fn.endswith('.mat'):
         # try:
         data = loadmat(fn)
-        # except: for old .mat files...
+        # except: for old .mat files in hdf5 format...
         assert('CHANNAMES' in data), f"{fn} must contain CHANNAMES!"
         assert('CHANACTIVE' in data), f"{fn} must contain CHANACTIVE!"
         channel_active = data['CHANACTIVE'].flatten()
