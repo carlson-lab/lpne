@@ -47,7 +47,7 @@ def average_channels(lfps, channel_map, check_channel_map=True):
         avg = []
         for roi in lfps.keys():
             if roi in channel_map and channel_map[roi] == grouped_roi:
-                avg.append(lfps[roi])
+                avg.append(lfps[roi].flatten())
         if len(avg) == 0:
             warnings.warn(f"No channels to make grouped channel {grouped_roi}!")
         else:

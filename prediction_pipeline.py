@@ -55,6 +55,7 @@ if __name__ == '__main__':
     lpne.write_fake_labels(feature_dir, label_dir)
 
     # Collect all the features and labels.
+    # TO DO: make a function to do this.
     features, labels = [], []
     for feature_fn, label_fn in zip(feature_fns, label_fns):
         temp = lpne.load_features(feature_fn)

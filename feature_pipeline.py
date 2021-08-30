@@ -78,6 +78,9 @@ if __name__ == '__main__':
         # Average channels in the same region together.
         lfps = lpne.average_channels(lfps, channel_map)
 
+        # # ???
+        # lfps = lpne.normalize_lfps(lfps)
+
         # Make features.
         features = lpne.make_features(lfps)
 

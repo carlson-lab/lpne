@@ -22,3 +22,4 @@ print("Hello world")
 10. PoE?
 11. Plot LFPs
 12. Manually remove regions from LFPs
+13. GUI for labeling windows

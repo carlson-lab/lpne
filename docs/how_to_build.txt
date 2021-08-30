@@ -1,0 +1,8 @@
+To make the docs locally:
+
+$ make html
+
+Then open build/html/index.html.
+
+To edit the docs, change the *.rst files in source or add more *.rst files
+and mention them in source/index.rst.

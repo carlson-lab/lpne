@@ -33,7 +33,8 @@ def test_make_features_1():
         assert 'rois' in res
         n_window = int(np.ceil(window_duration * n_samples / fs))
         roi_pairs = (n_rois * (n_rois+1)) // 2
-        assert res['power'].shape[:2] == (n_window,roi_pairs)
+        assert res['power'].shape[:2] == (n_window,roi_pairs), \
+                f"{res['power'].shape}, ({n_window},{roi_pairs})"
         assert len(res['freq'] == res['power'].shape[2]), \
                 "Inconsistent numbers of frequencies!"
         assert len(res['rois']) == n_rois, "Incorrect number of ROIs!"

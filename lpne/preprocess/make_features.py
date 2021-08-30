@@ -1,12 +1,8 @@
 """
 Make features
 
-TO DO
------
-* Add window overlap
-
 """
-__date__ = "July 2021"
+__date__ = "July - August 2021"
 
 
 import numpy as np
@@ -14,9 +10,7 @@ from scipy.io import loadmat
 from scipy.signal import welch, csd
 
 
-FN = 'test_data/Mouse5_012514_Mouse5_Sleep_01_LFP.mat'
-FS = 1000
-
+EPSILON = 1e-6
 SHARED_PARAMS = {
     'detrend': 'linear',
     'window': 'hann',
@@ -28,7 +22,7 @@ SHARED_PARAMS = {
 
 
 def make_features(lfps, fs=1000, min_freq=0.0, max_freq=55.0,
-    window_duration=5.0, window_overlap=0.0):
+    window_duration=5.0, window_step=None, max_n_windows=None):
     """
     Main function: make features from an LFP waveform.
 
@@ -49,11 +43,16 @@ def make_features(lfps, fs=1000, min_freq=0.0, max_freq=55.0,
     fs : int, optional
         LFP samplerate
     min_freq : float, optional
-        ...
+        Minimum frequency
     max_freq : float, optional
-        ....
+        Maximum frequency
     window_duration : float, optional
-        Window duration
+        Window duration, in seconds
+    window_step : None or float, optional
+        Time between consecutive window onsets, in seconds. If `None`, this is
+        set to `window_duration`.
+    max_n_windows : None or int, optional
+        Maximum number of windows
 
     Returns
     -------
@@ -67,12 +66,24 @@ def make_features(lfps, fs=1000, min_freq=0.0, max_freq=55.0,
         'rois' : list of str
             Sorted list of grouped channel names.
     """
-    if window_overlap != 0.0:
-        raise NotImplementedError("Non-zero window overlap!")
-
+    if window_step is None:
+        window_step = window_duration
+    assert window_step > 0.0, f"Nonpositive window step: {window_step}"
+    assert max_n_windows is None or max_n_windows > 0
     rois = sorted(lfps.keys())
     n = len(rois)
+    assert n >= 1, f"{n} < 1"
+    duration = len(lfps[rois[0]]) / fs
+    assert duration >= window_duration, \
+            f"LFPs are too short: {duration} < {window_duration}"
     window_samp = int(fs * window_duration)
+    onsets = np.arange(
+            0.0,
+            duration - window_duration + EPSILON,
+            window_step,
+    )
+    if max_n_windows is not None:
+        onsets = onsets[:max_n_windows]
 
     # Make cross power spectral density features for each pair of ROIs.
     for i in range(len(rois)):
@@ -81,13 +92,13 @@ def make_features(lfps, fs=1000, min_freq=0.0, max_freq=55.0,
             lfp_j = lfps[rois[j]].flatten()
             if i == 0 and j == 0:
                 k = window_samp
-                n_window = int(np.floor(len(lfp_i) / window_samp))
                 f, _ = csd(lfp_i[:k], lfp_j[:k], fs=fs, **SHARED_PARAMS)
                 i1, i2 = np.searchsorted(f, [min_freq, max_freq])
-                power = np.zeros((n_window, (n*(n+1))//2, i2-i1))
+                power = np.zeros((len(onsets), (n*(n+1))//2, i2-i1))
             idx = (i * (i + 1)) // 2 + j
-            for k in range(n_window):
-                k1, k2 = k*window_samp, (k+1)*window_samp
+            for k in range(len(onsets)):
+                k1 = int(fs*onsets[k])
+                k2 = k1 + window_samp
                 _, Cxy = csd(lfp_i[k1:k2], lfp_j[k1:k2], fs=fs, **SHARED_PARAMS)
                 power[k,idx] = np.abs(Cxy[i1:i2])
 
@@ -95,7 +106,7 @@ def make_features(lfps, fs=1000, min_freq=0.0, max_freq=55.0,
     freq = f[i1:i2]
     power[:,:] *= freq
 
-    # Assemble features.
+    # Assemble and return features.
     return {
         'power': power,
         'freq': freq,

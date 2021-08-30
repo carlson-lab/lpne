@@ -6,3 +6,4 @@ test_data/*
 docs/source/_*
 docs/build/*
 *.zip
+*.mp4

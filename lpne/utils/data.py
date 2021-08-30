@@ -13,6 +13,7 @@ import warnings
 
 def load_lfps(fn):
     """
+    Load LFPs from the given filename.
 
     Parameters
     ----------

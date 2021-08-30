@@ -1,9 +1,6 @@
 """
 Plot cross power spectral density features in a grid.
 
-TO DO
------
-* Make an animated version of the plot.
 """
 __date__ = "July 2021"
 
@@ -28,7 +25,8 @@ def plot_power(power, rois, fn='temp.pdf'):
     """
     pretty_rois = [roi.replace('_', ' ') for roi in rois]
     ylim = (-0.05*np.max(power), 1.05*np.max(power))
-    n = int(np.floor(np.sqrt(2*power.shape[0]+0.5)))
+    n = int(round((-1 + np.sqrt(1+8*power.shape[0]))/2))
+    assert n == len(rois)
     fig, axarr = plt.subplots(n,n)
     for i in range(n):
         for j in range(i+1):

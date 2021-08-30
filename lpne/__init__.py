@@ -22,7 +22,8 @@ from .models import FaSae
 
 from .plotting import \
         plot_factor, \
-        plot_power
+        plot_power, \
+        make_power_movie
 
 from .utils.utils import \
         write_fake_labels, \
