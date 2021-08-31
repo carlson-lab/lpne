@@ -17,6 +17,7 @@ from moviepy.video.io.bindings import mplfig_to_npimage
 import lpne
 
 COLOR = 'tab:blue'
+FONTSIZE = 12
 
 
 
@@ -32,11 +33,9 @@ def make_power_movie(lfps, duration, window_duration, fs=1000, speed_factor=5,
     -----
 
     """
+    # Get the features.
     movie_duration = duration / speed_factor
-    print("movie_duration", movie_duration)
     window_step = speed_factor / fps
-    print("window_duration", window_duration)
-    print("window_step", window_step)
     res = lpne.make_features(
             lfps,
             fs=fs,
@@ -46,14 +45,25 @@ def make_power_movie(lfps, duration, window_duration, fs=1000, speed_factor=5,
 
     # Set up the plot.
     power = res['power']
-    print("power", power.shape)
     n_freqs = power.shape[2]
     rois = list(lfps.keys())
     fig, axarr = _set_up_plot(power[0], rois)
 
     frames = []
+    title = fig.suptitle("", fontsize=FONTSIZE, y=0.93)
     for k in range(power.shape[0]):
         to_remove = []
+        t = k*window_step
+        time_str = str(int(np.floor(t / 3600))).zfill(2)
+        time_str += ":" + str(int(np.floor(t / 60))).zfill(2)
+        time_str += ":" + str(int(np.floor(t % 60))).zfill(2)
+        # fig.suptitle(
+        #         time_str,
+        #         fontsize=FONTSIZE,
+        #         y=0.93,
+        # )
+        title.set_text(time_str)
+        # to_remove.append(to_remove_part)
         for i in range(len(rois)):
             for j in range(i+1):
                 idx = (i * (i+1)) // 2 + j

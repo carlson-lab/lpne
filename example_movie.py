@@ -19,14 +19,12 @@ if __name__ == '__main__':
     lfps = lpne.load_lfps(FN)
 
     # Get the default channel grouping.
-    channel_map = lpne.get_default_channel_map(list(lfps.keys()), combine_hemispheres=True)
+    channel_map = lpne.get_default_channel_map(list(lfps.keys()))
 
     # Average channels in the same region together.
     lfps = lpne.average_channels(lfps, channel_map)
 
     lpne.make_power_movie(lfps, 50.0, 3.0, fps=15)
-
-
 
 
 
