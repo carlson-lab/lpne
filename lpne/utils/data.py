@@ -2,7 +2,7 @@
 Data utilities
 
 """
-__date__ = "July 2021"
+__date__ = "July - September 2021"
 
 
 import numpy as np
@@ -43,8 +43,8 @@ def save_features(features, fn):
     ------
     * NotImplementedError if `fn` is an unsupported file type.
 
-    Paramters
-    ---------
+    Parameters
+    ----------
     features : dict
         ...
     fn : str
@@ -63,10 +63,10 @@ def load_features(fn):
 
     Raises
     ------
-    * NotImplementedError if `fn` is an unsupported file type.
+    * `NotImplementedError` if `fn` is an unsupported file type.
 
-    Paramters
-    ---------
+    Parameters
+    ----------
     fn : str
         Where the data is saved. Supported file types: {'.npy'}
 
@@ -90,8 +90,8 @@ def save_labels(labels, fn):
     ------
     * NotImplementedError if `fn` is an unsupported file type.
 
-    Paramters
-    ---------
+    Parameters
+    ----------
     labels : numpy.ndarray
         ...
     fn : str
@@ -112,8 +112,8 @@ def load_labels(fn):
     ------
     * NotImplementedError if `fn` is an unsupported file type.
 
-    Paramters
-    ---------
+    Parameters
+    ----------
     fn : str
         Where the data is saved. Supported file types: {'.npy'}
 

@@ -1,14 +1,15 @@
 """
 LPNE feature pipeline
 
-Some general info about lpne...
+Code for preprocessing and building models with local field potentials.
 
 """
-__date__ = "July - August 2021"
-__version__ = "0.0.1"
+__date__ = "July - September 2021"
+__version__ = "0.0.2"
 
 
 from .preprocess.channel_maps import \
+        IGNORED_KEYS, \
         average_channels, \
         get_default_channel_map, \
         remove_channels, \
@@ -21,6 +22,7 @@ from .preprocess.normalize import normalize_features
 from .models import FaSae
 
 from .plotting import \
+        plot_lfps, \
         plot_factor, \
         plot_power, \
         make_power_movie

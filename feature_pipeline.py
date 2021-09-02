@@ -42,6 +42,7 @@ CHANS_SUBDIR = 'CHANS'
 FEATURE_SUBDIR = 'features'
 LFP_SUFFIX = '_LFP.mat'
 CHANS_SUFFIX = '_CHANS.mat'
+FS = 1000
 
 
 
@@ -65,6 +66,17 @@ if __name__ == '__main__':
     for file_num in range(len(lfp_fns)):
         # Load LFP data.
         lfps = lpne.load_lfps(lfp_fns[file_num])
+
+        # Plot the LFPs for fun.
+        if file_num == 0:
+            lpne.plot_lfps(
+                    lfps,
+                    t1=1.0,
+                    t2=5.0,
+                    fs=FS,
+                    window_duration=2.0,
+                    fn='example_lfps.pdf',
+            )
 
         # Get the default channel grouping.
         channel_map = lpne.get_default_channel_map(list(lfps.keys()))

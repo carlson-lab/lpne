@@ -1,9 +1,6 @@
 """
 Plot power in a movie.
 
-TO DO
------
-* plot the time
 """
 __date__ = "August 2021"
 
@@ -57,13 +54,7 @@ def make_power_movie(lfps, duration, window_duration, fs=1000, speed_factor=5,
         time_str = str(int(np.floor(t / 3600))).zfill(2)
         time_str += ":" + str(int(np.floor(t / 60))).zfill(2)
         time_str += ":" + str(int(np.floor(t % 60))).zfill(2)
-        # fig.suptitle(
-        #         time_str,
-        #         fontsize=FONTSIZE,
-        #         y=0.93,
-        # )
         title.set_text(time_str)
-        # to_remove.append(to_remove_part)
         for i in range(len(rois)):
             for j in range(i+1):
                 idx = (i * (i+1)) // 2 + j

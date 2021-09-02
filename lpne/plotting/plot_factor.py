@@ -1,9 +1,6 @@
 """
 Plot a linear cross power spectral density feature on a grid.
 
-TO DO
------
-* Make an animated version of the plot.
 """
 __date__ = "July 2021"
 
