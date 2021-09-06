@@ -1,4 +1,3 @@
-*.DS_Store
 *.pdf
 *.jpg
 test_data/*
@@ -7,3 +6,5 @@ docs/source/_*
 docs/build/*
 *.zip
 *.mp4
+.ipynb_checkpoints
+*.DS_Store
