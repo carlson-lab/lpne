@@ -3,30 +3,22 @@ Automated sleep labeling app.
 
 TO DO
 -----
-* clean imports
 * restructure
 * two plots
-* check out subsampling
+* check CHANS files
+* max number of points plotted
 """
 __date__ = "September 2021"
 
-from bokeh.layouts import column
-from bokeh.models import Button
-from bokeh.palettes import RdYlBu3
-from bokeh.plotting import figure, curdoc
 
-# more imports
-from bokeh.models.callbacks import CustomJS
-from bokeh.io import show, output_notebook
 from bokeh.layouts import column, row
-from bokeh.models import ColumnDataSource, Button, TextInput, MultiSelect, \
-        Panel, Tabs, Slider, PreText, CheckboxGroup
-from bokeh.plotting import figure
-from bokeh.themes import Theme
+from bokeh.models import Button, CheckboxGroup, ColumnDataSource, MultiSelect, \
+        Panel, PreText, Slider, Tabs, TextInput
+from bokeh.models.callbacks import CustomJS
+from bokeh.plotting import figure, curdoc
 from matplotlib.colors import to_hex
 import numpy as np
 import os
-import numpy as np
 from scipy.signal import iirnotch, lfilter, stft, butter
 
 import lpne
@@ -37,13 +29,23 @@ BUTTON_SIZE = 200
 MULTISELECT_HEIGHT = 500
 SCATTER_SIZE = 8
 DEFAULT_LFP_DIR = '/Users/jack/Desktop/lpne/test_data/Data/'
+DEFAULT_LABEL_DIR = '/Users/jack/Desktop/lpne/test_data/labels/2s/'
 TOOLS = 'lasso_select,pan,wheel_zoom,reset'
-WAKE_COLOR = to_hex('dodgerblue')
-NREM_COLOR = to_hex('mediumseagreen')
-REM_COLOR = to_hex('darkorchid')
-UNLABELED_COLOR = to_hex('peru')
+
+LABELS = ['Wake', 'NREM', 'REM', 'Unlabeled']
+COLORS = ['dodgerblue', 'mediumseagreen', 'darkorchid', 'peru']
+COLORS = [to_hex(i) for i in COLORS]
+
+# State.
+LFP_INFO = {}
+INVALID_FILE = None
+
+# File-related constants.
+LFP_SUFFIX = '_LFP.mat'
+LABEL_SUFFIX = '.npy'
 
 # Preprocessing constants
+DEFAULT_DURATION = 2
 RATIO_1 = (2, 20, 55)
 RATIO_2 = (2, 4.5, 9)
 ORDER = 4 # bandpass
@@ -55,8 +57,12 @@ LFP_HIGHCUT = 55.0
 Q = 1.5
 
 
-def my_app(doc):
+
+def sleep_app(doc):
     """Sleep labeling app."""
+    ################
+    # Scatter tab. #
+    ################
     source = ColumnDataSource()
     plot = figure(tools=TOOLS)
     plot.circle(
@@ -68,82 +74,43 @@ def my_app(doc):
             line_color=None,
     )
 
-    wake_button = Button(label="Wake", default_size=BUTTON_SIZE)
-    nrem_button = Button(label="NREM", default_size=BUTTON_SIZE)
-    rem_button = Button(label="REM", default_size=BUTTON_SIZE)
-    unlabeled_button = Button(label="Unlabeled", default_size=BUTTON_SIZE)
+    label_buttons = []
+    for i in range(len(LABELS)):
+        button = Button(label=LABELS[i], default_size=BUTTON_SIZE)
+        button.js_on_click(
+            CustomJS(
+                args=dict(source=source),
+                code=f"""
+                    var color = source.data['color']
+                    var idx = source.selected.indices;
+                    var selected_length = idx.length;
+                    for (var i=0; i<selected_length; i++) {{
+                        color[idx[i]] = '{COLORS[i]}';
+                    }}
+                    source.selected.indices = [];
+                    source.change.emit();
+                """,
+        ))
+        label_buttons.append(button)
 
-    wake_button.js_on_click(
-        CustomJS(
-            args=dict(source=source),
-            code=f"""
-                var color = source.data['color']
-                var idx = source.selected.indices;
-                var selected_length = idx.length;
-                for (var i=0; i<selected_length; i++) {{
-                    color[idx[i]] = '{WAKE_COLOR}';
-                }}
-                source.selected.indices = [];
-                source.change.emit();
-            """,
-    ))
-    nrem_button.js_on_click(
-        CustomJS(
-            args=dict(source=source),
-            code=f"""
-                var color = source.data['color']
-                var idx = source.selected.indices;
-                var selected_length = idx.length;
-                for (var i=0; i<selected_length; i++) {{
-                    color[idx[i]] = '{NREM_COLOR}';
-                }}
-                source.selected.indices = [];
-                source.change.emit();
-            """,
-    ))
-    rem_button.js_on_click(
-        CustomJS(
-            args=dict(source=source),
-            code=f"""
-                var color = source.data['color']
-                var idx = source.selected.indices;
-                var selected_length = idx.length;
-                for (var i=0; i<selected_length; i++) {{
-                    color[idx[i]] = '{REM_COLOR}';
-                }}
-                source.selected.indices = [];
-                source.change.emit();
-            """,
-    ))
-    unlabeled_button.js_on_click(
-        CustomJS(
-            args=dict(source=source),
-            code=f"""
-                var color = source.data['color']
-                var idx = source.selected.indices;
-                var selected_length = idx.length;
-                for (var i=0; i<selected_length; i++) {{
-                    color[idx[i]] = '{UNLABELED_COLOR}';
-                }}
-                source.selected.indices = [];
-                source.change.emit();
-            """,
-    ))
-
+    ###################
+    # Input data tab. #
+    ###################
 
     def load_dir_input_callback(attr, old, new):
-        """
-        If the directory exists, populate the file selector.
-
-        """
+        """If the directory exists, populate the file selector."""
         if os.path.exists(new):
-            update_multi_select(os.listdir(new))
+            update_multi_select(_my_listdir(new))
+            if len(new.split(os.path.sep)) > 1:
+                save_dir = new.split(os.path.sep)[:-1]
+                save_dir.append(str(window_slider.value)+'s')
+                save_dir_input.value = os.path.join(*save_dir)
         else:
-            print(attr, "invalid")
+            alert_box.text = f"Not a valid directory: {new}"
 
     multi_select = MultiSelect(
             value=[],
-            options=os.listdir(DEFAULT_LFP_DIR),
+            options=_my_listdir(DEFAULT_LFP_DIR),
             title="Select LFP files:",
             height=MULTISELECT_HEIGHT,
     )
@@ -152,18 +119,37 @@ def my_app(doc):
         multi_select.options = new_options
         print("updated!")
 
-    load_dir_input = TextInput(value=DEFAULT_LFP_DIR, title="Enter LFP directory:")
+    load_dir_input = TextInput(
+            value=DEFAULT_LFP_DIR,
+            title="Enter LFP directory:",
+    )
     load_dir_input.on_change("value", load_dir_input_callback)
 
-    emg_channel_input = TextInput(value="EMG_trap", title="Enter EMG channel name:")
-    hipp_channel_input = TextInput(value="Hipp_D_L_02", title="Enter Hipp channel name:")
+    emg_channel_input = TextInput(
+            value="EMG_trap",
+            title="Enter EMG channel name:",
+    )
+    hipp_channel_input = TextInput(
+            value="Hipp_D_L_02",
+            title="Enter Hipp channel name:",
+    )
     window_slider = Slider(
             start=1,
             end=20,
-            value=2,
+            value=DEFAULT_DURATION,
             step=1,
             title="Window duration (s)",
     )
+
+    def window_slider_callback(attr, old, new):
+        load_dir = load_dir_input.value
+        if os.path.exists(load_dir) and len(load_dir.split(os.path.sep)) > 1:
+            save_dir = load_dir.split(os.path.sep)[:-1]
+            save_dir.append(str(window_slider.value)+'s')
+            save_dir_input.value = os.path.join(*save_dir)
+
+    window_slider.on_change("value", window_slider_callback)
+
     fs_input = TextInput(value="1000", title="Enter samplerate (Hz):")
 
     alert_box = PreText(text="")
@@ -176,11 +162,8 @@ def my_app(doc):
         hipp_channel_input=hipp_channel_input, window_slider=window_slider, \
         fs_input=fs_input, load_button=load_button, alert_box=alert_box, \
         source=source):
-        """
-        Load the LFPs.
-
-
-        """
+        """Load the LFPs."""
+        global INVALID_FILE
         # Make sure the LFP files are selected.
         lfp_dir = load_dir_input.value
         lfp_fns = sorted([os.path.join(lfp_dir,i) for i in multi_select.value])
@@ -197,15 +180,22 @@ def my_app(doc):
             return
 
         # Just load the first LFP to make sure the right channels exist.
-        lfps = lpne.load_lfps(lfp_fns[0])
+        try:
+            lfps = lpne.load_lfps(lfp_fns[0])
+        except NotImplementedError:
+            load_button.button_type = "warning"
+            alert_box.text = f"LPNE cannot load file: {lfp_fns[0]}"
+            return
         all_keys = list(lfps.keys())
         if emg_channel not in lfps:
             load_button.button_type = "warning"
-            alert_box.text = f"Didn't find the channel '{emg_channel}' in: {all_keys}"
+            alert_box.text = \
+                    f"Didn't find the channel '{emg_channel}' in: {all_keys}"
             return
         if hipp_channel not in lfps:
             load_button.button_type = "warning"
-            alert_box.text = f"Didn't find the channel '{emg_channel}' in: {all_keys}"
+            alert_box.text = \
+                    f"Didn't find the channel '{emg_channel}' in: {all_keys}"
             return
 
         # Make sure the samplerate is valid.
@@ -220,20 +210,25 @@ def my_app(doc):
 
         # Load and process the rest of the LFPs.
         load_button.label = 'Loading...'
-        X1 = get_emg_lfp_features(
+        try:
+            X1 = get_emg_lfp_features(
                 lfp_fns,
                 hipp_channel,
                 emg_channel,
                 window_slider.value,
                 window_slider.value,
                 fs,
-        )
+            )
+        except NotImplementedError:
+            load_button.button_type = "warning"
+            alert_box.text = f"LPNE cannot load file: {INVALID_FILE}"
+            return
 
         # Update source.
         new_data = dict(
             x=X1[:,0],
             y=X1[:,1],
-            color=[UNLABELED_COLOR]*len(X1),
+            color=[COLORS[-1]]*len(X1),
         )
         source.data = new_data
 
@@ -244,32 +239,59 @@ def my_app(doc):
 
     load_button.on_click(load_callback)
 
-    # Save tab.
-    save_dir_input = TextInput(value=DEFAULT_LFP_DIR, title="Enter label directory:")
-    save_button = Button(label="Save", default_size=200)
-
-    def save_callback(save_button=save_button):
-        save_button.label = "Saved"
-        save_button.button_type="success"
-
-    save_button.on_click(save_callback)
-
+    #############
+    # Save tab. #
+    #############
     overwrite_checkbox = CheckboxGroup(
             labels=["Overwrite existing files?"],
             active=[],
     )
+    save_dir_input = TextInput(
+            value=DEFAULT_LABEL_DIR,
+            title="Enter label directory:",
+    )
+    save_button = Button(label="Save", default_size=200)
+
+    def save_callback(save_button=save_button, save_dir_input=save_dir_input,
+        overwrite_checkbox=overwrite_checkbox):
+        """Save the sleep labels."""
+        save_dir = save_dir_input.value
+        overwrite = 0 in overwrite_checkbox.active
+        if not os.path.exists(save_dir):
+            alert_box.text = f"Directory does not exist: {save_dir}"
+            save_button.button_type="warning"
+            return
+        i = 0
+        for lfp_fn in sorted(list(LFP_INFO.keys())):
+            label_fn = os.path.split(lfp_fn)[-1][:-len(LFP_SUFFIX)]
+            label_fn = os.path.join(save_dir, label_fn + LABEL_SUFFIX)
+            j = i + LFP_INFO[lfp_fn]
+            labels = [COLORS.index(c) for c in source.data['color'][i:j]]
+            try:
+                lpne.save_labels(labels, label_fn, overwrite=overwrite)
+            except AssertionError:
+                save_button.button_type="warning"
+                alert_box.text = "File already exists!"
+                return
+        save_button.label = "Saved"
+        save_button.button_type="success"
+        alert_box.text = ""
+
+    save_button.on_click(save_callback)
 
     # Fake data.
     x = [1,2,3,4,5]
     y = [5,5,4,6,2]
-    color = [UNLABELED_COLOR]*len(x)
+    color = [COLORS[-1]]*len(x)
     source.data = dict(
         x=x,
         y=y,
         color=color,
     )
 
-    # Layout.
+    ###########
+    # Layout. #
+    ###########
     column_1 = column(load_button, load_dir_input, multi_select)
     column_2 = column(
             emg_channel_input,
@@ -282,18 +304,14 @@ def my_app(doc):
         child=row(column_1, column_2),
         title="Data Stuff",
     )
-    buttons = column(
-            wake_button,
-            nrem_button,
-            rem_button,
-            unlabeled_button,
-    )
+    buttons = column(*(label_buttons+[alert_box]))
     tab_2 = Panel(
         child=row(buttons, plot),
         title="Sleep Selection",
     )
+    save_column = column(save_dir_input,overwrite_checkbox,save_button)
     tab_3 = Panel(
-        child=column(save_dir_input,overwrite_checkbox,save_button),
+        child=row(save_column, alert_box),
         title="Save Labels",
     )
     tabs = Tabs(tabs=[tab_1, tab_2, tab_3])
@@ -303,17 +321,22 @@ def my_app(doc):
 
 def get_emg_lfp_features(lfp_fns, hipp_channel, emg_channel, window_duration,
     window_step, fs):
-    """
-    ...
-
-    """
+    """ """
+    global LFP_INFO, INVALID_FILE
+    LFP_INFO = {}
     # Collect stats for each window.
     window_samples = int(fs * window_duration)
     step_samples = int(fs * window_step)
     all_emg_power, all_dhipp_rms = [], []
-    for lfp_fn in lfp_fns:
+    for lfp_fn in sorted(lfp_fns):
+        # assert lfp_fn.endswith(LFP_SUFFIX), \
+        #         f"{lfp_fn} doesn't end with {LFP_SUFFIX}"
         # Load the LFPs.
-        lfps = lpne.load_lfps(lfp_fn)
+        try:
+            lfps = lpne.load_lfps(lfp_fn)
+        except NotImplementedError:
+            INVALID_FILE = lfp_fn
+            raise NotImplementedError
         assert emg_channel in lfps, f"{emg_channel} not in " \
                 f"{list(lfps.keys())} in file {lfp_fn}"
         assert hipp_channel in lfps, f"{hipp_channel} not in " \
@@ -330,6 +353,8 @@ def get_emg_lfp_features(lfp_fns, hipp_channel, emg_channel, window_duration,
         # dhipp_ratio_1 = _process_lfp_trace(dhipp_tr[:], r=RATIO_1)
         # dhipp_ratio_2 = _process_lfp_trace(dhipp_tr[:], r=RATIO_2)
         dhipp_rms = _rms_lfp_trace(dhipp_tr, fs, window_samples, step_samples)
+        assert len(emg_power) == len(dhipp_rms)
+        LFP_INFO[lfp_fn] = len(dhipp_rms)
         all_emg_power.append(emg_power)
         all_dhipp_rms.append(dhipp_rms)
     emgs = np.concatenate(all_emg_power, axis=0)
@@ -342,8 +367,6 @@ def get_emg_lfp_features(lfp_fns, hipp_channel, emg_channel, window_duration,
 
 def _process_emg_trace(trace, fs, window_samples, step_samples):
 	"""Calculate the RMS power over two fixed frequency bins."""
-	# Subsample.
-	trace = trace[::2]
 	# Bandpass.
 	trace = _butter_bandpass_filter(
             trace,
@@ -372,8 +395,6 @@ def _process_emg_trace(trace, fs, window_samples, step_samples):
 
 
 # def _process_lfp_trace(trace, r=(2.0,4.5,9.0)):
-# 	# Subsample.
-# 	trace = trace[::2]
 # 	# Walk through the trace, collecting powers in different frequency ranges.
 # 	data = []
 # 	for i in range(0, len(trace)-WINDOW_SAMPLES, STEP_SAMPLES):
@@ -389,8 +410,6 @@ def _process_emg_trace(trace, fs, window_samples, step_samples):
 
 
 def _rms_lfp_trace(trace, fs, window_samples, step_samples):
-	# Subsample.
-	trace = trace[::2]
 	# Bandpass.
 	trace = _butter_bandpass_filter(trace, LFP_LOWCUT, LFP_HIGHCUT, fs)
 	# Walk through the trace, collecting powers in different frequency ranges.
@@ -416,12 +435,13 @@ def _butter_bandpass_filter(data, lowcut, highcut, fs, order=ORDER):
 	return y
 
 
-
+def _my_listdir(dir):
+    return sorted([i for i in os.listdir(dir) if not i.startswith('.')])
 
 
 
 # Run the app.
-my_app(curdoc())
+sleep_app(curdoc())
 
 
 ###

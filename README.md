@@ -13,8 +13,8 @@ $ pip install .
 ```
 
 #### Dependencies
+* [Python3](https://www.python.org/)
 * [MoviePy](https://github.com/Zulko/moviepy)
-* [ipympl](https://github.com/matplotlib/ipympl)
 
 
 ### TO DO
@@ -28,5 +28,5 @@ $ pip install .
    between-mouse differences
 10. PoE?
 12. Manually remove regions from LFPs
-13. GUI for labeling windows
-14. Make sleep labels
+15. GUI for inspecting sleep labels
+16. Filter before normalizing channels

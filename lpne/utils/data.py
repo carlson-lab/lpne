@@ -6,6 +6,7 @@ __date__ = "July - September 2021"
 
 
 import numpy as np
+import os
 from scipy.io import loadmat
 import warnings
 
@@ -82,13 +83,14 @@ def load_features(fn):
         raise NotImplementedError(f"Unsupported file type: {fn}")
 
 
-def save_labels(labels, fn):
+def save_labels(labels, fn, overwrite=True):
     """
     Save the labels to the given filename.
 
     Raises
     ------
     * NotImplementedError if `fn` is an unsupported file type.
+    * AssertionError if `fn` exists and `not overwrite`.
 
     Parameters
     ----------
@@ -96,8 +98,13 @@ def save_labels(labels, fn):
         ...
     fn : str
         Where to save the data. Supported file types: {'.npy'}
+    overwrite : bool, optional
+        Whether to overwrite an existing file with the same name.
     """
     assert isinstance(fn, str)
+    assert overwrite or not os.path.exists(fn), f"File {fn} exists!"
+    if isinstance(labels, list):
+        labels = np.array(list)
     if fn.endswith('.npy'):
         np.save(fn, labels)
     else:
