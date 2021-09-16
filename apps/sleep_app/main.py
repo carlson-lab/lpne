@@ -3,10 +3,10 @@ Automated sleep labeling app.
 
 TO DO
 -----
-* restructure
+* restructure?
 * two plots
 * check CHANS files
-* max number of points plotted
+* add a reset button
 """
 __date__ = "September 2021"
 
@@ -20,6 +20,7 @@ from matplotlib.colors import to_hex
 import numpy as np
 import os
 from scipy.signal import iirnotch, lfilter, stft, butter
+from sklearn.neighbors import NearestNeighbors
 
 import lpne
 
@@ -27,18 +28,28 @@ import lpne
 # App-related constants
 BUTTON_SIZE = 200
 MULTISELECT_HEIGHT = 500
+MULTISELECT_WIDTH = 350
 SCATTER_SIZE = 8
 DEFAULT_LFP_DIR = '/Users/jack/Desktop/lpne/test_data/Data/'
 DEFAULT_LABEL_DIR = '/Users/jack/Desktop/lpne/test_data/labels/2s/'
-TOOLS = 'lasso_select,pan,wheel_zoom,reset'
-
+DEFAULT_EMG_NAME = "EMG_trap"
+DEFAULT_LFP_NAME = "Hipp_D_L_02"
+# DEFAULT_EMG_NAME = "Trapezius_EM"
+# DEFAULT_LFP_NAME = "D_Hipp_02"
+# DEFAULT_LFP_DIR = '/home/jg420/r_drive/Internal/Network/testData/'
+# DEFAULT_LABEL_DIR = '/home/jg420/r_drive/Internal/Network/labels/2s/'
+TOOLS = 'lasso_select,pan,wheel_zoom,reset,box_zoom'
 LABELS = ['Wake', 'NREM', 'REM', 'Unlabeled']
 COLORS = ['dodgerblue', 'mediumseagreen', 'darkorchid', 'peru']
 COLORS = [to_hex(i) for i in COLORS]
+MAX_N_POINTS = 5000
 
 # State.
 LFP_INFO = {}
+COORD = None # coordinates
 INVALID_FILE = None
+SCATTER_SIZE = 2
+ALPHA = 0.2
 
 # File-related constants.
 LFP_SUFFIX = '_LFP.mat'
@@ -65,13 +76,13 @@ def sleep_app(doc):
     ################
     source = ColumnDataSource()
     plot = figure(tools=TOOLS)
-    plot.circle(
+    plot.scatter(
             x="x",
             y="y",
             source=source,
             size=SCATTER_SIZE,
             color="color",
-            line_color=None,
+            fill_alpha=ALPHA,
     )
 
     label_buttons = []
@@ -93,6 +104,52 @@ def sleep_app(doc):
         ))
         label_buttons.append(button)
 
+    alpha_input = TextInput(
+            value=str(ALPHA),
+            title="Transparency:",
+    )
+
+    def alpha_callback(attr, old, new):
+        global ALPHA
+        try:
+            ALPHA = max(min(1,float(new)),0)
+            plot.scatter(
+                    x="x",
+                    y="y",
+                    source=source,
+                    size=SCATTER_SIZE,
+                    color="color",
+                    fill_alpha=ALPHA,
+            )
+        except ValueError:
+            pass
+        alpha_input.value = str(ALPHA)
+
+    alpha_input.on_change("value", alpha_callback)
+
+    size_input = TextInput(
+            value=str(SCATTER_SIZE),
+            title="Scatter size:",
+    )
+
+    def scatter_size_callback(attr, old, new):
+        global SCATTER_SIZE
+        try:
+            SCATTER_SIZE = max(float(new),0)
+            plot.scatter(
+                    x="x",
+                    y="y",
+                    source=source,
+                    size=SCATTER_SIZE,
+                    color="color",
+                    fill_alpha=ALPHA,
+            )
+        except ValueError:
+            pass
+        size_input.value = str(SCATTER_SIZE)
+
+    size_input.on_change("value", scatter_size_callback)
+
     ###################
     # Input data tab. #
     ###################
@@ -100,24 +157,33 @@ def sleep_app(doc):
     def load_dir_input_callback(attr, old, new):
         """If the directory exists, populate the file selector."""
         if os.path.exists(new):
-            update_multi_select(_my_listdir(new))
-            if len(new.split(os.path.sep)) > 1:
-                save_dir = new.split(os.path.sep)[:-1]
+            load_dir = new
+            if load_dir[-1] == os.path.sep:
+                load_dir = load_dir[:-1]
+            update_multi_select(_my_listdir(load_dir))
+            if len(load_dir.split(os.path.sep)) > 1:
+                save_dir = load_dir.split(os.path.sep)[:-1]
+                save_dir.append('labels')
                 save_dir.append(str(window_slider.value)+'s')
-                save_dir_input.value = os.path.join(*save_dir)
+                save_dir_input.value = os.path.sep + os.path.join(*save_dir)
         else:
             alert_box.text = f"Not a valid directory: {new}"
 
+    if os.path.exists(DEFAULT_LFP_DIR):
+        initial_options = _my_listdir(DEFAULT_LFP_DIR)
+    else:
+        initial_options = []
+
     multi_select = MultiSelect(
             value=[],
-            options=_my_listdir(DEFAULT_LFP_DIR),
+            options=initial_options,
             title="Select LFP files:",
             height=MULTISELECT_HEIGHT,
+            width=MULTISELECT_WIDTH,
     )
 
     def update_multi_select(new_options, multi_select=multi_select):
         multi_select.options = new_options
-        print("updated!")
 
     load_dir_input = TextInput(
             value=DEFAULT_LFP_DIR,
@@ -126,11 +192,11 @@ def sleep_app(doc):
     load_dir_input.on_change("value", load_dir_input_callback)
 
     emg_channel_input = TextInput(
-            value="EMG_trap",
+            value=DEFAULT_EMG_NAME,
             title="Enter EMG channel name:",
     )
     hipp_channel_input = TextInput(
-            value="Hipp_D_L_02",
+            value=DEFAULT_LFP_NAME,
             title="Enter Hipp channel name:",
     )
     window_slider = Slider(
@@ -143,10 +209,13 @@ def sleep_app(doc):
 
     def window_slider_callback(attr, old, new):
         load_dir = load_dir_input.value
+        if load_dir[-1] == os.path.sep:
+            load_dir = load_dir[:-1]
         if os.path.exists(load_dir) and len(load_dir.split(os.path.sep)) > 1:
             save_dir = load_dir.split(os.path.sep)[:-1]
+            save_dir.append('labels')
             save_dir.append(str(window_slider.value)+'s')
-            save_dir_input.value = os.path.join(*save_dir)
+            save_dir_input.value = os.path.sep + os.path.join(*save_dir)
 
     window_slider.on_change("value", window_slider_callback)
 
@@ -163,7 +232,10 @@ def sleep_app(doc):
         fs_input=fs_input, load_button=load_button, alert_box=alert_box, \
         source=source):
         """Load the LFPs."""
-        global INVALID_FILE
+        global INVALID_FILE, COORD, PERM
+        alert_box.text = "Loading LFPs..."
+        load_button.button_type = "warning"
+        load_button.label = 'Loading...'
         # Make sure the LFP files are selected.
         lfp_dir = load_dir_input.value
         lfp_fns = sorted([os.path.join(lfp_dir,i) for i in multi_select.value])
@@ -195,7 +267,7 @@ def sleep_app(doc):
         if hipp_channel not in lfps:
             load_button.button_type = "warning"
             alert_box.text = \
-                    f"Didn't find the channel '{emg_channel}' in: {all_keys}"
+                    f"Didn't find the channel '{hipp_channel}' in: {all_keys}"
             return
 
         # Make sure the samplerate is valid.
@@ -209,9 +281,8 @@ def sleep_app(doc):
             alert_box.text = f"Invalid samplerate: {fs}"
 
         # Load and process the rest of the LFPs.
-        load_button.label = 'Loading...'
         try:
-            X1 = get_emg_lfp_features(
+            COORD = get_emg_lfp_features(
                 lfp_fns,
                 hipp_channel,
                 emg_channel,
@@ -225,16 +296,17 @@ def sleep_app(doc):
             return
 
         # Update source.
+        PERM = np.random.permutation(len(COORD))[:MAX_N_POINTS]
         new_data = dict(
-            x=X1[:,0],
-            y=X1[:,1],
-            color=[COLORS[-1]]*len(X1),
+            x=COORD[PERM,0],
+            y=COORD[PERM,1],
+            color=[COLORS[-1]]*len(PERM),
         )
         source.data = new_data
 
         load_button.label = "Loaded"
         load_button.button_type="success"
-        msg = f"Successfully loaded LFPs.\n\nFound {len(X1)} windows."
+        msg = f"Successfully loaded LFPs.\n\nFound {len(COORD)} windows."
         alert_box.text = msg
 
     load_button.on_click(load_callback)
@@ -255,18 +327,28 @@ def sleep_app(doc):
     def save_callback(save_button=save_button, save_dir_input=save_dir_input,
         overwrite_checkbox=overwrite_checkbox):
         """Save the sleep labels."""
+        global COORD, PERM
         save_dir = save_dir_input.value
         overwrite = 0 in overwrite_checkbox.active
         if not os.path.exists(save_dir):
             alert_box.text = f"Directory does not exist: {save_dir}"
             save_button.button_type="warning"
             return
+        # Standardize for better nearest neighbors.
+        COORD[:,0] /= np.std(COORD[:,0])
+        COORD[:,1] /= np.std(COORD[:,1])
+        # Fit the nearest neighbors.
+        neigh = NearestNeighbors(n_neighbors=1)
+        neigh.fit(COORD[PERM])
+        all_neighbors = neigh.kneighbors(COORD, return_distance=False).flatten()
+
         i = 0
         for lfp_fn in sorted(list(LFP_INFO.keys())):
             label_fn = os.path.split(lfp_fn)[-1][:-len(LFP_SUFFIX)]
             label_fn = os.path.join(save_dir, label_fn + LABEL_SUFFIX)
             j = i + LFP_INFO[lfp_fn]
-            labels = [COLORS.index(c) for c in source.data['color'][i:j]]
+            idx = all_neighbors[i:j]
+            labels = [COLORS.index(source.data['color'][k]) for k in idx]
             try:
                 lpne.save_labels(labels, label_fn, overwrite=overwrite)
             except AssertionError:
@@ -304,7 +386,7 @@ def sleep_app(doc):
         child=row(column_1, column_2),
         title="Data Stuff",
     )
-    buttons = column(*(label_buttons+[alert_box]))
+    buttons = column(*(label_buttons+[alpha_input, size_input, alert_box]))
     tab_2 = Panel(
         child=row(buttons, plot),
         title="Sleep Selection",

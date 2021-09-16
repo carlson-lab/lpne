@@ -43,6 +43,7 @@ FEATURE_SUBDIR = 'features'
 LFP_SUFFIX = '_LFP.mat'
 CHANS_SUFFIX = '_CHANS.mat'
 FS = 1000
+WINDOW_DURATION = 2
 
 
 
@@ -74,7 +75,7 @@ if __name__ == '__main__':
                     t1=1.0,
                     t2=5.0,
                     fs=FS,
-                    window_duration=2.0,
+                    window_duration=WINDOW_DURATION,
                     fn='example_lfps.pdf',
             )
 
@@ -94,7 +95,7 @@ if __name__ == '__main__':
         # lfps = lpne.normalize_lfps(lfps)
 
         # Make features.
-        features = lpne.make_features(lfps)
+        features = lpne.make_features(lfps, window_duration=WINDOW_DURATION)
 
         # Plot the first window for fun.
         lpne.plot_power(features['power'][0], features['rois'])

@@ -7,7 +7,7 @@ EMG recordings.
 To run locally, navigate to the repo and enter the `bokeh serve` command:
 
 ```bash
-$ cd lpne
+$ cd path/to/lpne
 $ bokeh serve --show sleep_app/
 ```
 
@@ -16,7 +16,7 @@ To run remotely, first run `bokeh serve` on the remote machine and specify a
 port:
 
 ```bash
-$ cd lpne
+$ cd path/to/lpne
 $ bokeh serve sleep_app/ port=1234
 ```
 
@@ -26,7 +26,7 @@ This will spit out an address that looks something like this:
 Then on your local machine, start listening to this port with `ssh`:
 
 ```bash
-$ ssh -NL 1234:localhost:1234 user@computer
+$ ssh -NL localhost:1234:localhost:1234 user@computer
 ```
 
 where `user` is replaced by your username and `computer` is replaced by the
