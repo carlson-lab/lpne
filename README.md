@@ -15,6 +15,7 @@ $ pip install .
 #### Dependencies
 * [Python3](https://www.python.org/)
 * [MoviePy](https://github.com/Zulko/moviepy)
+* [PyTorch](https://pytorch.org)
 
 
 ### TO DO
@@ -28,5 +29,4 @@ $ pip install .
    between-mouse differences
 10. PoE?
 12. Manually remove regions from LFPs
-15. GUI for inspecting sleep labels
 16. Filter before normalizing channels

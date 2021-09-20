@@ -3,10 +3,8 @@ Automated sleep labeling app.
 
 TO DO
 -----
-* restructure?
 * two plots
 * check CHANS files
-* add a reset button
 """
 __date__ = "September 2021"
 
@@ -85,23 +83,41 @@ def sleep_app(doc):
             fill_alpha=ALPHA,
     )
 
+
+    def callback_0():
+        new_data = {**{}, **source.data}
+        for idx in source.selected.indices:
+            new_data['color'][idx] = COLORS[0]
+        source.data = new_data
+        source.selected.indices = []
+
+    def callback_1():
+        new_data = {**{}, **source.data}
+        for idx in source.selected.indices:
+            new_data['color'][idx] = COLORS[1]
+        source.data = new_data
+        source.selected.indices = []
+
+    def callback_2():
+        new_data = {**{}, **source.data}
+        for idx in source.selected.indices:
+            new_data['color'][idx] = COLORS[2]
+        source.data = new_data
+        source.selected.indices = []
+
+    def callback_3():
+        new_data = {**{}, **source.data}
+        for idx in source.selected.indices:
+            new_data['color'][idx] = COLORS[3]
+        source.data = new_data
+        source.selected.indices = []
+
+    label_callbacks = [callback_0, callback_1, callback_2, callback_3]
+
     label_buttons = []
     for i in range(len(LABELS)):
         button = Button(label=LABELS[i], default_size=BUTTON_SIZE)
-        button.js_on_click(
-            CustomJS(
-                args=dict(source=source),
-                code=f"""
-                    var color = source.data['color']
-                    var idx = source.selected.indices;
-                    var selected_length = idx.length;
-                    for (var i=0; i<selected_length; i++) {{
-                        color[idx[i]] = '{COLORS[i]}';
-                    }}
-                    source.selected.indices = [];
-                    source.change.emit();
-                """,
-        ))
+        button.on_click(label_callbacks[i])
         label_buttons.append(button)
 
     alpha_input = TextInput(

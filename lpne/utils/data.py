@@ -101,10 +101,11 @@ def save_labels(labels, fn, overwrite=True):
     overwrite : bool, optional
         Whether to overwrite an existing file with the same name.
     """
-    assert isinstance(fn, str)
+    assert isinstance(fn, str), f"fn {fn} is not a string!"
     assert overwrite or not os.path.exists(fn), f"File {fn} exists!"
     if isinstance(labels, list):
-        labels = np.array(list)
+        labels = np.array(labels)
+    assert isinstance(labels, np.ndarray)
     if fn.endswith('.npy'):
         np.save(fn, labels)
     else:

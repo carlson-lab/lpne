@@ -8,7 +8,7 @@ To run locally, navigate to the repo and enter the `bokeh serve` command:
 
 ```bash
 $ cd path/to/lpne
-$ bokeh serve --show sleep_app/
+$ bokeh serve apps/sleep_app/ --show
 ```
 
 ### Running Remotely
@@ -17,7 +17,7 @@ port:
 
 ```bash
 $ cd path/to/lpne
-$ bokeh serve sleep_app/ port=1234
+$ bokeh serve apps/sleep_app/ port=1234
 ```
 
 This will spit out an address that looks something like this:
