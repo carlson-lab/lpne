@@ -24,6 +24,7 @@ if __name__ == '__main__':
     # Average channels in the same region together.
     lfps = lpne.average_channels(lfps, channel_map)
 
+    # Make the movie.
     lpne.make_power_movie(lfps, 50.0, 3.0, fps=15)
 
 
