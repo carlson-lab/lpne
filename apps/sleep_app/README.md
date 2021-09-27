@@ -17,8 +17,10 @@ port:
 
 ```bash
 $ cd path/to/lpne
-$ bokeh serve apps/sleep_app/ port=1234
+$ bokeh serve apps/sleep_app/ --port=1234
 ```
+
+where `path/to/lpne` is replaced with the actual path to the `lpne` directory.
 
 This will spit out an address that looks something like this:
 `http://localhost:1234/sleep_app`. Copy this address.
