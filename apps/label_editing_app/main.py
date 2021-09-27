@@ -167,7 +167,7 @@ def label_editing_app(doc):
     # Label stuff.
     label_dir_input = TextInput(
             value=DEFAULT_LABEL_DIR,
-            title="Enter LFP directory:",
+            title="Enter label directory:",
     )
     label_dir_input.on_change("value", label_dir_input_callback)
     label_select = Select(
@@ -186,6 +186,7 @@ def label_editing_app(doc):
             title="Window duration (s)",
     )
     fs_input = TextInput(value="1000", title="Enter samplerate (Hz):")
+    subsample_input = TextInput(value="10", title="Enter subsample factor:")
     hipp_channel_input = TextInput(
             value=DEFAULT_LFP_NAME,
             title="Enter LFP channel:",
@@ -225,6 +226,18 @@ def label_editing_app(doc):
             alert_box.text = f"Invalid samplerate: {fs}"
             return
 
+        # Make sure subsample factor is valid.
+        try:
+            subsamp = int(subsample_input.value)
+        except ValueError:
+            load_button.button_type = "warning"
+            alert_box.text = f"Invalid subsample: {subsample_input.value}"
+            return
+        if subsamp <= 0:
+            load_button.button_type = "warning"
+            alert_box.text = f"Invalid subsample: {subsamp}"
+            return
+
         # Make sure the EMG and LFP channels are valid.
         emg_channel = emg_channel_input.value
         hipp_channel = hipp_channel_input.value
@@ -241,9 +254,9 @@ def label_editing_app(doc):
             return
 
         # Assign the source data.
-        emg_trace = lfps[emg_channel].flatten()
-        lfp_trace = lfps[hipp_channel].flatten()
-        lfp_times = 1/fs * np.arange(len(emg_trace))
+        emg_trace = lfps[emg_channel].flatten()[::subsamp]
+        lfp_trace = lfps[hipp_channel].flatten()[::subsamp]
+        lfp_times = subsamp/fs * np.arange(len(emg_trace))
         label_fn = label_select.value
         if label_fn == NULL_SELECTION:
             load_button.button_type = "warning"
@@ -254,12 +267,12 @@ def label_editing_app(doc):
             load_button.button_type = "warning"
             alert_box.text = f"Label file doesn't exist: {label_fn}"
             return
-        try:
-            labels = lpne.load_labels(label_fn)
-        except ValueError:
-            load_button.button_type = "warning"
-            alert_box.text = f"Error loading labels: {label_fn}"
-            return
+        # try:
+        labels = lpne.load_labels(label_fn)
+        # except ValueError:
+            # load_button.button_type = "warning"
+            # alert_box.text = f"Error loading labels: {label_fn}"
+            # return
         window = window_slider.value
         label_times = window * np.arange(len(labels)) + window/2
         color = [COLORS[i] for i in labels]
@@ -393,6 +406,7 @@ def label_editing_app(doc):
             file_inputs,
             window_slider,
             fs_input,
+            subsample_input,
             hipp_channel_input,
             emg_channel_input,
             load_button,
