@@ -430,8 +430,11 @@ def label_editing_app(doc):
 
 
 def _my_listdir(dir):
-    return [NULL_SELECTION] + \
-            sorted([i for i in os.listdir(dir) if not i.startswith('.')])
+    try:
+        return [NULL_SELECTION] + \
+                sorted([i for i in os.listdir(dir) if not i.startswith('.')])
+    except:
+        return [NULL_SELECTION]
 
 
 # Run the app.
