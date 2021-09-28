@@ -370,7 +370,7 @@ def label_editing_app(doc):
                 prev_label = label
             if j == len(t1)-1 and prev_label != '_':
                 token = LABELS[prev_label]
-                line = f"{start_t:.6f}\t{t1[j]:.6f}\t{token}\n"
+                line = f"{start_t:.1f}, {t1[j]:.1f}, {token}\n"
                 lines.append(line)
             idx += 1
         # Save the data.
