@@ -34,7 +34,7 @@ LABELS = ['Wake', 'NREM', 'REM', 'Unlabeled']
 COLORS = ['dodgerblue', 'mediumseagreen', 'darkorchid', 'peru']
 COLORS = [to_hex(i) for i in COLORS]
 LFP_TOOLS = 'pan,xwheel_zoom,reset,box_zoom' # wheel_zoom
-LABEL_TOOLS = 'lasso_select,pan,reset'
+LABEL_TOOLS = 'box_select,pan,reset'
 NULL_SELECTION = "No selection"
 
 

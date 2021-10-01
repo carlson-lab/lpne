@@ -45,6 +45,7 @@ MAX_N_POINTS = 5000
 # State.
 LFP_INFO = {}
 COORD = None # coordinates
+PERM = None
 INVALID_FILE = None
 SCATTER_SIZE = 2
 ALPHA = 0.2
@@ -351,29 +352,34 @@ def sleep_app(doc):
             save_button.button_type="warning"
             return
         # Standardize for better nearest neighbors.
-        COORD[:,0] /= np.std(COORD[:,0])
-        COORD[:,1] /= np.std(COORD[:,1])
+        scaled_coord = np.zeros_like(COORD)
+        scaled_coord[:,0] = COORD[:,0] / np.std(COORD[:,0])
+        scaled_coord[:,1] = COORD[:,1] / np.std(COORD[:,1])
         # Fit the nearest neighbors.
         neigh = NearestNeighbors(n_neighbors=1)
-        neigh.fit(COORD[PERM])
-        all_neighbors = neigh.kneighbors(COORD, return_distance=False).flatten()
+        neigh.fit(scaled_coord[PERM])
+        all_neighbors = neigh.kneighbors(scaled_coord, return_distance=False).flatten()
 
         i = 0
+        res_text = f"Counts: {LABELS}\n"
         for lfp_fn in sorted(list(LFP_INFO.keys())):
             label_fn = os.path.split(lfp_fn)[-1][:-len(LFP_SUFFIX)]
             label_fn = os.path.join(save_dir, label_fn + LABEL_SUFFIX)
             j = i + LFP_INFO[lfp_fn]
             idx = all_neighbors[i:j]
             labels = [COLORS.index(source.data['color'][k]) for k in idx]
+            res_text += f"{os.path.split(lfp_fn)[-1]}: "
+            res_text += f"{np.bincount(labels,minlength=4)}\n"
             try:
                 lpne.save_labels(labels, label_fn, overwrite=overwrite)
             except AssertionError:
                 save_button.button_type="warning"
                 alert_box.text = "File already exists!"
                 return
+            i += LFP_INFO[lfp_fn]
         save_button.label = "Saved"
         save_button.button_type="success"
-        alert_box.text = ""
+        alert_box.text = res_text
 
     save_button.on_click(save_callback)
 
