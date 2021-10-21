@@ -5,8 +5,9 @@ TO DO
 -----
 * two plots
 * check CHANS files
+* Add axis labels
 """
-__date__ = "September 2021"
+__date__ = "September - October 2021"
 
 
 from bokeh.layouts import column, row
@@ -24,10 +25,9 @@ import lpne
 
 
 # App-related constants
-BUTTON_SIZE = 200
+BUTTON_SIZE = 150
 MULTISELECT_HEIGHT = 500
 MULTISELECT_WIDTH = 350
-SCATTER_SIZE = 8
 DEFAULT_LFP_DIR = '/Users/jack/Desktop/lpne/test_data/Data/'
 DEFAULT_LABEL_DIR = '/Users/jack/Desktop/lpne/test_data/labels/2s/'
 DEFAULT_EMG_NAME = "EMG_trap"
@@ -47,8 +47,12 @@ LFP_INFO = {}
 COORD = None # coordinates
 PERM = None
 INVALID_FILE = None
-SCATTER_SIZE = 2
-ALPHA = 0.2
+SCATTER_SIZE_1 = 2
+ALPHA_1 = 0.2
+SCATTER_SIZE_2 = 2
+ALPHA_2 = 0.2
+SCATTER_1 = None
+SCATTER_2 = None
 
 # File-related constants.
 LFP_SUFFIX = '_LFP.mat'
@@ -70,18 +74,39 @@ Q = 1.5
 
 def sleep_app(doc):
     """Sleep labeling app."""
+    global SCATTER_1, SCATTER_2
     ################
     # Scatter tab. #
     ################
     source = ColumnDataSource()
-    plot = figure(tools=TOOLS)
-    plot.scatter(
-            x="x",
-            y="y",
+    plot_1 = figure(
+            tools=TOOLS,
+            sizing_mode='stretch_width',
+            x_axis_label='Dhipp RMS Amplitude',
+            y_axis_label='EMG Power',
+    )
+    SCATTER_1 = plot_1.scatter(
+            x="hipp_rms",
+            y="emg_power",
             source=source,
-            size=SCATTER_SIZE,
+            size=SCATTER_SIZE_1,
             color="color",
-            fill_alpha=ALPHA,
+            fill_alpha=ALPHA_1,
+    )
+
+    plot_2 = figure(
+            tools=TOOLS,
+            sizing_mode='stretch_width',
+            x_axis_label='Frequency Ratio 2',
+            y_axis_label='Frequency Ratio 1',
+    )
+    SCATTER_2 = plot_2.scatter(
+            x="ratio_2",
+            y="ratio_1",
+            source=source,
+            size=SCATTER_SIZE_2,
+            color="color",
+            fill_alpha=ALPHA_2,
     )
 
 
@@ -121,51 +146,104 @@ def sleep_app(doc):
         button.on_click(label_callbacks[i])
         label_buttons.append(button)
 
-    alpha_input = TextInput(
-            value=str(ALPHA),
-            title="Transparency:",
+    alpha_input_1 = TextInput(
+            value=str(ALPHA_1),
+            title="Plot 1 transparency:",
     )
 
-    def alpha_callback(attr, old, new):
-        global ALPHA
-        try:
-            ALPHA = max(min(1,float(new)),0)
-            plot.scatter(
-                    x="x",
-                    y="y",
-                    source=source,
-                    size=SCATTER_SIZE,
-                    color="color",
-                    fill_alpha=ALPHA,
-            )
-        except ValueError:
-            pass
-        alpha_input.value = str(ALPHA)
-
-    alpha_input.on_change("value", alpha_callback)
-
-    size_input = TextInput(
-            value=str(SCATTER_SIZE),
-            title="Scatter size:",
+    alpha_input_2 = TextInput(
+            value=str(ALPHA_2),
+            title="Plot 2 transparency:",
     )
 
-    def scatter_size_callback(attr, old, new):
-        global SCATTER_SIZE
+    def alpha_callback_1(attr, old, new):
+        global ALPHA_1, SCATTER_1
         try:
-            SCATTER_SIZE = max(float(new),0)
-            plot.scatter(
-                    x="x",
-                    y="y",
-                    source=source,
-                    size=SCATTER_SIZE,
-                    color="color",
-                    fill_alpha=ALPHA,
-            )
+            ALPHA_1 = max(min(1,float(new)),0)
         except ValueError:
             pass
-        size_input.value = str(SCATTER_SIZE)
+        alpha_input_1.value = str(ALPHA_1)
+        plot_1.renderers = []
+        SCATTER_1 = plot_1.scatter(
+                x="hipp_rms",
+                y="emg_power",
+                source=source,
+                size=SCATTER_SIZE_1,
+                color="color",
+                fill_alpha=ALPHA_1,
+        )
+        plot_1.renderers.append(SCATTER_1)
 
-    size_input.on_change("value", scatter_size_callback)
+    def alpha_callback_2(attr, old, new):
+        global ALPHA_2, SCATTER_2
+        try:
+            ALPHA_2 = max(min(1,float(new)),0)
+        except ValueError:
+            pass
+        alpha_input_2.value = str(ALPHA_2)
+        plot_2.renderers = []
+        SCATTER_2 = plot_2.scatter(
+                x="ratio_2",
+                y="ratio_1",
+                source=source,
+                size=SCATTER_SIZE_2,
+                color="color",
+                fill_alpha=ALPHA_2,
+        )
+        plot_2.renderers.append(SCATTER_2)
+
+
+    alpha_input_1.on_change("value", alpha_callback_1)
+    alpha_input_2.on_change("value", alpha_callback_2)
+
+    size_input_1 = TextInput(
+            value=str(SCATTER_SIZE_1),
+            title="Plot 1 scatter size:",
+    )
+    size_input_2 = TextInput(
+            value=str(SCATTER_SIZE_2),
+            title="Plot 2 scatter size:",
+    )
+
+    def scatter_size_callback_1(attr, old, new):
+        global SCATTER_SIZE_1, SCATTER_1
+        try:
+            SCATTER_SIZE_1 = max(float(new),0)
+        except ValueError:
+            pass
+        size_input_1.value = str(SCATTER_SIZE_1)
+        plot_1.renderers = []
+        SCATTER_1 = plot_1.scatter(
+                x="hipp_rms",
+                y="emg_trace",
+                source=source,
+                size=SCATTER_SIZE_1,
+                color="color",
+                fill_alpha=ALPHA_1,
+        )
+        plot_1.renderers.append(SCATTER_1)
+
+    def scatter_size_callback_2(attr, old, new):
+        global SCATTER_SIZE_2, SCATTER_2
+        try:
+            SCATTER_SIZE_2 = max(float(new),0)
+        except ValueError:
+            pass
+        size_input_2.value = str(SCATTER_SIZE_2)
+        plot_2.renderers = []
+        SCATTER_2 = plot_2.scatter(
+                x="ratio_2",
+                y="ratio_1",
+                source=source,
+                size=SCATTER_SIZE_2,
+                color="color",
+                fill_alpha=ALPHA_2,
+        )
+        plot_2.renderers.append(SCATTER_2)
+
+
+    size_input_1.on_change("value", scatter_size_callback_1)
+    size_input_2.on_change("value", scatter_size_callback_2)
 
     ###################
     # Input data tab. #
@@ -315,8 +393,10 @@ def sleep_app(doc):
         # Update source.
         PERM = np.random.permutation(len(COORD))[:MAX_N_POINTS]
         new_data = dict(
-            x=COORD[PERM,0],
-            y=COORD[PERM,1],
+            hipp_rms=COORD[PERM,0],
+            emg_power=COORD[PERM,1],
+            ratio_2 = COORD[PERM,2],
+            ratio_1 = COORD[PERM,3],
             color=[COLORS[-1]]*len(PERM),
         )
         source.data = new_data
@@ -353,8 +433,8 @@ def sleep_app(doc):
             return
         # Standardize for better nearest neighbors.
         scaled_coord = np.zeros_like(COORD)
-        scaled_coord[:,0] = COORD[:,0] / np.std(COORD[:,0])
-        scaled_coord[:,1] = COORD[:,1] / np.std(COORD[:,1])
+        for i in range(COORD.shape[1]):
+            scaled_coord[:,i] = COORD[:,i] / np.std(COORD[:,i])
         # Fit the nearest neighbors.
         neigh = NearestNeighbors(n_neighbors=1)
         neigh.fit(scaled_coord[PERM])
@@ -388,8 +468,10 @@ def sleep_app(doc):
     y = [5,5,4,6,2]
     color = [COLORS[-1]]*len(x)
     source.data = dict(
-        x=x,
-        y=y,
+        hipp_rms=x,
+        emg_power=y,
+        ratio_2=x,
+        ratio_1=y,
         color=color,
     )
 
@@ -408,9 +490,9 @@ def sleep_app(doc):
         child=row(column_1, column_2),
         title="Data Stuff",
     )
-    buttons = column(*(label_buttons+[alpha_input, size_input, alert_box]))
+    buttons = column(*(label_buttons+[alpha_input_1, size_input_1, alpha_input_2, size_input_2, alert_box]))
     tab_2 = Panel(
-        child=row(buttons, plot),
+        child=row(buttons, plot_1, plot_2),
         title="Sleep Selection",
     )
     save_column = column(save_dir_input,overwrite_checkbox,save_button)
@@ -432,6 +514,7 @@ def get_emg_lfp_features(lfp_fns, hipp_channel, emg_channel, window_duration,
     window_samples = int(fs * window_duration)
     step_samples = int(fs * window_step)
     all_emg_power, all_dhipp_rms = [], []
+    all_dhipp_ratio_1, all_dhipp_ratio_2 = [], []
     for lfp_fn in sorted(lfp_fns):
         # assert lfp_fn.endswith(LFP_SUFFIX), \
         #         f"{lfp_fn} doesn't end with {LFP_SUFFIX}"
@@ -454,18 +537,32 @@ def get_emg_lfp_features(lfp_fns, hipp_channel, emg_channel, window_duration,
                 window_samples,
                 step_samples,
         )
-        # dhipp_ratio_1 = _process_lfp_trace(dhipp_tr[:], r=RATIO_1)
-        # dhipp_ratio_2 = _process_lfp_trace(dhipp_tr[:], r=RATIO_2)
+        dhipp_ratio_1 = _process_lfp_trace(
+                dhipp_tr[:],
+                fs,
+                window_samples,
+                step_samples,
+                r=RATIO_1,
+        )
+        dhipp_ratio_2 = _process_lfp_trace(
+                dhipp_tr[:],
+                fs,
+                window_samples,
+                step_samples,
+                r=RATIO_2,
+        )
         dhipp_rms = _rms_lfp_trace(dhipp_tr, fs, window_samples, step_samples)
         assert len(emg_power) == len(dhipp_rms)
         LFP_INFO[lfp_fn] = len(dhipp_rms)
         all_emg_power.append(emg_power)
         all_dhipp_rms.append(dhipp_rms)
+        all_dhipp_ratio_1.append(dhipp_ratio_1)
+        all_dhipp_ratio_2.append(dhipp_ratio_2)
     emgs = np.concatenate(all_emg_power, axis=0)
-    # ratio_1s = np.concatenate(ratio_1s, axis=0)
-    # ratio_2s = np.concatenate(ratio_2s, axis=0)
     rmss = np.concatenate(all_dhipp_rms, axis=0)
-    X1 = np.stack([rmss, emgs],axis=1)
+    ratio_1s = np.concatenate(all_dhipp_ratio_1, axis=0)
+    ratio_2s = np.concatenate(all_dhipp_ratio_2, axis=0)
+    X1 = np.stack([rmss, emgs, ratio_2s, ratio_1s],axis=1)
     return X1
 
 
@@ -498,19 +595,19 @@ def _process_emg_trace(trace, fs, window_samples, step_samples):
 	return np.array(data)
 
 
-# def _process_lfp_trace(trace, r=(2.0,4.5,9.0)):
-# 	# Walk through the trace, collecting powers in different frequency ranges.
-# 	data = []
-# 	for i in range(0, len(trace)-WINDOW_SAMPLES, STEP_SAMPLES):
-# 		chunk = trace[i:i+WINDOW_SAMPLES]
-# 		f, t, spec = stft(chunk, fs=FS, nperseg=WINDOW_SAMPLES)
-# 		spec = np.abs(spec)
-# 		spec = np.mean(spec, axis=1) # average over the three time bins
-# 		i1 = np.argmin(np.abs(f - r[0]))
-# 		i2 = np.argmin(np.abs(f - r[1]))
-# 		i3 = np.argmin(np.abs(f - r[2]))
-# 		data.append(np.sum(spec[i1:i2+1]) / np.sum(spec[i1:i3+1]))
-# 	return np.array(data)
+def _process_lfp_trace(trace, fs, window_samples, step_samples, r=(2.0,4.5,9.0)):
+	# Walk through the trace, collecting powers in different frequency ranges.
+	data = []
+	for i in range(0, len(trace)-window_samples, step_samples):
+		chunk = trace[i:i+window_samples]
+		f, t, spec = stft(chunk, fs=fs, nperseg=window_samples)
+		spec = np.abs(spec)
+		spec = np.mean(spec, axis=1) # average over the three time bins
+		i1 = np.argmin(np.abs(f - r[0]))
+		i2 = np.argmin(np.abs(f - r[1]))
+		i3 = np.argmin(np.abs(f - r[2]))
+		data.append(np.sum(spec[i1:i2+1]) / np.sum(spec[i1:i3+1]))
+	return np.array(data)
 
 
 def _rms_lfp_trace(trace, fs, window_samples, step_samples):
