@@ -26,6 +26,8 @@ from .preprocess.channel_maps import \
         remove_channels, \
         get_removed_channels_from_file
 
+from .preprocess.filter import filter_signal
+
 from .preprocess.make_features import make_features
 
 from .preprocess.normalize import normalize_features

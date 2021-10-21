@@ -1,11 +1,8 @@
 """
 Label editing app.
 
-TO DO
------
-* Filter the channels before plotting.
 """
-__date__ = "September 2021"
+__date__ = "September - October 2021"
 
 
 from bokeh.layouts import column, row
@@ -22,6 +19,7 @@ import lpne
 
 # App-related constants
 BUTTON_SIZE = 200
+SCATTER_SIZE = 16
 LINE_WIDTH = 1
 LFP_HEIGHT = 220
 LFP_WIDTH = 1000
@@ -36,6 +34,14 @@ COLORS = [to_hex(i) for i in COLORS]
 LFP_TOOLS = 'pan,xwheel_zoom,reset,box_zoom' # wheel_zoom
 LABEL_TOOLS = 'box_select,pan,reset'
 NULL_SELECTION = "No selection"
+
+
+# FILTERING
+LFP_LOWCUT = 0.5
+LFP_HIGHCUT = 55.0
+EMG_LOWCUT = 30.0
+EMG_HIGHCUT = 250.0
+Q = 1.5
 
 
 
@@ -82,6 +88,7 @@ def label_editing_app(doc):
             y="label_y",
             source=label_source,
             line_width=LINE_WIDTH,
+            size=SCATTER_SIZE,
             color="color",
     )
     label_plot.xaxis[0].axis_label = 'Time (s)'
@@ -254,8 +261,12 @@ def label_editing_app(doc):
             return
 
         # Assign the source data.
-        emg_trace = lfps[emg_channel].flatten()[::subsamp]
-        lfp_trace = lfps[hipp_channel].flatten()[::subsamp]
+        emg_trace = lfps[emg_channel].flatten()
+        emg_trace = lpne.filter_signal(emg_trace, fs, EMG_LOWCUT, EMG_HIGHCUT)
+        emg_trace = emg_trace[::subsamp]
+        lfp_trace = lfps[hipp_channel].flatten()
+        lfp_trace = lpne.filter_signal(lfp_trace, fs, LFP_LOWCUT, LFP_HIGHCUT)
+        lfp_trace = lfp_trace[::subsamp]
         lfp_times = subsamp/fs * np.arange(len(emg_trace))
         label_fn = label_select.value
         if label_fn == NULL_SELECTION:
