@@ -25,8 +25,9 @@ LFP_HEIGHT = 220
 LFP_WIDTH = 1000
 DEFAULT_LFP_DIR = '/Users/jack/Desktop/lpne/test_data/Data/'
 DEFAULT_LABEL_DIR = '/Users/jack/Desktop/lpne/test_data/labels/'
+DEFAULT_HIPP_NAME = "Hipp_D_L_02"
+DEFAULT_CX_NAME = "Cx_Cg_L_01"
 DEFAULT_EMG_NAME = "EMG_trap"
-DEFAULT_LFP_NAME = "Hipp_D_L_02"
 DEFAULT_DURATION = 2
 LABELS = ['Wake', 'NREM', 'REM', 'Unlabeled']
 COLORS = ['dodgerblue', 'mediumseagreen', 'darkorchid', 'peru']
@@ -50,27 +51,41 @@ def label_editing_app(doc):
     ##################
     # LFP trace tab. #
     ##################
-    lfp_source = ColumnDataSource()
-    lfp_plot = figure(tools=LFP_TOOLS, height=LFP_HEIGHT, width=LFP_WIDTH)
-    lfp_plot.line(
+    hipp_source = ColumnDataSource()
+    hipp_plot = figure(tools=LFP_TOOLS, height=LFP_HEIGHT, width=LFP_WIDTH)
+    hipp_plot.line(
             x="lfp_time",
-            y="lfp",
-            source=lfp_source,
+            y="hipp",
+            source=hipp_source,
             line_width=LINE_WIDTH,
             color="slategray",
     )
-    lfp_plot.yaxis[0].axis_label = 'LFP'
+    hipp_plot.yaxis[0].axis_label = 'Hipp Channel'
+
+    cortex_plot = figure(
+            tools=LFP_TOOLS,
+            x_range=hipp_plot.x_range,
+            height=LFP_HEIGHT,
+            width=LFP_WIDTH,
+    )
+    cortex_plot.line(
+            x="lfp_time",
+            y="cortex",
+            source=hipp_source,
+            line_width=LINE_WIDTH,
+            color="slategray",
+    )
 
     emg_plot = figure(
             tools=LFP_TOOLS,
-            x_range=lfp_plot.x_range,
+            x_range=hipp_plot.x_range,
             height=LFP_HEIGHT,
             width=LFP_WIDTH,
     )
     emg_plot.line(
             x="lfp_time",
             y="emg",
-            source=lfp_source,
+            source=hipp_source,
             line_width=LINE_WIDTH,
             color="slategray",
     )
@@ -79,7 +94,7 @@ def label_editing_app(doc):
     label_source = ColumnDataSource()
     label_plot = figure(
             tools=LABEL_TOOLS,
-            x_range=lfp_plot.x_range,
+            x_range=hipp_plot.x_range,
             height=LFP_HEIGHT,
             width=LFP_WIDTH,
     )
@@ -195,8 +210,12 @@ def label_editing_app(doc):
     fs_input = TextInput(value="1000", title="Enter samplerate (Hz):")
     subsample_input = TextInput(value="10", title="Enter subsample factor:")
     hipp_channel_input = TextInput(
-            value=DEFAULT_LFP_NAME,
-            title="Enter LFP channel:",
+            value=DEFAULT_HIPP_NAME,
+            title="Enter Hipp channel:",
+    )
+    cortical_channel_input = TextInput(
+            value=DEFAULT_CX_NAME,
+            title="Enter cortical channel:",
     )
     emg_channel_input = TextInput(
             value=DEFAULT_EMG_NAME,
@@ -248,6 +267,7 @@ def label_editing_app(doc):
         # Make sure the EMG and LFP channels are valid.
         emg_channel = emg_channel_input.value
         hipp_channel = hipp_channel_input.value
+        cortex_channel = cortical_channel_input.value
         all_keys = sorted(list(lfps.keys()))
         if emg_channel not in lfps:
             load_button.button_type = "warning"
@@ -259,14 +279,22 @@ def label_editing_app(doc):
             alert_box.text = \
                     f"Didn't find the channel '{hipp_channel}' in: {all_keys}"
             return
+        if cortex_channel not in lfps:
+            load_button.button_type = "warning"
+            alert_box.text = \
+                    f"Didn't find the channel '{cortex_channel}' in: {all_keys}"
+            return
 
         # Assign the source data.
         emg_trace = lfps[emg_channel].flatten()
         emg_trace = lpne.filter_signal(emg_trace, fs, EMG_LOWCUT, EMG_HIGHCUT)
         emg_trace = emg_trace[::subsamp]
-        lfp_trace = lfps[hipp_channel].flatten()
-        lfp_trace = lpne.filter_signal(lfp_trace, fs, LFP_LOWCUT, LFP_HIGHCUT)
-        lfp_trace = lfp_trace[::subsamp]
+        hipp_trace = lfps[hipp_channel].flatten()
+        hipp_trace = lpne.filter_signal(hipp_trace, fs, LFP_LOWCUT, LFP_HIGHCUT)
+        hipp_trace = hipp_trace[::subsamp]
+        cortex_trace = lfps[cortex_channel].flatten()
+        cortex_trace = lpne.filter_signal(cortex_trace, fs, LFP_LOWCUT, LFP_HIGHCUT)
+        cortex_trace = cortex_trace[::subsamp]
         lfp_times = subsamp/fs * np.arange(len(emg_trace))
         label_fn = label_select.value
         if label_fn == NULL_SELECTION:
@@ -290,14 +318,15 @@ def label_editing_app(doc):
         new_lfp_data = dict(
             lfp_time=lfp_times,
             emg=emg_trace,
-            lfp=lfp_trace,
+            hipp=hipp_trace,
+            cortex=cortex_trace,
         )
         new_label_data = dict(
             label_time=label_times,
             label_y=np.zeros(len(labels)),
             color=color,
         )
-        lfp_source.data = new_lfp_data
+        hipp_source.data = new_lfp_data
         label_source.data = new_label_data
         load_button.button_type="success"
         load_button.label = "Loaded"
@@ -398,10 +427,11 @@ def label_editing_app(doc):
     y = [5,5,4,6,2]
     label_y = [0]*len(x)
     color = [COLORS[-1]]*len(x)
-    lfp_source.data = dict(
+    hipp_source.data = dict(
         lfp_time=x,
         emg=y,
-        lfp=y,
+        hipp=y,
+        cortex=y,
     )
     label_source.data = dict(
         label_time=x,
@@ -419,6 +449,7 @@ def label_editing_app(doc):
             fs_input,
             subsample_input,
             hipp_channel_input,
+            cortical_channel_input,
             emg_channel_input,
             load_button,
             alert_box,
@@ -430,8 +461,8 @@ def label_editing_app(doc):
     )
 
     buttons = row(*label_buttons)
-    plots = column(lfp_plot, emg_plot, label_plot, alert_box)
-    tab_2 = Panel(child=column(buttons, plots), title="Edit Labels")
+    plots = column(hipp_plot, cortex_plot, emg_plot, label_plot, alert_box)
+    tab_2 = Panel(child=column(plots, buttons), title="Edit Labels")
 
     npy_save_things = column(
             npy_text,
