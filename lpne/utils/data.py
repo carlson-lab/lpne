@@ -11,6 +11,14 @@ from scipy.io import loadmat
 import warnings
 
 
+IGNORED_KEYS = [
+    '__header__',
+    '__version__',
+    '__globals__',
+]
+"""Ignored keys in the LFP data file"""
+
+
 
 def load_lfps(fn):
     """
@@ -29,11 +37,21 @@ def load_lfps(fn):
     assert isinstance(fn, str)
     if fn.endswith('.mat'):
         # try:
-        data = loadmat(fn)
+        lfps = loadmat(fn)
         # except: for old .mat files...
     else:
         raise NotImplementedError(f"Cannot load file: {fn}")
-    return data
+    # Make sure all the channels are 1D float arrays.
+    for channel in list(lfps.keys()):
+        if channel in IGNORED_KEYS:
+            del lfps[channel]
+            continue
+        try:
+            lfps[channel] = np.array(lfps[channel]).astype(np.float).flatten()
+        except ValueError:
+            warnings.warn(f"Unable to normalize channel: {channel}")
+            del lfps[channel]
+    return lfps
 
 
 def save_features(features, fn):
