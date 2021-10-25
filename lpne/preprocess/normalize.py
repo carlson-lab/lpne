@@ -5,10 +5,12 @@ TO DO
 -----
 * add more normalization methods
 """
-__date__ = "July 2021"
+__date__ = "July - October 2021"
 
 
 import numpy as np
+
+EPSILON = 1e-6
 
 
 
@@ -42,6 +44,36 @@ def normalize_features(power_features, partition, mode='max'):
     else:
         raise NotImplementedError(f"Mode {mode} not implemented!")
     return power_features
+
+
+
+def normalize_lfps(lfps, mode='zscore'):
+    """
+    Normalize the LFPs.
+
+    This is an in-place operation!
+
+    Parameters
+    ----------
+    lfps : dict
+        Maps ROI names to waveforms.
+    mode : str, optional
+        Normalization method.
+        'zscore': normalize by z-score
+
+    Returns
+    -------
+    lfps : dict
+        Maps ROI names to waveforms.
+    """
+    if mode == 'zscore':
+        for channel in lfps:
+            mean, std = np.mean(lfps[channel]), np.std(lfps[channel])
+            lfps[channel] = (lfps[channel] - mean) / (std + EPSILON)
+    else:
+        raise NotImplementedError(f"Mode {mode} not implemented!")
+    return lfps
+
 
 
 

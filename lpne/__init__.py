@@ -4,8 +4,8 @@ LPNE feature pipeline
 Code for preprocessing and building models with local field potentials.
 
 """
-__date__ = "July - September 2021"
-__version__ = "0.0.2"
+__date__ = "July - October 2021"
+__version__ = "0.0.3"
 
 
 
@@ -30,7 +30,7 @@ from .preprocess.filter import filter_signal
 
 from .preprocess.make_features import make_features
 
-from .preprocess.normalize import normalize_features
+from .preprocess.normalize import normalize_features, normalize_lfps
 
 from .utils.data import \
         load_lfps, \

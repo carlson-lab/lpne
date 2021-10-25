@@ -27,6 +27,7 @@ def plot_power(power, rois, fn='temp.pdf'):
     ylim = (-0.05*np.max(power), 1.05*np.max(power))
     n = int(round((-1 + np.sqrt(1+8*power.shape[0]))/2))
     assert n == len(rois)
+    assert n > 1
     fig, axarr = plt.subplots(n,n)
     for i in range(n):
         for j in range(i+1):
