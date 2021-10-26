@@ -9,11 +9,13 @@ from scipy.signal import butter, lfilter, stft, iirnotch, freqz, welch
 
 
 ORDER = 3 # Butterworth filter order
+LOWCUT = 0.5
+HIGHCUT = 55.0
 Q = 1.5 # Notch filter parameter
 
 
 
-def filter_signal(x, fs, lowcut, highcut, q=Q, order=ORDER):
+def filter_signal(x, fs, lowcut=LOWCUT, highcut=HIGHCUT, q=Q, order=ORDER):
     """
     Apply a bandpass filter and notch filters to the signal.
 
@@ -37,6 +39,36 @@ def filter_signal(x, fs, lowcut, highcut, q=Q, order=ORDER):
         b, a = iirnotch(freq, q, fs)
         x = lfilter(b, a, x)
     return x
+
+
+def filter_lfps(lfps, fs, lowcut=LOWCUT, highcut=HIGHCUT, q=Q, order=ORDER):
+    """
+    Apply a bandpass filter and notch filters to all the LFPs.
+
+    Parameters
+    ----------
+    lfps : dict
+        Maps channel names to waveforms.
+    fs : float
+    lowcut : float
+    highcut : float
+    q : float
+    order : int
+
+    Returns
+    -------
+    x : numpy.ndarray
+    """
+    for channel in list(lfps.keys()):
+        lfps[channel] = filter_signal(
+                lfps[channel],
+                fs,
+                lowcut=lowcut,
+                highcut=highcut,
+                q=q,
+                order=order,
+        )
+    return lfps
 
 
 def _butter_bandpass(lowcut, highcut, fs, order=ORDER):

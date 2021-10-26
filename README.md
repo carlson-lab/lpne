@@ -29,4 +29,4 @@ $ pip install .
    between-mouse differences
 10. PoE?
 12. Manually remove regions from LFPs
-16. Filter before normalizing channels
+17. Change q parameter to bandwidth in notch filters
