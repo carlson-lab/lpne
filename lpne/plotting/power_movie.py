@@ -7,7 +7,6 @@ __date__ = "August 2021"
 
 import numpy as np
 import matplotlib.pyplot as plt
-from moviepy.editor import VideoClip
 from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
 from moviepy.video.io.bindings import mplfig_to_npimage
 

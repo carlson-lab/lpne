@@ -3,9 +3,7 @@ Automated sleep labeling app.
 
 TO DO
 -----
-* two plots
 * check CHANS files
-* Add axis labels
 """
 __date__ = "September - October 2021"
 
@@ -371,9 +369,11 @@ def sleep_app(doc):
         except ValueError:
             load_button.button_type = "warning"
             alert_box.text = f"Invalid samplerate: {fs_input.value}"
+            return
         if fs <= 0:
             load_button.button_type = "warning"
             alert_box.text = f"Invalid samplerate: {fs}"
+            return
 
         # Load and process the rest of the LFPs.
         try:
@@ -521,7 +521,7 @@ def get_emg_lfp_features(lfp_fns, hipp_channel, emg_channel, window_duration,
         # Load the LFPs.
         try:
             lfps = lpne.load_lfps(lfp_fn)
-        except NotImplementedError:
+        except (NotImplementedError, FileNotFoundError):
             INVALID_FILE = lfp_fn
             raise NotImplementedError
         assert emg_channel in lfps, f"{emg_channel} not in " \
