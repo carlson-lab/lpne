@@ -37,7 +37,8 @@ from .utils.data import \
         save_features, \
         load_features, \
         save_labels, \
-        load_labels
+        load_labels, \
+        load_features_and_labels
 
 from .utils.utils import \
         write_fake_labels, \
