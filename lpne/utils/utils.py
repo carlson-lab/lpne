@@ -2,7 +2,7 @@
 Useful functions
 
 """
-__date__ = "July 2021"
+__date__ = "July - November 2021"
 
 
 import numpy as np
@@ -213,6 +213,37 @@ def get_feature_label_filenames(feature_dir, label_dir):
         label_fn = os.path.split(label_fns[i])[-1]
         assert feature_fn == label_fn, f"{feature_fn} != {label_fn}"
     return feature_fns, label_fns
+
+
+def get_weights(labels, groups):
+    """
+    Get weights inversely proportional to the label and group frequency.
+
+    The average weight is fixed at one.
+
+    Parameters
+    ----------
+    labels : numpy.ndarray
+        Label array
+    groups : numpy.ndarray
+        Group array
+
+    Returns
+    -------
+    weights : numpy.ndarray
+        Weights
+    """
+    assert len(labels) == len(groups), f"{len(labels)} != {len(groups)}"
+    n = len(labels)
+    assert n > 0, f"len(labels) <= 0"
+    ids = np.array(labels) + (np.max(labels)+1) * np.array(groups)
+    unique_ids = np.unique(ids)
+    id_counts = [len(np.argwhere(ids==id).flatten()) for id in unique_ids]
+    id_weights = n / (len(unique_ids) * np.array(id_counts))
+    weights = np.zeros(len(labels))
+    for id, weight in zip(unique_ids, id_weights):
+        weights[np.argwhere(ids==id).flatten()] = weight
+    return weights
 
 
 

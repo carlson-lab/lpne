@@ -4,8 +4,8 @@ LPNE feature pipeline
 Code for preprocessing and building models with local field potentials.
 
 """
-__date__ = "July - October 2021"
-__version__ = "0.0.3"
+__date__ = "July - November 2021"
+__version__ = "0.0.4"
 
 
 
@@ -46,7 +46,8 @@ from .utils.utils import \
         get_feature_filenames, \
         get_label_filenames_from_feature_filenames, \
         get_lfp_chans_filenames, \
-        get_feature_label_filenames
+        get_feature_label_filenames, \
+        get_weights
 
 
 

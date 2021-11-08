@@ -2,7 +2,7 @@
 Data utilities
 
 """
-__date__ = "July - September 2021"
+__date__ = "July - November 2021"
 
 
 import numpy as np
