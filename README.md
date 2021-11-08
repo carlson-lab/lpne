@@ -30,3 +30,4 @@ $ pip install .
 10. PoE?
 12. Manually remove regions from LFPs
 17. Change q parameter to bandwidth in notch filters
+18. add device argument for the model

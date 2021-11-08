@@ -30,7 +30,8 @@ def normalize_features(power_features, partition, mode='max'):
             Test indices.
     mode : {'max'}, optional
         Normalization method.
-        'max': normalize by the maximum value of the training set
+        'max': normalize by the maximum value of the training set, scaling to
+               [0,1].
 
     Returns
     -------

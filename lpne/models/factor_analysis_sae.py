@@ -2,16 +2,21 @@
 Factor Analysis-regularized logistic regression.
 
 """
-__date__ = "June - July 2021"
+__date__ = "June - November 2021"
 
 
 import numpy as np
 import os
+from sklearn.base import BaseEstimator
+from sklearn.utils.multiclass import unique_labels
+from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
 import torch
 from torch.distributions import Categorical, Normal, kl_divergence
 import torch.nn.functional as F
-from torch.utils.data import TensorDataset, DataLoader
+from torch.utils.data import TensorDataset, DataLoader, WeightedRandomSampler
 import warnings
+
+from ..utils.utils import get_weights
 
 
 # https://stackoverflow.com/questions/53014306/
@@ -21,36 +26,32 @@ if float(torch.__version__[:3]) >= 1.9:
 
 FLOAT = torch.float32
 INT = torch.int64
+MAX_LABEL = 1000
 
 
 
-class FaSae(torch.nn.Module):
+class FaSae(torch.nn.Module, BaseEstimator):
 
-    def __init__(self, n_features, n_classes, reg_strength=1.0, z_dim=20,
-        class_weights=None, weight_reg=1.0, nonnegative=False,
-        variational=False, kl_factor=1.0):
+    def __init__(self, reg_strength=1.0, z_dim=32, weight_reg=0.0,
+        nonnegative=True, variational=False, kl_factor=1.0, n_iter=50000,
+        lr=1e-3, batch_size=256):
         """
         A supervised autoencoder with nonnegative and variational options.
 
-        Attributes
-        ----------
-        trained : bool
-            Whether the model is trained or not.
+        Notes
+        -----
+        * The `labels` argument to `fit` and `score` is a bit hacky so that the
+          model can work nicely with the sklearn model selection tools. The
+          labels should be an array of integers with `label // 1000` encoding
+          the individual and `label % 1000` encoding the behavioral label.
 
         Parameters
         ----------
-        n_features: int
-            Total number of features
-        n_classes : int
-            Number of label classes
         reg_strength : float, optional
             This controls how much the classifier is regularized. This should
             be positive, and larger values indicate more regularization.
         z_dim : int, optional
             Latent dimension/number of networks.
-        class_weights : None or numpy.ndarray
-            Used to upweight rarer labels. No upweighting is performed if this
-            is `None`.
         weight_reg : float, optional
             Model L2 weight regularization.
         nonnegative : bool, optional
@@ -63,47 +64,128 @@ class FaSae(torch.nn.Module):
             regularization parameter from `reg_strength` that can be
             independently set. This parameter is only used if `variational` is
             `True`.
+        n_iter : int, optional
+            Number of gradient steps during training.
+        lr : float, optional
+            Learning rate.
+        batch_size : int, optional
+            Minibatch size
         """
         super(FaSae, self).__init__()
-        assert n_classes > 1, f"{n_classes} <= 1"
-        assert z_dim >= n_classes, f"{z_dim} < {n_classes}"
+        assert kl_factor >= 0.0, f"{kl_factor} < 0"
+        # Set parameters.
+        assert isinstance(reg_strength, (int, float))
         assert reg_strength >= 0.0
+        self.reg_strength = float(reg_strength)
+        assert isinstance(z_dim, int)
+        assert z_dim >= 1
+        self.z_dim = z_dim
+        assert isinstance(weight_reg, (int, float))
         assert weight_reg >= 0.0
-        if nonnegative and weight_reg > 0.0:
-            weight_reg = 0.0
+        self.weight_reg = float(weight_reg)
+        assert isinstance(nonnegative, bool)
+        self.nonnegative = nonnegative
+        assert isinstance(variational, bool)
+        self.variational = variational
+        assert isinstance(kl_factor, (int, float))
+        assert kl_factor >= 0.0
+        self.kl_factor = float(kl_factor)
+        assert isinstance(n_iter, int)
+        assert n_iter > 0
+        self.n_iter = n_iter
+        assert isinstance(lr, (int, float))
+        assert lr > 0.0
+        self.lr = float(lr)
+        assert isinstance(batch_size, int)
+        assert batch_size > 0
+        self.batch_size = batch_size
+
+
+    def _initialize(self, n_features):
+        """Initialize parameters of the networks before training."""
+        # Check arguments.
+        n_classes = len(self.classes_)
+        assert n_classes <= self.z_dim, f"{n_classes} > {self.z_dim}"
+        if self.nonnegative and self.weight_reg > 0.0:
+            self.weight_reg = 0.0
             warnings.warn(
                     f"Weight regularization should be 0.0 "
                     f"for nonnegative factorization"
             )
-        assert kl_factor >= 0.0, f"{kl_factor} < 0"
-        self.trained = False # Has this model been trained yet?
-        self.n_features = n_features
-        self.reg_strength = reg_strength
-        self.n_classes = n_classes
-        if class_weights is None:
-            self.class_weights = class_weights
-        else:
-            self.class_weights = torch.tensor(class_weights, dtype=FLOAT)
-        self.z_dim = z_dim
-        self.weight_reg = weight_reg
-        self.nonnegative = nonnegative
-        self.variational = variational
-        self.kl_factor = kl_factor
-        self.recognition_model = torch.nn.Linear(self.n_features, self.z_dim)
-        self.rec_model_1 = torch.nn.Linear(self.n_features, self.z_dim)
-        self.rec_model_2 = torch.nn.Linear(self.n_features, self.z_dim)
+        # Make the networks.
+        self.recognition_model = torch.nn.Linear(n_features, self.z_dim)
+        self.rec_model_1 = torch.nn.Linear(n_features, self.z_dim)
+        self.rec_model_2 = torch.nn.Linear(n_features, self.z_dim)
         self.linear_layer = torch.nn.Linear(self.z_dim, self.z_dim)
-        self.prior = Normal(
-            torch.zeros(self.z_dim),
-            torch.ones(self.z_dim)
-        )
-        self.model = torch.nn.Linear(self.z_dim, self.n_features)
-        self.logit_bias = torch.nn.Parameter(
-            torch.zeros(1,self.n_classes),
-        )
+        self.prior = Normal(torch.zeros(self.z_dim), torch.ones(self.z_dim))
+        self.model = torch.nn.Linear(self.z_dim, n_features)
+        self.logit_bias = torch.nn.Parameter(torch.zeros(1,n_classes))
 
 
-    def forward(self, features, labels):
+    def fit(self, features, labels, print_freq=500):
+        """
+        Train the model on the given dataset.
+
+        Parameters
+        ----------
+        features : numpy.ndarray
+        labels : numpy.ndarray
+        n_iter : int, optional
+            Number of training epochs.
+        lr : float, optional
+            Learning rate.
+        batch_size : int, optional
+        verbose : bool, optional
+        print_freq : None or int, optional
+        """
+        # Check arguments.
+        features, labels = check_X_y(features, labels)
+
+        # Derive groups, labels, and weights from labels.
+        groups, labels, weights = _derive_groups(labels)
+
+        self.classes_, labels = np.unique(labels, return_inverse=True)
+        if features.shape[0] != labels.shape[0]:
+            raise ValueError(f"{features.shape}[0] != {labels.shape}[0]")
+        if len(features.shape) != 2:
+            raise ValueError(f"len({features.shape}) != 2")
+        if len(labels.shape) != 1:
+            raise ValueError(f"len({labels.shape}) != 1")
+        self._initialize(features.shape[1])
+        # NumPy arrays to PyTorch tensors.
+        features = torch.tensor(features, dtype=FLOAT)
+        labels = torch.tensor(labels, dtype=INT)
+        weights = torch.tensor(weights, dtype=FLOAT)
+        print("Downweighting!")
+        weights = torch.pow(weights, 1/2)
+        # Make some loaders and an optimizer.
+        dset = TensorDataset(features, labels, weights)
+        sampler = WeightedRandomSampler(
+                weights,
+                num_samples=self.batch_size,
+                replacement=True,
+        )
+        loader = DataLoader(
+                dset,
+                sampler=sampler,
+                batch_size=self.batch_size,
+        )
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
+        # Train.
+        for epoch in range(1,self.n_iter+1):
+            epoch_loss = 0.0
+            for batch in loader:
+                self.zero_grad()
+                loss = self(*batch)
+                epoch_loss += loss.item()
+                loss.backward()
+                optimizer.step()
+            if print_freq is not None and epoch % print_freq == 0:
+                print(f"iter {epoch:04d}, loss: {loss:3f}")
+        return self
+
+
+    def forward(self, features, labels, weights):
         """
         Calculate a loss for the features and labels.
 
@@ -112,6 +194,8 @@ class FaSae(torch.nn.Module):
         features : torch.Tensor
             Shape: [batch,n_features]
         labels : torch.Tensor
+            Shape: [batch]
+        weights : None or torch.Tensor
             Shape: [batch]
 
         Returns
@@ -145,7 +229,7 @@ class FaSae(torch.nn.Module):
         rec_loss = torch.mean((features - features_rec).pow(2), dim=1) # [b]
         rec_loss = self.reg_strength * rec_loss
         # Predict the labels.
-        logits = zs[:,:self.n_classes-1]
+        logits = zs[:,:len(self.classes_)-1]
         ones = torch.ones(
                 logits.shape[0],
                 1,
@@ -155,12 +239,12 @@ class FaSae(torch.nn.Module):
         logits = torch.cat([logits, ones], dim=1) + self.logit_bias
         log_probs = Categorical(logits=logits).log_prob(labels) # [b]
         # Weight label log likes by class weights.
-        if self.class_weights is not None:
-            weight_vector = self.class_weights[labels]
-            log_probs = weight_vector * log_probs
+        if weights is not None:
+            assert weights.shape == labels.shape
+            log_probs = weights * log_probs
         # Regularize the model weights.
         l2_loss = self.weight_reg * torch.norm(A)
-        # Combine all the terms into a loss.
+        # Combine all the terms into a composite loss.
         loss = rec_loss - log_probs
         if self.variational:
             loss = loss + self.kl_factor * kld
@@ -168,52 +252,15 @@ class FaSae(torch.nn.Module):
         return loss
 
 
-    def fit(self, features, labels, epochs=100, lr=1e-3, batch_size=256,
-        verbose=True, print_freq=10):
-        """
-        Train the model on the given dataset.
-
-        Parameters
-        ----------
-        features : numpy.ndarray
-        labels : numpy.ndarray
-        epochs : int, optional
-            Number of training epochs.
-        lr : float, optional
-            Learning rate.
-        batch_size : int, optional
-        verbose : bool, optional
-        print_freq : int, optional
-        """
-        assert not self.trained, "FA model is already trained!"
-        self.trained = True
-        # To torch tensors.
-        features = torch.tensor(features, dtype=FLOAT)
-        labels = torch.tensor(labels, dtype=INT)
-        # Make some loaders and an optimizer.
-        dset = TensorDataset(features, labels)
-        loader = DataLoader(dset, batch_size=batch_size, shuffle=True)
-        optimizer = torch.optim.Adam(self.parameters(), lr=lr)
-        # Train.
-        for epoch in range(1,epochs+1):
-            epoch_loss = 0.0
-            for batch in loader:
-                self.zero_grad()
-                loss = self(*batch)
-                epoch_loss += loss.item()
-                loss.backward()
-                optimizer.step()
-            if epoch % print_freq == 0 and verbose:
-                print(f"epoch {epoch}, loss: {loss}")
-
-
-    def predict(self, features):
+    @torch.no_grad()
+    def predict(self, X):
         """
         Predict class labels for the features.
 
         Parameters
         ----------
-        features : numpy.ndarray
+        X : numpy.ndarray
+            Features
             Shape: [batch, n_features]
 
         Returns
@@ -221,13 +268,17 @@ class FaSae(torch.nn.Module):
         predictions : numpy.ndarray
             Shape: [batch]
         """
-        features = torch.tensor(features, dtype=FLOAT)
-        with torch.no_grad():
-            probs = self.predict_proba(features, to_numpy=False)
-            predictions = torch.argmax(probs, dim=1)
-        return predictions.cpu().numpy()
+        # Checks
+        check_is_fitted(self)
+        X = check_array(X)
+        # Feed through model.
+        X = torch.tensor(X, dtype=FLOAT)
+        probs = self.predict_proba(X, to_numpy=False)
+        predictions = torch.argmax(probs, dim=1)
+        return self.classes_[predictions.cpu().numpy()]
 
 
+    @torch.no_grad()
     def predict_proba(self, features, to_numpy=True, stochastic=False):
         """
         Probability estimates.
@@ -248,38 +299,38 @@ class FaSae(torch.nn.Module):
         probs : numpy.ndarray
             Shape: [batch, n_classes]
         """
-        with torch.no_grad():
-            if self.variational:
-                # Feed through the recognition network to get latents.
-                z_mus = self.rec_model_1(features)
-                z_log_stds = self.rec_model_2(features)
-                if stochastic:
-                    # Make the variational posterior and sample.
-                    dist = Normal(z_mus, z_log_stds.exp())
-                    zs = dist.rsample() # [b,z]
-                else:
-                    zs = z_mus
-                # Project.
-                zs = self.linear_layer(zs)
-            else: # deterministic autoencoder
-                # Feed through the recognition network to get latents.
-                zs = self.recognition_model(features)
-            # Get class predictions.
-            logits = zs[:,:self.n_classes-1]
-            ones = torch.ones(
-                    logits.shape[0],
-                    1,
-                    dtype=logits.dtype,
-                    device=logits.device,
-            )
-            logits = torch.cat([logits, ones], dim=1) + self.logit_bias
-            probs = F.softmax(logits, dim=1) # [b, n_classes]
+        if self.variational:
+            # Feed through the recognition network to get latents.
+            z_mus = self.rec_model_1(features)
+            z_log_stds = self.rec_model_2(features)
+            if stochastic:
+                # Make the variational posterior and sample.
+                dist = Normal(z_mus, z_log_stds.exp())
+                zs = dist.rsample() # [b,z]
+            else:
+                zs = z_mus
+            # Project.
+            zs = self.linear_layer(zs)
+        else: # deterministic autoencoder
+            # Feed through the recognition network to get latents.
+            zs = self.recognition_model(features)
+        # Get class predictions.
+        logits = zs[:,:len(self.classes_)-1]
+        ones = torch.ones(
+                logits.shape[0],
+                1,
+                dtype=logits.dtype,
+                device=logits.device,
+        )
+        logits = torch.cat([logits, ones], dim=1) + self.logit_bias
+        probs = F.softmax(logits, dim=1) # [b, n_classes]
         if to_numpy:
             return probs.cpu().numpy()
         return probs
 
 
-    def score(self, features, labels, class_weights):
+    @torch.no_grad()
+    def score(self, features, labels):
         """
         Get a class weighted accuracy.
 
@@ -292,68 +343,85 @@ class FaSae(torch.nn.Module):
             Shape: [n_datapoints, n_features]
         labels : numpy.ndarray
             Shape: [n_datapoints]
-        class_weights : None or numpy.ndarray
-            Shape: [n_classes]
+        weights : None or numpy.ndarray
+            Shape: [n_datapoints]
 
         Return
         ------
         weighted_acc : float
         """
+        # Derive groups, labels, and weights from labels.
+        groups, labels, weights = _derive_groups(labels)
         predictions = self.predict(features)
         scores = np.zeros(len(features))
         scores[predictions == labels] = 1.0
-        if class_weights is not None:
-            scores = scores * class_weights[labels]
+        scores = scores * weights
         weighted_acc = np.mean(scores)
         return weighted_acc
 
 
-    def get_params(self):
+    def get_params(self, deep=True):
         """Get parameters for this estimator."""
-        return {
-            'model_state_dict': self.state_dict(),
-            'trained': self.trained,
-            'n_features': self.n_features,
+        params = {
             'reg_strength': self.reg_strength,
-            'n_classes': self.n_classes,
-            'class_weights': self.class_weights,
             'z_dim': self.z_dim,
+            'weight_reg': self.weight_reg,
             'nonnegative': self.nonnegative,
             'variational': self.variational,
             'kl_factor': self.kl_factor,
-		}
+            'n_iter': self.n_iter,
+            'lr': self.lr,
+            'batch_size': self.batch_size,
+        }
+        if deep:
+            params['model_state_dict'] = self.state_dict()
+        return params
 
 
-    def set_params(self, params):
+    def set_params(self, reg_strength=None, z_dim=None, weight_reg=None,
+        nonnegative=None, variational=None, kl_factor=None, n_iter=None,
+        lr=None, batch_size=None, model_state_dict=None):
         """
         Set the parameters of this estimator.
 
         Parameters
         ----------
-        params : dict
+        ...
         """
-        assert self.n_features == params['n_features']
-        assert self.n_classes == params['n_classes']
-        assert self.z_dim == params['z_dim']
-        self.trained = params['trained']
-        self.reg_strength = params['reg_strength']
-        self.class_weights = params['class_weights']
-        self.nonnegative = params['nonnegative']
-        self.variational = params['variational']
-        self.kl_factor = params['kl_factor']
-        self.load_state_dict(params['model_state_dict'])
+        if reg_strength is not None:
+            self.reg_strength = reg_strength
+        if z_dim is not None:
+            self.z_dim = z_dim
+        if weight_reg is not None:
+            self.weight_reg = weight_reg
+        if nonnegative is not None:
+            self.nonnegative = nonnegative
+        if variational is not None:
+            self.variational = variational
+        if kl_factor is not None:
+            self.kl_factor = kl_factor
+        if n_iter is not None:
+            self.n_iter = n_iter
+        if lr is not None:
+            self.lr = lr
+        if batch_size is not None:
+            self.batch_size = batch_size
+        if model_state_dict is not None:
+            self.load_state_dict(model_state_dict)
+        return self
 
 
     def save_state(self, fn):
         """Save parameters for this estimator."""
-        np.save(fn, self.get_params())
+        np.save(fn, self.get_params(deep=True))
 
 
     def load_state(self, fn):
         """Load and set the parameters for this estimator."""
-        self.set_params(np.load(f, allow_pickle=True).item())
+        self.set_params(**np.load(f, allow_pickle=True).item())
 
 
+    @torch.no_grad()
     def get_factor(self, factor_num=0):
         """
         Get a linear factor.
@@ -363,19 +431,27 @@ class FaSae(torch.nn.Module):
         feature_num : int
             Which factor to return. 0 <= `factor_num` < self.z_dim
         """
+        check_is_fitted(self)
         assert isinstance(factor_num, int)
         assert factor_num >= 0 and factor_num < self.z_dim
-        with torch.no_grad():
-            if self.nonnegative:
-                A = F.softplus(self.model.weight[:,factor_num])
-            else:
-                A = self.model.weight[:,factor_num]
+        A = self.model.weight[:,factor_num]
+        if self.nonnegative:
+            A = F.softplus(A)
         return A.detach().cpu().numpy()
+
+
+
+def _derive_groups(labels):
+    groups = np.array([label // MAX_LABEL for label in labels])
+    labels = np.array([label % MAX_LABEL for label in labels])
+    weights = get_weights(labels, groups)
+    return groups, labels, weights
 
 
 
 if __name__ == '__main__':
     """Here's an example using some fake data."""
+    raise NotImplementedError
     n = 100 # number of datapoints/windows
     n_features = 100 # total number of LFP features
     n_classes = 3 # number of label types

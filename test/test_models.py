@@ -2,7 +2,7 @@
 Test lpne.models.
 
 """
-__date__ = "July 2021"
+__date__ = "July - November 2021"
 
 
 from itertools import product
