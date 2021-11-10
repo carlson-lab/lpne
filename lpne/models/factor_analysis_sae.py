@@ -27,6 +27,7 @@ if float(torch.__version__[:3]) >= 1.9:
 FLOAT = torch.float32
 INT = torch.int64
 MAX_LABEL = 1000
+EPSILON = 1e-6
 
 
 
@@ -34,7 +35,7 @@ class FaSae(torch.nn.Module, BaseEstimator):
 
     def __init__(self, reg_strength=1.0, z_dim=32, weight_reg=0.0,
         nonnegative=True, variational=False, kl_factor=1.0, n_iter=50000,
-        lr=1e-3, batch_size=256):
+        lr=1e-3, batch_size=256, beta=0.5, device='auto'):
         """
         A supervised autoencoder with nonnegative and variational options.
 
@@ -99,6 +100,13 @@ class FaSae(torch.nn.Module, BaseEstimator):
         assert isinstance(batch_size, int)
         assert batch_size > 0
         self.batch_size = batch_size
+        assert isinstance(beta, (int, float))
+        assert beta >= 0.0 and beta <= 1.0
+        self.beta = float(beta)
+        if device == 'auto':
+            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.device = device
+        self.classes_ = None
 
 
     def _initialize(self, n_features):
@@ -117,9 +125,12 @@ class FaSae(torch.nn.Module, BaseEstimator):
         self.rec_model_1 = torch.nn.Linear(n_features, self.z_dim)
         self.rec_model_2 = torch.nn.Linear(n_features, self.z_dim)
         self.linear_layer = torch.nn.Linear(self.z_dim, self.z_dim)
-        self.prior = Normal(torch.zeros(self.z_dim), torch.ones(self.z_dim))
+        prior_mean = torch.zeros(self.z_dim).to(self.device)
+        prior_std = torch.ones(self.z_dim).to(self.device)
+        self.prior = Normal(prior_mean, prior_std)
         self.model = torch.nn.Linear(self.z_dim, n_features)
         self.logit_bias = torch.nn.Parameter(torch.zeros(1,n_classes))
+        self.to(self.device)
 
 
     def fit(self, features, labels, print_freq=500):
@@ -153,15 +164,15 @@ class FaSae(torch.nn.Module, BaseEstimator):
             raise ValueError(f"len({labels.shape}) != 1")
         self._initialize(features.shape[1])
         # NumPy arrays to PyTorch tensors.
-        features = torch.tensor(features, dtype=FLOAT)
-        labels = torch.tensor(labels, dtype=INT)
-        weights = torch.tensor(weights, dtype=FLOAT)
-        print("Downweighting!")
-        weights = torch.pow(weights, 1/2)
+        features = torch.tensor(features, dtype=FLOAT).to(self.device)
+        labels = torch.tensor(labels, dtype=INT).to(self.device)
+        weights = torch.tensor(weights, dtype=FLOAT).to(self.device)
+        sampler_weights = torch.pow(weights, 1.0 - self.beta)
+        weights = torch.pow(weights, self.beta)
         # Make some loaders and an optimizer.
         dset = TensorDataset(features, labels, weights)
         sampler = WeightedRandomSampler(
-                weights,
+                sampler_weights,
                 num_samples=self.batch_size,
                 replacement=True,
         )
@@ -208,7 +219,7 @@ class FaSae(torch.nn.Module, BaseEstimator):
             z_mus = self.rec_model_1(features)
             z_log_stds = self.rec_model_2(features)
             # Make the variational posterior and get a KL from the prior.
-            dist = Normal(z_mus, z_log_stds.exp())
+            dist = Normal(z_mus, EPSILON + z_log_stds.exp())
             kld = kl_divergence(dist, self.prior).sum(dim=1) # [b]
             # Sample.
             zs = dist.rsample() # [b,z]
@@ -272,7 +283,7 @@ class FaSae(torch.nn.Module, BaseEstimator):
         check_is_fitted(self)
         X = check_array(X)
         # Feed through model.
-        X = torch.tensor(X, dtype=FLOAT)
+        X = torch.tensor(X, dtype=FLOAT).to(self.device)
         probs = self.predict_proba(X, to_numpy=False)
         predictions = torch.argmax(probs, dim=1)
         return self.classes_[predictions.cpu().numpy()]
@@ -305,7 +316,7 @@ class FaSae(torch.nn.Module, BaseEstimator):
             z_log_stds = self.rec_model_2(features)
             if stochastic:
                 # Make the variational posterior and sample.
-                dist = Normal(z_mus, z_log_stds.exp())
+                dist = Normal(z_mus, EPSILON + z_log_stds.exp())
                 zs = dist.rsample() # [b,z]
             else:
                 zs = z_mus
@@ -372,6 +383,9 @@ class FaSae(torch.nn.Module, BaseEstimator):
             'n_iter': self.n_iter,
             'lr': self.lr,
             'batch_size': self.batch_size,
+            'beta': self.beta,
+            'device': self.device,
+            'classes_': self.classes_,
         }
         if deep:
             params['model_state_dict'] = self.state_dict()
@@ -380,7 +394,8 @@ class FaSae(torch.nn.Module, BaseEstimator):
 
     def set_params(self, reg_strength=None, z_dim=None, weight_reg=None,
         nonnegative=None, variational=None, kl_factor=None, n_iter=None,
-        lr=None, batch_size=None, model_state_dict=None):
+        lr=None, batch_size=None, beta=None, device=None, classes_=None,
+        model_state_dict=None):
         """
         Set the parameters of this estimator.
 
@@ -406,7 +421,17 @@ class FaSae(torch.nn.Module, BaseEstimator):
             self.lr = lr
         if batch_size is not None:
             self.batch_size = batch_size
+        if beta is not None:
+            self.beta = beta
+        if device is not None:
+            self.device = device
+        if classes_ is not None:
+            self.classes_ = classes_
         if model_state_dict is not None:
+            assert 'model.bias' in model_state_dict, \
+                    f"'model.bias' not in {list(model_state_dict.keys())}"
+            n_features = len(model_state_dict['model.bias'].view(-1))
+            self._initialize(n_features)
             self.load_state_dict(model_state_dict)
         return self
 
@@ -418,7 +443,7 @@ class FaSae(torch.nn.Module, BaseEstimator):
 
     def load_state(self, fn):
         """Load and set the parameters for this estimator."""
-        self.set_params(**np.load(f, allow_pickle=True).item())
+        self.set_params(**np.load(fn, allow_pickle=True).item())
 
 
     @torch.no_grad()
