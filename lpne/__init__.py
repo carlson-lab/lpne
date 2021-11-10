@@ -47,7 +47,8 @@ from .utils.utils import \
         get_label_filenames_from_feature_filenames, \
         get_lfp_chans_filenames, \
         get_feature_label_filenames, \
-        get_weights
+        get_weights, \
+        unsqueeze_triangular_array
 
 
 

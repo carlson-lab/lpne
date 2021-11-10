@@ -19,20 +19,22 @@ Required directory structure:
 
 
 """
-__date__ = "July 2021"
+__date__ = "July - November 2021"
 
 
 import numpy as np
 import os
+from sklearn.metrics import confusion_matrix
 import sys
 
 import lpne
-from lpne.models import FaSae
+from lpne.models import FaSae, CpSae
 
 
 USAGE = "Usage:\n$ python prediction_pipeline.py <experiment_directory>"
 FEATURE_SUBDIR = 'features'
 LABEL_SUBDIR = 'labels'
+CP_SAE = True
 
 
 
@@ -55,18 +57,12 @@ if __name__ == '__main__':
     lpne.write_fake_labels(feature_dir, label_dir)
 
     # Collect all the features and labels.
-    # TO DO: make a function to do this.
-    features, labels = [], []
-    for feature_fn, label_fn in zip(feature_fns, label_fns):
-        temp = lpne.load_features(feature_fn)
-        rois = temp['rois']
-        features.append(temp['power'])
-        labels.append(lpne.load_labels(label_fn))
-    features = np.concatenate(features, axis=0)
-    labels = np.concatenate(labels, axis=0)
-    n_classes = 1 + np.max(labels)
-    n_features = features.shape[1] * features.shape[2]
-    print("Number of features:", n_features)
+    features, labels, rois = \
+            lpne.load_features_and_labels(feature_fns, label_fns)
+
+    if CP_SAE:
+        features = lpne.unsqueeze_triangular_array(features, 1)
+
 
     # Define a test/train split.
     idx = int(round(0.7 * len(features)))
@@ -79,28 +75,25 @@ if __name__ == '__main__':
 
     # Normalize the power features.
     features = lpne.normalize_features(features, partition)
-    features = features.reshape(len(features), -1)
-
-    # Calculate class weights.
-    n = len(train_idx)
-    class_counts = [len(np.argwhere(labels[train_idx]==i).flatten()) for i in range(n_classes)]
-    print("Class counts:", class_counts)
-    class_weights = n / (n_classes * np.array(class_counts))
-    print("Class weights:", class_weights)
+    if CP_SAE:
+        features = np.transpose(features, [0,3,1,2])
+    if not CP_SAE:
+        features = features.reshape(len(features), -1)
 
     # Make the model.
-    model = FaSae(
-        n_features,
-        n_classes,
-        class_weights=class_weights,
-        reg_strength=1.0,
-        weight_reg=0.0,
-        nonnegative=True,
-    )
+    if CP_SAE:
+        model = CpSae(n_iter=50)
+    else:
+        model = FaSae(n_iter=50)
 
     # Fit the model.
     print("Training model...")
-    model.fit(features[train_idx], labels[train_idx])
+    if CP_SAE:
+        # Make fake groups.
+        groups = np.random.randint(0,2,len(labels))
+        model.fit(features[train_idx], labels[train_idx], groups[train_idx], print_freq=5)
+    else:
+        model.fit(features[train_idx], labels[train_idx], print_freq=5)
     print("Done training.\n")
 
     # Plot factor.
@@ -124,12 +117,7 @@ if __name__ == '__main__':
     print(predictions)
 
     # Confusion matrix
-    confusion = np.zeros((n_classes, n_classes), dtype=int)
-    for i in range(n_classes):
-        idx_1 = np.argwhere(true_labels == i).flatten()
-        for j in range(n_classes):
-            idx_2 = np.argwhere(predictions == j).flatten()
-            confusion[i,j] = len(np.intersect1d(idx_1, idx_2))
+    confusion = confusion_matrix(true_labels, predictions)
     print("Confusion matrix:")
     print(confusion)
 
@@ -137,7 +125,6 @@ if __name__ == '__main__':
     weighted_acc = model.score(
             features[test_idx],
             labels[test_idx],
-            class_weights,
     )
     print("Weighted accuracy on test set:", weighted_acc)
 

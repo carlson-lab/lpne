@@ -1,9 +1,8 @@
 """
-Factor Analysis-regularized logistic regression.
+CANDECOMP/PARAFAC supervised autoencoder
 
-Is `linear_layer` necessary?
 """
-__date__ = "June - November 2021"
+__date__ = "November 2021"
 
 
 import numpy as np
@@ -19,7 +18,6 @@ import warnings
 
 from ..utils.utils import get_weights
 
-
 # https://stackoverflow.com/questions/53014306/
 if float(torch.__version__[:3]) >= 1.9:
     os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
@@ -29,24 +27,17 @@ FLOAT = torch.float32
 INT = torch.int64
 MAX_LABEL = 1000
 EPSILON = 1e-6
-FIT_ATTRIBUTES = ['classes_']
+FIT_ATTRIBUTES = ['classes_', 'groups_']
 
 
 
-class FaSae(torch.nn.Module, BaseEstimator):
+class CpSae(torch.nn.Module):
 
-    def __init__(self, reg_strength=1.0, z_dim=32, weight_reg=0.0,
-        nonnegative=True, variational=False, kl_factor=1.0, n_iter=50000,
-        lr=1e-3, batch_size=256, beta=0.5, device='auto'):
+    def __init__(self, reg_strength=1.0, z_dim=32, group_embed_dim=2,
+        weight_reg=0.0, kl_factor=1.0, n_iter=10000, lr=1e-3, batch_size=256,
+        beta=0.5, device='auto'):
         """
         A supervised autoencoder with nonnegative and variational options.
-
-        Notes
-        -----
-        * The `labels` argument to `fit` and `score` is a bit hacky so that the
-          model can work nicely with the sklearn model selection tools. The
-          labels should be an array of integers with `label // 1000` encoding
-          the individual and `label % 1000` encoding the behavioral label.
 
         Parameters
         ----------
@@ -57,10 +48,6 @@ class FaSae(torch.nn.Module, BaseEstimator):
             Latent dimension/number of networks.
         weight_reg : float, optional
             Model L2 weight regularization.
-        nonnegative : bool, optional
-            Use nonnegative factorization.
-        variational : bool, optional
-            Whether a variational autoencoder is used.
         kl_factor : float, optional
             How much to weight the KL divergence term in the variational
             autoencoder (VAE). The standard setting is `1.0`. This is a distinct
@@ -74,36 +61,16 @@ class FaSae(torch.nn.Module, BaseEstimator):
         batch_size : int, optional
             Minibatch size
         """
-        super(FaSae, self).__init__()
-        assert kl_factor >= 0.0, f"{kl_factor} < 0"
+        super(CpSae, self).__init__()
         # Set parameters.
-        assert isinstance(reg_strength, (int, float))
-        assert reg_strength >= 0.0
         self.reg_strength = float(reg_strength)
-        assert isinstance(z_dim, int)
-        assert z_dim >= 1
         self.z_dim = z_dim
-        assert isinstance(weight_reg, (int, float))
-        assert weight_reg >= 0.0
+        self.group_embed_dim = group_embed_dim
         self.weight_reg = float(weight_reg)
-        assert isinstance(nonnegative, bool)
-        self.nonnegative = nonnegative
-        assert isinstance(variational, bool)
-        self.variational = variational
-        assert isinstance(kl_factor, (int, float))
-        assert kl_factor >= 0.0
         self.kl_factor = float(kl_factor)
-        assert isinstance(n_iter, int)
-        assert n_iter > 0
         self.n_iter = n_iter
-        assert isinstance(lr, (int, float))
-        assert lr > 0.0
         self.lr = float(lr)
-        assert isinstance(batch_size, int)
-        assert batch_size > 0
         self.batch_size = batch_size
-        assert isinstance(beta, (int, float))
-        assert beta >= 0.0 and beta <= 1.0
         self.beta = float(beta)
         if device == 'auto':
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -111,68 +78,73 @@ class FaSae(torch.nn.Module, BaseEstimator):
         self.classes_ = None
 
 
-    def _initialize(self, n_features):
-        """Initialize parameters of the networks before training."""
-        # Check arguments.
+    def _initialize(self, n_freqs, n_rois):
+        """
+
+        """
+        n_groups = len(self.groups_)
         n_classes = len(self.classes_)
-        assert n_classes <= self.z_dim, f"{n_classes} > {self.z_dim}"
-        if self.nonnegative and self.weight_reg > 0.0:
-            self.weight_reg = 0.0
-            warnings.warn(
-                    f"Weight regularization should be 0.0 "
-                    f"for nonnegative factorization"
-            )
-        # Make the networks.
-        self.recognition_model = torch.nn.Linear(n_features, self.z_dim)
-        self.rec_model_1 = torch.nn.Linear(n_features, self.z_dim)
-        self.rec_model_2 = torch.nn.Linear(n_features, self.z_dim)
+        n_features = n_freqs * n_rois**2
+        self.group_embed = torch.nn.Parameter(
+                torch.randn(n_groups, self.group_embed_dim,
+        ))
+        self.rec_model_1 = torch.nn.Linear(
+                n_features + self.group_embed_dim,
+                self.z_dim,
+        )
+        self.rec_model_2 = torch.nn.Linear(
+                n_features + self.group_embed_dim,
+                self.z_dim,
+        )
+        self.freq_factors = torch.nn.Parameter(
+                torch.randn(n_groups, self.z_dim, n_freqs),
+        )
+        self.roi_1_factors = torch.nn.Parameter(
+                torch.randn(n_groups, self.z_dim, n_rois),
+        )
+        self.roi_2_factors = torch.nn.Parameter(
+                torch.randn(n_groups, self.z_dim, n_rois),
+        )
         self.linear_layer = torch.nn.Linear(self.z_dim, self.z_dim)
         prior_mean = torch.zeros(self.z_dim).to(self.device)
         prior_std = torch.ones(self.z_dim).to(self.device)
         self.prior = Normal(prior_mean, prior_std)
-        self.model = torch.nn.Linear(self.z_dim, n_features)
         self.logit_bias = torch.nn.Parameter(torch.zeros(1,n_classes))
         self.to(self.device)
 
 
-    def fit(self, features, labels, print_freq=500):
+
+    def fit(self, features, labels, groups, print_freq=100):
         """
-        Train the model on the given dataset.
 
         Parameters
         ----------
-        features : numpy.ndarray
-        labels : numpy.ndarray
-        n_iter : int, optional
-            Number of training epochs.
-        lr : float, optional
-            Learning rate.
-        batch_size : int, optional
-        verbose : bool, optional
-        print_freq : None or int, optional
+        features : [b,f,r,r]
+        labels :
+        groups :
+        weights :
+        print_freq :
         """
         # Check arguments.
-        features, labels = check_X_y(features, labels)
-
-        # Derive groups, labels, and weights from labels.
-        groups, labels, weights = _derive_groups(labels)
-
+        assert features.ndim == 4
+        assert features.shape[2] == features.shape[3]
+        assert labels.ndim == 1
+        assert groups.ndim == 1
+        assert len(features) == len(labels) and len(labels) == len(groups)
+        # Initialize.
+        weights = get_weights(labels, groups)
         self.classes_, labels = np.unique(labels, return_inverse=True)
-        if features.shape[0] != labels.shape[0]:
-            raise ValueError(f"{features.shape}[0] != {labels.shape}[0]")
-        if len(features.shape) != 2:
-            raise ValueError(f"len({features.shape}) != 2")
-        if len(labels.shape) != 1:
-            raise ValueError(f"len({labels.shape}) != 1")
-        self._initialize(features.shape[1])
+        self.groups_, groups = np.unique(groups, return_inverse=True)
+        self._initialize(features.shape[1], features.shape[2])
         # NumPy arrays to PyTorch tensors.
         features = torch.tensor(features, dtype=FLOAT).to(self.device)
         labels = torch.tensor(labels, dtype=INT).to(self.device)
+        groups = torch.tensor(groups, dtype=INT).to(self.device)
         weights = torch.tensor(weights, dtype=FLOAT).to(self.device)
         sampler_weights = torch.pow(weights, 1.0 - self.beta)
         weights = torch.pow(weights, self.beta)
         # Make some loaders and an optimizer.
-        dset = TensorDataset(features, labels, weights)
+        dset = TensorDataset(features, labels, groups, weights)
         sampler = WeightedRandomSampler(
                 sampler_weights,
                 num_samples=self.batch_size,
@@ -198,48 +170,74 @@ class FaSae(torch.nn.Module, BaseEstimator):
         return self
 
 
-    def forward(self, features, labels, weights):
+    def _project(self, zs, groups):
         """
-        Calculate a loss for the features and labels.
+        Return factor loss too!
 
         Parameters
         ----------
-        features : torch.Tensor
-            Shape: [batch,n_features]
-        labels : torch.Tensor
-            Shape: [batch]
-        weights : None or torch.Tensor
-            Shape: [batch]
+        zs : [b,z]
+        groups : [b]
 
-        Returns
-        -------
-        loss : torch.Tensor
-            Shape: []
         """
-        if self.variational:
-            # Feed through the recognition network to get latents.
-            z_mus = self.rec_model_1(features)
-            z_log_stds = self.rec_model_2(features)
-            # Make the variational posterior and get a KL from the prior.
-            dist = Normal(z_mus, EPSILON + z_log_stds.exp())
-            kld = kl_divergence(dist, self.prior).sum(dim=1) # [b]
-            # Sample.
-            zs = dist.rsample() # [b,z]
-            # Project.
-            zs = self.linear_layer(zs)
-        else: # deterministic autoencoder
-            # Feed through the recognition network to get latents.
-            zs = self.recognition_model(features)
-        # Reconstruct the features.
-        if self.nonnegative:
-            A = F.softplus(self.model.weight)
-            features_rec = A.unsqueeze(0) @ F.softplus(zs).unsqueeze(-1)
-            features_rec = features_rec.squeeze(-1)
-        else:
-            A = self.model.weight
-            features_rec = self.model(zs)
+        freq_f = F.softplus(self.freq_factors) # [g,z,f]
+        roi_1_f = F.softplus(self.roi_1_factors) # [g,z,r]
+        roi_2_f = F.softplus(self.roi_2_factors) # [g,z,r]
+        freq_loss = torch.var(freq_f, dim=0).mean(dim=1).sum(dim=0)
+        roi_loss = torch.var(roi_1_f, dim=0) + torch.var(roi_2_f, dim=0)
+        roi_loss = roi_loss.mean(dim=1).sum(dim=0)
+        factor_loss = torch.pow(freq_f, 2)
+        volume = torch.einsum(
+                'bz,bzf,bzr,bzs->bfrs',
+                F.softplus(zs),
+                freq_f[groups],
+                roi_1_f[groups],
+                roi_2_f[groups],
+        )
+        return volume, freq_loss, roi_loss
+
+
+    @torch.no_grad()
+    def _get_mean_projection(self):
+        freq_f = F.softplus(self.freq_factors).mean(dim=0) # [z,f]
+        roi_1_f = F.softplus(self.roi_1_factors).mean(dim=0) # [z,r]
+        roi_2_f = F.softplus(self.roi_2_factors).mean(dim=0) # [z,r]
+        volume = torch.einsum(
+                'zf,zr,zs->zfrs',
+                freq_f[groups],
+                roi_1_f[groups],
+                roi_2_f[groups],
+        )
+        return volume
+
+
+    def forward(self, features, labels, groups, weights):
+        """
+
+        Parameters
+        ----------
+        features : [b,f,r,r]
+        """
+        # Augment features with group embeddings.
+        flat_features = features.view(features.shape[0], -1)
+        aug_features = torch.cat(
+                [flat_features, self.group_embed[groups]],
+                 dim=1,
+        )
+        # Feed through the recognition network to get latents.
+        z_mus = self.rec_model_1(aug_features)
+        z_log_stds = self.rec_model_2(aug_features)
+        # Make the variational posterior and get a KL from the prior.
+        dist = Normal(z_mus, EPSILON + z_log_stds.exp())
+        kld = kl_divergence(dist, self.prior).sum(dim=1) # [b]
+        # Sample.
+        zs = dist.rsample() # [b,z]
+        # Project.
+        zs = self.linear_layer(zs)
+        features_rec, freq_loss, roi_loss = self._project(zs, groups)
+        flat_rec = features_rec.view(features.shape[0], -1)
         # Calculate a reconstruction loss.
-        rec_loss = torch.mean((features - features_rec).pow(2), dim=1) # [b]
+        rec_loss = torch.mean((flat_features - flat_rec).pow(2), dim=1) # [b]
         rec_loss = self.reg_strength * rec_loss
         # Predict the labels.
         logits = zs[:,:len(self.classes_)-1]
@@ -252,21 +250,20 @@ class FaSae(torch.nn.Module, BaseEstimator):
         logits = torch.cat([logits, ones], dim=1) + self.logit_bias
         log_probs = Categorical(logits=logits).log_prob(labels) # [b]
         # Weight label log likes by class weights.
-        if weights is not None:
-            assert weights.shape == labels.shape
-            log_probs = weights * log_probs
+        log_probs = weights * log_probs
         # Regularize the model weights.
-        l2_loss = self.weight_reg * torch.norm(A)
+        # l2_loss = self.weight_reg * torch.norm(A)
+        # TEMP
+        l2_loss = freq_loss + roi_loss
         # Combine all the terms into a composite loss.
         loss = rec_loss - log_probs
-        if self.variational:
-            loss = loss + self.kl_factor * kld
+        loss = loss + self.kl_factor * kld
         loss = torch.mean(loss) + l2_loss
         return loss
 
 
     @torch.no_grad()
-    def predict_proba(self, features, to_numpy=True, stochastic=False):
+    def predict_proba(self, features, groups, to_numpy=True, stochastic=False):
         """
         Probability estimates.
 
@@ -277,7 +274,7 @@ class FaSae(torch.nn.Module, BaseEstimator):
         Parameters
         ----------
         features : numpy.ndarray
-            Shape: [batch, n_features]
+        groups :
         to_numpy : bool, optional
         stochastic : bool, optional
 
@@ -286,22 +283,18 @@ class FaSae(torch.nn.Module, BaseEstimator):
         probs : numpy.ndarray
             Shape: [batch, n_classes]
         """
-        if self.variational:
-            # Feed through the recognition network to get latents.
-            z_mus = self.rec_model_1(features)
-            z_log_stds = self.rec_model_2(features)
-            if stochastic:
-                # Make the variational posterior and sample.
-                dist = Normal(z_mus, EPSILON + z_log_stds.exp())
-                zs = dist.rsample() # [b,z]
-            else:
-                zs = z_mus
-            # Project.
-            zs = self.linear_layer(zs)
-        else: # deterministic autoencoder
-            # Feed through the recognition network to get latents.
-            zs = self.recognition_model(features)
-        # Get class predictions.
+        # Augment features with group embeddings.
+        flat_features = features.view(features.shape[0], -1)
+        aug_features = torch.cat(
+                [flat_features, self.group_embed[groups]],
+                 dim=1,
+        )
+        # Feed through the recognition network to get latents.
+        zs = self.rec_model_1(aug_features)
+        if stochastic:
+            z_log_stds = self.rec_model_2(aug_features)
+            dist = Normal(zs, EPSILON + z_log_stds.exp())
+            zs = dist.rsample() # [b,z]
         logits = zs[:,:len(self.classes_)-1]
         ones = torch.ones(
                 logits.shape[0],
@@ -310,6 +303,7 @@ class FaSae(torch.nn.Module, BaseEstimator):
                 device=logits.device,
         )
         logits = torch.cat([logits, ones], dim=1) + self.logit_bias
+        log_probs = Categorical(logits=logits).log_prob(labels) # [b]
         probs = F.softmax(logits, dim=1) # [b, n_classes]
         if to_numpy:
             return probs.cpu().numpy()
@@ -317,7 +311,7 @@ class FaSae(torch.nn.Module, BaseEstimator):
 
 
     @torch.no_grad()
-    def predict(self, X):
+    def predict(self, features):
         """
         Predict class labels for the features.
 
@@ -333,17 +327,18 @@ class FaSae(torch.nn.Module, BaseEstimator):
             Shape: [batch]
         """
         # Checks
+        assert features.ndim == 4
+        assert features.shape[2] == features.shape[3]
         check_is_fitted(self, attributes=FIT_ATTRIBUTES)
-        X = check_array(X)
         # Feed through model.
-        X = torch.tensor(X, dtype=FLOAT).to(self.device)
-        probs = self.predict_proba(X, to_numpy=False)
+        features = torch.tensor(features, dtype=FLOAT).to(self.device)
+        probs = self.predict_proba(features, to_numpy=False)
         predictions = torch.argmax(probs, dim=1)
         return self.classes_[predictions.cpu().numpy()]
 
 
     @torch.no_grad()
-    def score(self, features, labels):
+    def score(self, features, labels, groups):
         """
         Get a class weighted accuracy.
 
@@ -353,10 +348,10 @@ class FaSae(torch.nn.Module, BaseEstimator):
         Parameters
         ----------
         features : numpy.ndarray
-            Shape: [n_datapoints, n_features]
+            Shape: [n,]
         labels : numpy.ndarray
-            Shape: [n_datapoints]
-        weights : None or numpy.ndarray
+            Shape: [n]
+        groups : None or numpy.ndarray
             Shape: [n_datapoints]
 
         Return
@@ -364,7 +359,7 @@ class FaSae(torch.nn.Module, BaseEstimator):
         weighted_acc : float
         """
         # Derive groups, labels, and weights from labels.
-        groups, labels, weights = _derive_groups(labels)
+        weights = get_weights(labels, groups)
         predictions = self.predict(features)
         scores = np.zeros(len(features))
         scores[predictions == labels] = 1.0
@@ -379,8 +374,6 @@ class FaSae(torch.nn.Module, BaseEstimator):
             'reg_strength': self.reg_strength,
             'z_dim': self.z_dim,
             'weight_reg': self.weight_reg,
-            'nonnegative': self.nonnegative,
-            'variational': self.variational,
             'kl_factor': self.kl_factor,
             'n_iter': self.n_iter,
             'lr': self.lr,
@@ -388,6 +381,7 @@ class FaSae(torch.nn.Module, BaseEstimator):
             'beta': self.beta,
             'device': self.device,
             'classes_': self.classes_,
+            'groups_': self.groups_,
         }
         if deep:
             params['model_state_dict'] = self.state_dict()
@@ -395,9 +389,8 @@ class FaSae(torch.nn.Module, BaseEstimator):
 
 
     def set_params(self, reg_strength=None, z_dim=None, weight_reg=None,
-        nonnegative=None, variational=None, kl_factor=None, n_iter=None,
-        lr=None, batch_size=None, beta=None, device=None, classes_=None,
-        model_state_dict=None):
+        kl_factor=None, n_iter=None, lr=None, batch_size=None, beta=None,
+        device=None, classes_=None, groups_=None, model_state_dict=None):
         """
         Set the parameters of this estimator.
 
@@ -429,6 +422,8 @@ class FaSae(torch.nn.Module, BaseEstimator):
             self.device = device
         if classes_ is not None:
             self.classes_ = classes_
+        if groups_ is not None:
+            self.groups_ = groups_
         if model_state_dict is not None:
             assert 'model.bias' in model_state_dict, \
                     f"'model.bias' not in {list(model_state_dict.keys())}"
@@ -461,85 +456,20 @@ class FaSae(torch.nn.Module, BaseEstimator):
         check_is_fitted(self, attributes=FIT_ATTRIBUTES)
         assert isinstance(factor_num, int)
         assert factor_num >= 0 and factor_num < self.z_dim
-        A = self.model.weight[:,factor_num]
-        if self.nonnegative:
-            A = F.softplus(A)
-        return A.detach().cpu().numpy()
-
-
-
-def _derive_groups(labels):
-    groups = np.array([label // MAX_LABEL for label in labels])
-    labels = np.array([label % MAX_LABEL for label in labels])
-    weights = get_weights(labels, groups)
-    return groups, labels, weights
+        volume = self._get_mean_projection()[factor_num]  # [f,r,r]
+        return volume.detach().cpu().numpy()
 
 
 
 if __name__ == '__main__':
-    """
-    Here's an example using some fake data.
+    b, f, r, g = 10, 9, 8, 2
+    features = np.random.randn(b, f, r, r)
+    labels = np.random.randint(0, 3, size=(b,))
+    groups = np.random.randint(0, g, size=(b,))
+    weights = np.exp(np.random.randn(b))
 
-    NOTE: fix this!
-    """
-    raise NotImplementedError
-    n = 100 # number of datapoints/windows
-    n_features = 100 # total number of LFP features
-    n_classes = 3 # number of label types
-
-    # Make some fake data.
-    features = np.random.randn(n, n_features)
-    labels = np.random.randint(n_classes, size=n)
-
-    # Calculate class weights.
-    class_counts = [len(np.argwhere(labels==i)) for i in range(n_classes)]
-    print("Class counts:", class_counts)
-    class_weights = n / (n_classes * np.array(class_counts))
-    print("Class weights:", class_weights)
-
-    # Make the model.
-    model = FaSae(
-            n_features,
-            n_classes,
-            class_weights=class_weights,
-            weight_reg=0.0,
-            nonnegative=True,
-            variational=True,
-            kl_factor=0.1,
-    )
-
-    # Fit the model.
-    print("Training model...")
-    model.fit(features, labels, epochs=5000, print_freq=250)
-
-    # Make some predictions.
-    print("Making predictions...")
-    predictions = model.predict(features)
-    print("Predictions:")
-    print(predictions)
-
-    # Calculate a weighted accuracy.
-    weighted_acc = model.score(
-            features,
-            labels,
-            class_weights,
-    )
-    print("Weighted accuracy on training set:", weighted_acc)
-
-    # Get state.
-    params = model.get_params()
-
-    # Make a new model and load the state.
-    new_model = FaSae(n_features, n_classes)
-    new_model.set_params(params)
-
-    # Calculate a weighted accuracy.
-    weighted_acc = new_model.score(
-            features,
-            labels,
-            class_weights,
-    )
-    print("This should be the same number:", weighted_acc)
+    model = CpSae()
+    model.fit(features, labels, groups)
 
 
 

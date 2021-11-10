@@ -246,6 +246,49 @@ def get_weights(labels, groups):
     return weights
 
 
+def unsqueeze_triangular_array(arr, dim=0):
+    """
+    Transform a numpy array from condensed triangular form to symmetric form.
+
+    Parameters
+    ----------
+    arr : numpy.ndarray
+    dim : int
+        Axis to expand
+
+    Returns
+    -------
+    new_arr : numpy.ndarray
+        Expanded array
+    """
+    n = int(round((-1 + np.sqrt(1 + 8*arr.shape[dim])) / 2))
+    assert (n * (n+1)) // 2 == arr.shape[dim], \
+            f"{(n * (n+1)) // 2} != {arr.shape[dim]}"
+    arr = np.swapaxes(arr, dim, -1)
+    new_shape = arr.shape[:-1] + (n,n)
+    new_arr = np.zeros(new_shape, dtype=arr.dtype)
+    for i in range(n):
+        for j in range(i+1):
+            idx = (i * (i+1)) // 2 + j
+            new_arr[..., i, j] = arr[..., idx]
+    dim_list = list(range(new_arr.ndim-2)) + [dim]
+    dim_list = dim_list[:dim] + [-2,-1] + dim_list[dim+1:]
+    new_arr = np.transpose(new_arr, dim_list)
+    return new_arr
+
+
+def squeeze_triangular_array(arr, dims=(0,1)):
+    """
+
+
+    """
+    assert len(dims) == 2
+    assert arr.ndims > np.max(dims)
+    assert arr.shape[dims[0]] == arr.shape[dims[1]]
+    n = arr.shape[dims[0]]
+    raise NotImplementedError
+
+
 
 if __name__ == '__main__':
     pass
