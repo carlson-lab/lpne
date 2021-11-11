@@ -16,7 +16,7 @@ import torch.nn.functional as F
 from torch.utils.data import TensorDataset, DataLoader, WeightedRandomSampler
 import warnings
 
-from ..utils.utils import get_weights
+from ..utils.utils import get_weights, squeeze_triangular_array
 
 # https://stackoverflow.com/questions/53014306/
 if float(torch.__version__[:3]) >= 1.9:
@@ -204,9 +204,9 @@ class CpSae(torch.nn.Module):
         roi_2_f = F.softplus(self.roi_2_factors).mean(dim=0) # [z,r]
         volume = torch.einsum(
                 'zf,zr,zs->zfrs',
-                freq_f[groups],
-                roi_1_f[groups],
-                roi_2_f[groups],
+                freq_f,
+                roi_1_f,
+                roi_2_f,
         )
         return volume
 
@@ -303,7 +303,6 @@ class CpSae(torch.nn.Module):
                 device=logits.device,
         )
         logits = torch.cat([logits, ones], dim=1) + self.logit_bias
-        log_probs = Categorical(logits=logits).log_prob(labels) # [b]
         probs = F.softmax(logits, dim=1) # [b, n_classes]
         if to_numpy:
             return probs.cpu().numpy()
@@ -311,15 +310,15 @@ class CpSae(torch.nn.Module):
 
 
     @torch.no_grad()
-    def predict(self, features):
+    def predict(self, features, groups):
         """
         Predict class labels for the features.
 
         Parameters
         ----------
-        X : numpy.ndarray
-            Features
-            Shape: [batch, n_features]
+        features : numpy.ndarray
+            Shape: ?
+        groups : numpy.ndarray
 
         Returns
         -------
@@ -332,7 +331,8 @@ class CpSae(torch.nn.Module):
         check_is_fitted(self, attributes=FIT_ATTRIBUTES)
         # Feed through model.
         features = torch.tensor(features, dtype=FLOAT).to(self.device)
-        probs = self.predict_proba(features, to_numpy=False)
+        groups = torch.tensor(groups, dtype=INT).to(self.device)
+        probs = self.predict_proba(features, groups, to_numpy=False)
         predictions = torch.argmax(probs, dim=1)
         return self.classes_[predictions.cpu().numpy()]
 
@@ -360,7 +360,7 @@ class CpSae(torch.nn.Module):
         """
         # Derive groups, labels, and weights from labels.
         weights = get_weights(labels, groups)
-        predictions = self.predict(features)
+        predictions = self.predict(features, groups)
         scores = np.zeros(len(features))
         scores[predictions == labels] = 1.0
         scores = scores * weights
@@ -404,10 +404,6 @@ class CpSae(torch.nn.Module):
             self.z_dim = z_dim
         if weight_reg is not None:
             self.weight_reg = weight_reg
-        if nonnegative is not None:
-            self.nonnegative = nonnegative
-        if variational is not None:
-            self.variational = variational
         if kl_factor is not None:
             self.kl_factor = kl_factor
         if n_iter is not None:
@@ -425,10 +421,14 @@ class CpSae(torch.nn.Module):
         if groups_ is not None:
             self.groups_ = groups_
         if model_state_dict is not None:
-            assert 'model.bias' in model_state_dict, \
-                    f"'model.bias' not in {list(model_state_dict.keys())}"
-            n_features = len(model_state_dict['model.bias'].view(-1))
-            self._initialize(n_features)
+            # n_freqs, n_rois
+            assert 'freq_factors' in model_state_dict, \
+                    f"'freq_factors' not in {list(model_state_dict.keys())}"
+            n_freqs = model_state_dict['freq_factors'].shape[-1]
+            assert 'roi_1_factors' in model_state_dict, \
+                    f"'roi_1_factors' not in {list(model_state_dict.keys())}"
+            n_rois = model_state_dict['roi_1_factors'].shape[-1]
+            self._initialize(n_freqs, n_rois)
             self.load_state_dict(model_state_dict)
         return self
 
@@ -452,24 +452,20 @@ class CpSae(torch.nn.Module):
         ----------
         feature_num : int
             Which factor to return. 0 <= `factor_num` < self.z_dim
+            Shape: [r(r+1)/2,f]
         """
         check_is_fitted(self, attributes=FIT_ATTRIBUTES)
         assert isinstance(factor_num, int)
         assert factor_num >= 0 and factor_num < self.z_dim
         volume = self._get_mean_projection()[factor_num]  # [f,r,r]
-        return volume.detach().cpu().numpy()
+        volume = volume.detach().cpu().numpy()
+        volume = squeeze_triangular_array(volume, dims=(1,2))
+        return volume.T
 
 
 
 if __name__ == '__main__':
-    b, f, r, g = 10, 9, 8, 2
-    features = np.random.randn(b, f, r, r)
-    labels = np.random.randint(0, 3, size=(b,))
-    groups = np.random.randint(0, g, size=(b,))
-    weights = np.exp(np.random.randn(b))
-
-    model = CpSae()
-    model.fit(features, labels, groups)
+    pass
 
 
 

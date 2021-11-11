@@ -271,6 +271,8 @@ def unsqueeze_triangular_array(arr, dim=0):
         for j in range(i+1):
             idx = (i * (i+1)) // 2 + j
             new_arr[..., i, j] = arr[..., idx]
+            if i != j:
+                new_arr[..., j, i] = arr[..., idx]
     dim_list = list(range(new_arr.ndim-2)) + [dim]
     dim_list = dim_list[:dim] + [-2,-1] + dim_list[dim+1:]
     new_arr = np.transpose(new_arr, dim_list)
@@ -279,14 +281,36 @@ def unsqueeze_triangular_array(arr, dim=0):
 
 def squeeze_triangular_array(arr, dims=(0,1)):
     """
+    Inverse of `unsqueeze_triangular_array`.
 
+    Parameters
+    ----------
+    arr : numpy.ndarray
+    dims : tuple of int
+        The two dimensions to contract to one. These should be contiguous.
 
+    Returns
+    -------
+    new_arr : numpy.ndarray
+        Contracted array
     """
     assert len(dims) == 2
-    assert arr.ndims > np.max(dims)
+    assert arr.ndim > np.max(dims)
     assert arr.shape[dims[0]] == arr.shape[dims[1]]
+    assert dims[1] == dims[0] + 1
     n = arr.shape[dims[0]]
-    raise NotImplementedError
+    dim_list = list(range(arr.ndim))
+    dim_list = dim_list[:dims[0]] + dim_list[dims[1]+1:] + list(dims)
+    arr = np.transpose(arr, dim_list)
+    new_arr = np.zeros(arr.shape[:-2] + ((n*(n+1))//2,))
+    for i in range(n):
+        for j in range(i+1):
+            idx = (i * (i+1)) // 2 + j
+            new_arr[..., idx] = arr[..., i, j]
+    dim_list = list(range(new_arr.ndim))
+    dim_list = dim_list[:dims[0]] + [-1] + dim_list[dims[0]:-1]
+    new_arr = np.transpose(new_arr, dim_list)
+    return new_arr
 
 
 

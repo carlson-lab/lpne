@@ -9,7 +9,7 @@ from itertools import product
 import numpy as np
 import pytest
 
-import lpne
+from lpne.models import FaSae, CpSae
 
 
 
@@ -21,44 +21,66 @@ def test_factor_analysis_sae():
     n_classes = 3 # number of label types
     features = np.random.randn(n, n_features)
     labels = np.random.randint(n_classes, size=n)
-    class_counts = [len(np.argwhere(labels==i)) for i in range(n_classes)]
-    class_weights = n / (n_classes * np.array(class_counts))
     # Run through different combinations of the model.
     nonnegative_vals = [True, False]
     variational_vals = [True, False]
     for nonnegative, variational in product(nonnegative_vals, variational_vals):
         # Make the model.
-        model = lpne.FaSae(
-                n_features,
-                n_classes,
-                class_weights=class_weights,
-                weight_reg=0.0,
-                nonnegative=True,
-                variational=True,
-                kl_factor=0.1,
+        model = FaSae(
+                nonnegative=nonnegative,
+                variational=variational,
+                n_iter=1,
         )
         # Fit the model.
-        model.fit(features, labels, epochs=30, verbose=False)
+        model.fit(features, labels, print_freq=None)
         # Make some predictions.
         predictions = model.predict(features)
         # Calculate a weighted accuracy.
         weighted_acc_orig = model.score(
                 features,
                 labels,
-                class_weights,
         )
         # Get state.
         params = model.get_params()
         # Make a new model and load the state.
-        new_model = lpne.FaSae(n_features, n_classes)
-        new_model.set_params(params)
+        new_model = FaSae()
+        new_model.set_params(**params)
         # Calculate a weighted accuracy.
         weighted_acc = new_model.score(
                 features,
                 labels,
-                class_weights,
         )
         assert weighted_acc_orig == weighted_acc
+
+
+def test_cp_sae():
+    b, f, r, g = 10, 9, 8, 2
+    features = np.random.randn(b, f, r, r)
+    labels = np.random.randint(0, 3, size=(b,))
+    groups = np.random.randint(0, g, size=(b,))
+    weights = np.exp(np.random.randn(b))
+    model = CpSae(n_iter=1)
+    model.fit(features, labels, groups, print_freq=None)
+    # Make some predictions.
+    predictions = model.predict(features, groups)
+    # Calculate a weighted accuracy.
+    weighted_acc_orig = model.score(
+            features,
+            labels,
+            groups,
+    )
+    # Get state.
+    params = model.get_params()
+    # Make a new model and load the state.
+    new_model = CpSae()
+    new_model.set_params(**params)
+    # Calculate a weighted accuracy.
+    weighted_acc = new_model.score(
+            features,
+            labels,
+            groups,
+    )
+    assert weighted_acc_orig == weighted_acc
 
 
 

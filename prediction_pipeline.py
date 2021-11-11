@@ -109,9 +109,12 @@ if __name__ == '__main__':
 
     # Make some predictions.
     print("Making predictions...")
-    predictions = model.predict(features[test_idx])
-    print("Test labels:")
+    if CP_SAE:
+        predictions = model.predict(features[test_idx], groups[test_idx])
+    else:
+        predictions = model.predict(features[test_idx])
     true_labels = labels[test_idx]
+    print("Test labels:")
     print(true_labels)
     print("Test predictions:")
     print(predictions)
@@ -122,10 +125,17 @@ if __name__ == '__main__':
     print(confusion)
 
     # Calculate a weighted accuracy.
-    weighted_acc = model.score(
-            features[test_idx],
-            labels[test_idx],
-    )
+    if CP_SAE:
+        weighted_acc = model.score(
+                features[test_idx],
+                labels[test_idx],
+                groups[test_idx],
+        )
+    else:
+        weighted_acc = model.score(
+                features[test_idx],
+                labels[test_idx],
+        )
     print("Weighted accuracy on test set:", weighted_acc)
 
 
