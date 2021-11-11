@@ -5,7 +5,7 @@ Code for preprocessing and building models with local field potentials.
 
 """
 __date__ = "July - November 2021"
-__version__ = "0.0.4"
+__version__ = "0.0.5"
 
 
 

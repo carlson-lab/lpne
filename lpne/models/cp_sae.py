@@ -28,6 +28,7 @@ FLOAT = torch.float32
 INT = torch.int64
 MAX_LABEL = 1000
 EPSILON = 1e-6
+INVALID_LABEL = -1
 FIT_ATTRIBUTES = ['classes_', 'groups_']
 
 
@@ -152,8 +153,12 @@ class CpSae(torch.nn.Module):
         assert groups.ndim == 1
         assert len(features) == len(labels) and len(labels) == len(groups)
         # Initialize.
-        weights = get_weights(labels, groups)
+        weights = get_weights(labels, groups) # NOTE: here with invalid labels?
+        idx = np.argwhere(labels == INVALID_LABEL)
+        temp_label = np.unique(labels[labels != INVALID_LABEL])[0]
+        labels[idx] = temp_label
         self.classes_, labels = np.unique(labels, return_inverse=True)
+        labels[idx] = INVALID_LABEL
         assert len(self.classes_) > 1
         self.groups_, groups = np.unique(groups, return_inverse=True)
         assert len(self.groups_) > 1
@@ -289,6 +294,8 @@ class CpSae(torch.nn.Module):
         loss : torch.Tensor
             Shape: []
         """
+        nan_mask = torch.isinf(1/(labels - INVALID_LABEL))
+        labels[nan_mask] = 0
         # Augment features with group embeddings.
         flat_features = features.view(features.shape[0], -1)
         group_latents = self._get_group_latents() # [g,e]
@@ -320,6 +327,7 @@ class CpSae(torch.nn.Module):
         logits = logits + self.logit_biases
         log_probs = Categorical(logits=logits).log_prob(labels) # [b]
         log_probs = weights * log_probs
+        log_probs[nan_mask] = 0.0
 
         group_kld = self._get_group_embed_loss()
 
@@ -371,10 +379,9 @@ class CpSae(torch.nn.Module):
         # Augment features with group embeddings.
         flat_features = features.view(features.shape[0], -1)
         group_latents = self._get_group_latents() # [g,e]
-        aug_features = torch.cat(
-                [flat_features, group_latents[groups]],
-                 dim=1,
-        )
+        latents = group_latents[groups]
+        latents[groups == -1] = 0.0
+        aug_features = torch.cat([flat_features, latents], dim=1)
         # Feed through the recognition network to get latents.
         zs = self.rec_model_1(aug_features)
         if stochastic:
