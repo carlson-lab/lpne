@@ -1,16 +1,15 @@
 """
-CANDECOMP/PARAFAC supervised autoencoder
+CANDECOMP/PARAFAC supervised autoencoder with deterministic factors.
 
 TO DO
 -----
-* Plot the learned mouse embeddings.
+* test this on real data!
 """
 __date__ = "November 2021"
 
 
 import numpy as np
 import os
-from sklearn.base import BaseEstimator
 from sklearn.utils.validation import check_is_fitted
 import torch
 from torch.distributions import Categorical, Normal, kl_divergence
@@ -22,8 +21,8 @@ except:
     pass
 import warnings
 
-from .nmf_init import get_initial_factors
 from ..utils.utils import get_weights, squeeze_triangular_array
+
 
 # https://stackoverflow.com/questions/53014306/
 if float(torch.__version__[:3]) >= 1.9:
@@ -40,10 +39,9 @@ FIT_ATTRIBUTES = ['classes_', 'groups_', 'iter_']
 
 class CpSae(torch.nn.Module):
 
-    def __init__(self, reg_strength=1.0, z_dim=32, group_embed_dim=2,
-        weight_reg=0.0, data_kl_factor=1.0, n_iter=10000, lr=1e-3,
-        batch_size=256, beta=0.5, group_kl_factor=1e-2, factor_reg=1e-2,
-        log_dir=None, device='auto'):
+    def __init__(self, reg_strength=1.0, z_dim=32, weight_reg=0.0, n_iter=10000,
+        lr=1e-3, batch_size=256, beta=0.5, factor_reg=1e-1, log_dir=None,
+        n_updates=1, device='auto'):
         """
         A supervised autoencoder with nonnegative and variational options.
 
@@ -56,12 +54,6 @@ class CpSae(torch.nn.Module):
             Latent dimension/number of networks.
         weight_reg : float, optional
             Model L2 weight regularization.
-        data_kl_factor : float, optional
-            How much to weight the KL divergence term in the variational
-            autoencoder (VAE). The standard setting is `1.0`. This is a distinct
-            regularization parameter from `reg_strength` that can be
-            independently set. This parameter is only used if `variational` is
-            `True`.
         n_iter : int, optional
             Number of gradient steps during training.
         lr : float, optional
@@ -73,19 +65,17 @@ class CpSae(torch.nn.Module):
         # Set parameters.
         self.reg_strength = float(reg_strength)
         self.z_dim = z_dim
-        self.group_embed_dim = group_embed_dim
         self.weight_reg = float(weight_reg)
-        self.data_kl_factor = float(data_kl_factor)
         self.n_iter = n_iter
         self.lr = float(lr)
         self.batch_size = batch_size
         self.beta = float(beta)
-        self.group_kl_factor = float(group_kl_factor)
         self.factor_reg = float(factor_reg)
         self.log_dir = log_dir
         if device == 'auto':
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.device = device
+        self.n_updates = n_updates
         self.classes_ = None
 
 
@@ -104,54 +94,47 @@ class CpSae(torch.nn.Module):
         self.n_groups = len(self.groups_)
         self.n_classes = len(self.classes_)
         n_features = n_freqs * n_rois**2
-        self.group_mean = torch.nn.Parameter(
-                torch.randn(self.n_groups, self.group_embed_dim),
-        )
-        self.group_log_std = torch.nn.Parameter(
-                torch.randn(self.n_groups, self.group_embed_dim),
-        )
-        group_prior_mean = torch.zeros(self.group_embed_dim).to(self.device)
-        group_prior_scale = torch.ones(self.group_embed_dim).to(self.device)
-        self.group_prior = Normal(group_prior_mean, group_prior_scale)
-        self.rec_model_1 = torch.nn.Linear(
-                n_features + self.group_embed_dim,
-                self.z_dim,
-        )
-        self.rec_model_2 = torch.nn.Linear(
-                n_features + self.group_embed_dim,
-                self.z_dim,
-        )
-        if features is not None:
-            # Initialize with NMF.
-            freq, roi_1, roi_2 = get_initial_factors(features, self.z_dim, n_rois, n_freqs)
-            freq, roi_1, roi_2 = freq.reshape(1,-1), roi_1.reshape(1,-1), roi_2.reshape(1,-1)
-            self.freq_mean = torch.nn.Parameter(torch.tensor(freq, dtype=FLOAT))
-            self.roi_1_mean = torch.nn.Parameter(torch.tensor(roi_1, dtype=FLOAT))
-            self.roi_2_mean = torch.nn.Parameter(torch.tensor(roi_2, dtype=FLOAT))
-        else:
-            self.freq_mean = torch.nn.Parameter(torch.zeros(1,self.z_dim * n_freqs))
-            self.roi_1_mean = torch.nn.Parameter(torch.zeros(1,self.z_dim * n_rois))
-            self.roi_2_mean = torch.nn.Parameter(torch.zeros(1,self.z_dim * n_rois))
-
-        self.freq_net = torch.nn.Linear(
-                self.group_embed_dim,
-                self.z_dim * n_freqs,
-        )
-        self.roi_1_net = torch.nn.Linear(
-            self.group_embed_dim,
-            self.z_dim * n_rois,
-        )
-        self.roi_2_net = torch.nn.Linear(
-            self.group_embed_dim,
-            self.z_dim * n_rois,
-        )
-        self.logit_weights = torch.nn.Parameter(torch.zeros(1,self.n_classes))
+        self.rec_model = torch.nn.Linear(n_features, self.z_dim)
+        with torch.no_grad():
+            self.freq_factors = torch.nn.Parameter(
+                    -5 + torch.randn(self.n_groups, self.z_dim, n_freqs),
+            )
+            self.roi_1_factors = torch.nn.Parameter(
+                    -5 + torch.randn(self.n_groups, self.z_dim, n_rois),
+            )
+            self.roi_2_factors = torch.nn.Parameter(
+                    -5 + torch.randn(self.n_groups, self.z_dim, n_rois),
+            )
+            self.logit_weights = torch.nn.Parameter(
+                    -3 * torch.ones(1,self.n_classes),
+            )
         self.logit_biases = torch.nn.Parameter(torch.zeros(1,self.n_classes))
-        self.prior_mean = torch.nn.Parameter(torch.zeros(self.z_dim)).to(self.device)
-        prior_std = torch.ones(self.z_dim).to(self.device)
-        self.prior = Normal(self.prior_mean, prior_std)
         self.to(self.device)
 
+
+    def _get_H(self, flatten=True):
+        """
+        groups: [b]
+        H: [b,frr]
+        """
+        freq_f = F.softplus(self.freq_factors) # [g,z,f]
+        roi_1_f = F.softplus(self.roi_1_factors) # [g,z,r]
+        roi_2_f = F.softplus(self.roi_2_factors) # [g,z,r]
+        volume = torch.einsum(
+                'gzf,gzr,gzs->gzfrs',
+                freq_f,
+                roi_1_f,
+                roi_2_f,
+        ) # [g,z,f,r,r]
+        if flatten:
+            volume = volume.view(volume.shape[0], volume.shape[1], -1) # [g,z,frr]
+        return volume
+
+
+    @torch.no_grad()
+    def _get_mean_projection(self):
+        volume = self._get_H(flatten=False) # [g,z,f,r,r]
+        return torch.mean(volume, dim=0) # [z,f,r,r]
 
 
     def fit(self, features, labels, groups, print_freq=100):
@@ -210,16 +193,13 @@ class CpSae(torch.nn.Module):
         )
         # Train.
         while self.iter_ <= self.n_iter:
-            i_loss, i_label_loss, i_rec_loss, i_kl_loss, i_gkl_loss, i_f_loss = [0.0]*6
+            i_loss, i_label_loss, i_rec_loss, i_f_loss = [0.0]*4
             for batch in loader:
                 self.zero_grad()
-                loss, label_loss, rec_loss, kl_loss, gkl_loss, f_loss = \
-                        self(*batch)
+                loss, label_loss, rec_loss, f_loss = self(*batch)
                 i_loss += loss.item()
                 i_label_loss += label_loss.item()
                 i_rec_loss += rec_loss.item()
-                i_kl_loss += kl_loss.item()
-                i_gkl_loss += gkl_loss.item()
                 i_f_loss += f_loss.item()
                 loss.backward()
                 optimizer.step()
@@ -227,8 +207,6 @@ class CpSae(torch.nn.Module):
                 self.writer.add_scalar('train loss', i_loss, self.iter_)
                 self.writer.add_scalar('label loss', i_label_loss, self.iter_)
                 self.writer.add_scalar('rec loss', i_rec_loss, self.iter_)
-                self.writer.add_scalar('kl loss', i_kl_loss, self.iter_)
-                self.writer.add_scalar('gkl loss', i_gkl_loss, self.iter_)
                 self.writer.add_scalar('f loss', i_f_loss, self.iter_)
             if print_freq is not None and self.iter_ % print_freq == 0:
                 print(f"iter {self.iter_:04d}, loss: {i_loss:3f}")
@@ -236,98 +214,7 @@ class CpSae(torch.nn.Module):
         return self
 
 
-    def _get_group_latents(self):
-        std = EPSILON + F.softplus(self.group_log_std)
-        group_dist = Normal(self.group_mean, std)
-        return group_dist.rsample()
-
-
-    def _project(self, zs, groups):
-        """
-        Project the latents to data space.
-
-        Parameters
-        ----------
-        zs : [b,z]
-        groups : [b]
-
-        Returns
-        -------
-        volume : torch.Tensor
-            Shape: [b,f,r,r]
-        factor_loss : torch.Tensor
-            Shape: []
-        """
-        # Sample from group distributions and get model factors.
-        group_latents = self._get_group_latents() # [g,e]
-        # print("group_latents", torch.norm(group_latents,dim=1).mean().item())
-        freq_f = F.softplus(self.freq_mean + 1e-2 * self.freq_net(group_latents)) # [g,zf]
-        freq_f = freq_f.view(self.n_groups, self.z_dim, -1) # [g,z,f]
-        roi_1_f = F.softplus(self.roi_1_mean + 1e-2 * self.roi_1_net(group_latents)) # [g,zr]
-        roi_1_f = roi_1_f.view(self.n_groups, self.z_dim, -1) # [g,z,r]
-        roi_2_f = F.softplus(self.roi_2_mean + 1e-2 * self.roi_2_net(group_latents)) # [g,zr]
-        roi_2_f = roi_2_f.view(self.n_groups, self.z_dim, -1) # [g,z,r]
-        # Calculate a regularization term.
-        mean_freq_f = torch.mean(freq_f, dim=0, keepdim=True)
-        freq_loss = torch.pow(freq_f - mean_freq_f, 2).sum()
-        mean_roi_1_f = torch.mean(roi_1_f, dim=0, keepdim=True)
-        roi_1_loss = torch.pow(roi_1_f - mean_roi_1_f, 2).sum()
-        mean_roi_2_f = torch.mean(roi_2_f, dim=0, keepdim=True)
-        roi_2_loss = torch.pow(roi_2_f - mean_roi_2_f, 2).sum()
-        # print("freq_f", torch.norm(freq_f,dim=(1,2)).mean().item())
-        # print("roi_1_f", torch.norm(roi_1_f,dim=(1,2)).mean().item())
-        # print("roi_2_f", torch.norm(roi_2_f,dim=(1,2)).mean().item())
-        # Make the volume.
-        volume = 1e-2 * torch.einsum(
-                'bz,bzf,bzr,bzs->bfrs',
-                F.softplus(zs),
-                freq_f[groups],
-                roi_1_f[groups],
-                roi_2_f[groups],
-        )
-        # print("volume", torch.norm(volume).item())
-        if torch.isnan(volume).sum() > 0:
-            print("NaN sum:", torch.isnan(volume).sum())
-            volume[torch.isnan(volume)] = 0.0
-            print("volume", torch.norm(volume).item())
-            print(torch.min(volume), torch.max(volume))
-            quit()
-        return volume, freq_loss + roi_1_loss + roi_2_loss
-
-
-    def _get_group_embed_loss(self):
-        std = EPSILON + F.softplus(self.group_log_std)
-        group_dist = Normal(self.group_mean, std)
-        kld = kl_divergence(group_dist, self.group_prior).sum(dim=1) # [g]
-        return kld.sum()
-
-
-    @torch.no_grad()
-    def _get_mean_projection(self):
-        group_latents = self._get_group_latents() # [g,e]
-        group_latents = torch.zeros_like(group_latents)
-        # freq_f = F.softplus(self.freq_net(group_latents)) # [g,zf]
-        freq_f = F.softplus(self.freq_mean + 1e-2 * self.freq_net(group_latents)) # [g,zf]
-        freq_f = freq_f.view(self.n_groups, self.z_dim, -1) # [g,z,f]
-        # roi_1_f = F.softplus(self.roi_1_net(group_latents)) # [g,zr]
-        roi_1_f = F.softplus(self.roi_1_mean + 1e-2 * self.roi_1_net(group_latents)) # [g,zr]
-        roi_1_f = roi_1_f.view(self.n_groups, self.z_dim, -1) # [g,z,r]
-        # roi_2_f = F.softplus(self.roi_2_net(group_latents)) # [g,zr]
-        roi_2_f = F.softplus(self.roi_2_mean + 1e-2 * self.roi_1_net(group_latents)) # [g,zr]
-        roi_2_f = roi_2_f.view(self.n_groups, self.z_dim, -1) # [g,z,r]
-        freq_f = freq_f.mean(dim=0) # [z,f]
-        roi_1_f = roi_1_f.mean(dim=0) # [z,r]
-        roi_2_f = roi_2_f.mean(dim=0) # [z,r]
-        volume = 1e-2 * torch.einsum(
-                'zf,zr,zs->zfrs',
-                freq_f,
-                roi_1_f,
-                roi_2_f,
-        )
-        return volume
-
-
-    def forward(self, features, labels, groups, weights):
+    def forward(self, features, labels, groups, weights, return_logits=False):
         """
         Calculate a loss.
 
@@ -343,69 +230,66 @@ class CpSae(torch.nn.Module):
         loss : torch.Tensor
             Shape: []
         """
-        nan_mask = torch.isinf(1/(labels - INVALID_LABEL))
-        labels[nan_mask] = 0
-        # Augment features with group embeddings.
-        flat_features = features.view(features.shape[0], -1)
-        group_latents = self._get_group_latents() # [g,e]
-        aug_features = torch.cat(
-                [flat_features, group_latents[groups]],
-                 dim=1,
-        )
+        if labels is not None:
+            nan_mask = torch.isinf(1/(labels - INVALID_LABEL))
+            labels[nan_mask] = 0
 
-        # Feed through the recognition network to get latents.
-        z_mus = 10.0 * torch.tanh(self.rec_model_1(aug_features))
-        z_mus = z_mus + self.prior_mean.view(1,-1)
-        z_log_stds = self.rec_model_2(aug_features)
-        z_stds = EPSILON + torch.sigmoid(z_log_stds)
+        # Get latents.
+        flat_features = features.view(features.shape[0], -1) # [b,fr^2]
+        rec_features = torch.zeros_like(flat_features)
+        zs = F.softplus(self.rec_model(flat_features)) # [b,z]
 
-        # Make the variational posterior and get a KL from the prior.
-        dist = Normal(z_mus, z_stds)
-        kld = kl_divergence(dist, self.prior).sum(dim=1) # [b]
-
-        # Sample latents.
-        zs = dist.rsample() # [b,z]
-
-        # Project.
-        # print("zs norms", torch.norm(zs,dim=1).mean().item())
-        features_rec, factor_loss = self._project(zs, groups)
-        flat_rec = features_rec.view(features.shape[0], -1)
-        # print(torch.norm(flat_rec, dim=1).mean().item())
-
-        # Calculate a reconstruction loss.
-        rec_loss = torch.mean(torch.pow(flat_features-flat_rec, 2), dim=1) # [b]
+        # Update latents with multiplicative updates.
+        zs = zs.unsqueeze(1) # [b,1,z]
+        flat_features = flat_features.unsqueeze(1) # [b,1,fr^2]
+        H = self._get_H() # [g,z,fr^2]
+        group_oh = F.one_hot(groups, len(self.groups_)) # [b,g]
+        H = (group_oh.unsqueeze(-1).unsqueeze(-1) * H).sum(dim=1) # [b,z,fr^2]
+        for i in range(self.n_updates):
+            numerator = flat_features @ H.transpose(-1,-2) # [b,1,z]
+            denominator = zs @ H @ H.transpose(-1,-2) # [b,1,z]
+            zs = zs * numerator / denominator
+            # In the last iteration, collect the reconstruction errors.
+            if i == self.n_updates - 1:
+                flat_features = (flat_features - zs @ H).squeeze(1) # [b,fr^2]
+                zs = zs.squeeze(1) # [b,z]
+        rec_loss = torch.mean(torch.pow(flat_features, 2), dim=1) # [b]
 
         # Predict the labels and get weighted label log probabilities.
         logits = zs[:,:self.n_classes] * F.softplus(self.logit_weights)
         logits = logits + self.logit_biases
+        if return_logits:
+            return logits
         log_probs = Categorical(logits=logits).log_prob(labels) # [b]
-        log_probs = weights * log_probs
-        log_probs[nan_mask] = 0.0
-
-        group_kld = self._get_group_embed_loss()
+        log_probs = weights * log_probs # [b]
+        log_probs[nan_mask] = 0.0 # [b]
 
         # Combine all the terms into a composite loss.
-        label_loss = -torch.mean(log_probs)
+        label_loss = -torch.mean(log_probs) # []
         if torch.isnan(label_loss):
             quit("label_loss NaN")
-        rec_loss = self.reg_strength * torch.mean(rec_loss)
+        rec_loss = self.reg_strength * torch.mean(rec_loss) # []
         if torch.isnan(rec_loss):
             quit("rec_loss NaN")
-        kl_loss = self.data_kl_factor * torch.mean(kld)
-        if torch.isnan(kl_loss):
-            quit("kl_loss NaN")
-        gkl_loss = self.group_kl_factor * group_kld
-        if torch.isnan(gkl_loss):
-            quit("gkl_loss NaN")
-        factor_loss = self.factor_reg * factor_loss
+        factor_loss = self.factor_reg * self._get_factor_loss() # []
         if torch.isnan(factor_loss):
             quit("factor_loss NaN")
-        loss = label_loss + rec_loss + kl_loss + gkl_loss + factor_loss
-        return loss, label_loss, rec_loss, kl_loss, gkl_loss, factor_loss
+        loss = label_loss + rec_loss + factor_loss
+        return loss, label_loss, rec_loss, factor_loss
+
+
+    def _get_factor_loss(self):
+        f_mean = torch.mean(self.freq_factors, dim=0, keepdim=True)
+        f_loss = torch.pow(self.freq_factors - f_mean, 2).sum()
+        roi_1_mean = torch.mean(self.roi_1_factors, dim=0, keepdim=True)
+        roi_1_loss = torch.pow(self.roi_1_factors - roi_1_mean, 2).sum()
+        roi_2_mean = torch.mean(self.roi_2_factors, dim=0, keepdim=True)
+        roi_2_loss = torch.pow(self.roi_2_factors - roi_2_mean, 2).sum()
+        return f_loss + roi_1_loss + roi_2_loss
 
 
     @torch.no_grad()
-    def predict_proba(self, features, groups, to_numpy=True, stochastic=False):
+    def predict_proba(self, features, groups, to_numpy=True):
         """
         Probability estimates.
 
@@ -438,24 +322,17 @@ class CpSae(torch.nn.Module):
                 new_groups[groups == temp_group] = -1
         groups = new_groups
         # To PyTorch Tensors.
-        features = torch.tensor(features, dtype=FLOAT).to(self.device)
+        features = torch.tensor(features, dtype=FLOAT)
         groups = torch.tensor(groups, dtype=INT).to(self.device)
-        # Augment features with group embeddings.
-        flat_features = features.view(features.shape[0], -1)
-        group_latents = self._get_group_latents() # [g,e]
-        latents = group_latents[groups]
-        latents[groups == -1] = 0.0
-        aug_features = torch.cat([flat_features, latents], dim=1)
-        # Feed through the recognition network to get latents.
-        z_mus = 10.0 * torch.tanh(self.rec_model_1(aug_features))
-        z_mus = z_mus + self.prior_mean.view(1,-1)
-        if stochastic:
-            z_log_stds = self.rec_model_2(aug_features)
-            z_stds = EPSILON + torch.sigmoid(z_log_stds)
-            dist = Normal(zs, z_stds)
-            zs = dist.rsample() # [b,z]
-        logits = zs[:,:self.n_classes] * F.softplus(self.logit_weights)
-        logits = logits + self.logit_biases
+        logits = []
+        i = 0
+        while i <= len(features):
+            batch_f = features[i:i+self.batch_size].to(self.device)
+            batch_g = groups[i:i+self.batch_size]
+            batch_logit = self(batch_f, None, batch_g, None, return_logits=True)
+            logits.append(batch_logit)
+            i += self.batch_size
+        logits = torch.cat(logits, dim=0)
         probs = F.softmax(logits, dim=1) # [b, n_classes]
         if to_numpy:
             return probs.detach().cpu().numpy()
@@ -526,13 +403,12 @@ class CpSae(torch.nn.Module):
             'reg_strength': self.reg_strength,
             'z_dim': self.z_dim,
             'weight_reg': self.weight_reg,
-            'data_kl_factor': self.data_kl_factor,
             'n_iter': self.n_iter,
             'lr': self.lr,
             'batch_size': self.batch_size,
             'beta': self.beta,
-            'group_kl_factor': self.group_kl_factor,
             'factor_reg': self.factor_reg,
+            'n_updates': self.n_updates,
             'device': self.device,
             'classes_': self.classes_,
             'groups_': self.groups_,
@@ -544,9 +420,9 @@ class CpSae(torch.nn.Module):
 
 
     def set_params(self, reg_strength=None, z_dim=None, weight_reg=None,
-        data_kl_factor=None, n_iter=None, lr=None, batch_size=None, beta=None,
-        group_kl_factor=None, factor_reg=None, device=None, classes_=None,
-        groups_=None, iter_=None, model_state_dict=None):
+        n_iter=None, lr=None, batch_size=None, beta=None, factor_reg=None,
+        n_updates=None, device=None, classes_=None, groups_=None, iter_=None,
+        model_state_dict=None):
         """
         Set the parameters of this estimator.
 
@@ -560,8 +436,6 @@ class CpSae(torch.nn.Module):
             self.z_dim = z_dim
         if weight_reg is not None:
             self.weight_reg = weight_reg
-        if data_kl_factor is not None:
-            self.data_kl_factor = data_kl_factor
         if n_iter is not None:
             self.n_iter = n_iter
         if lr is not None:
@@ -570,10 +444,10 @@ class CpSae(torch.nn.Module):
             self.batch_size = batch_size
         if beta is not None:
             self.beta = beta
-        if group_kl_factor is not None:
-            self.group_kl_factor = group_kl_factor
         if factor_reg is not None:
             self.factor_reg = factor_reg
+        if n_updates is not None:
+            self.n_updates = n_updates
         if device is not None:
             self.device = device
         if classes_ is not None:
@@ -627,11 +501,6 @@ class CpSae(torch.nn.Module):
         volume = volume.detach().cpu().numpy()
         volume = squeeze_triangular_array(volume, dims=(1,2))
         return volume.T
-
-
-
-def soft_maximum(arr, max_val):
-    return max_val - F.softplus(max_val - arr)
 
 
 
