@@ -16,6 +16,7 @@ $ pip install .
 * [Python3](https://www.python.org/)
 * [MoviePy](https://github.com/Zulko/moviepy)
 * [PyTorch](https://pytorch.org)
+* [TensorBoard](https://github.com/tensorflow/tensorboard) (optional)
 
 
 ### TO DO
@@ -27,3 +28,6 @@ $ pip install .
 10. PoE?
 12. Manually remove regions from LFPs
 17. Change q parameter to bandwidth in notch filters
+18. Add a GP prior on CP decomposition factors
+19. Clean up the CP decomposition
+20. Add a cross validation estimator class

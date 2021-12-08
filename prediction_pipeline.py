@@ -34,8 +34,8 @@ from lpne.models import FaSae, CpSae
 USAGE = "Usage:\n$ python prediction_pipeline.py <experiment_directory>"
 FEATURE_SUBDIR = 'features'
 LABEL_SUBDIR = 'labels'
-CP_SAE = True
-TENSORBOARD = True
+CP_SAE = False
+TENSORBOARD = False
 
 
 
