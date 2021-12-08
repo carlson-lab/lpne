@@ -23,6 +23,9 @@ import warnings
 
 from ..utils.utils import get_weights, squeeze_triangular_array
 
+# TEMP!
+from sklearn.metrics import confusion_matrix
+
 
 # https://stackoverflow.com/questions/53014306/
 if float(torch.__version__[:3]) >= 1.9:
@@ -41,7 +44,7 @@ class CpSae(torch.nn.Module):
 
     def __init__(self, reg_strength=1.0, z_dim=32, weight_reg=0.0, n_iter=10000,
         lr=1e-3, batch_size=256, beta=0.5, factor_reg=1e-1, log_dir=None,
-        n_updates=1, device='auto'):
+        n_updates=0, device='auto'):
         """
         A supervised autoencoder with nonnegative and variational options.
 
@@ -106,7 +109,7 @@ class CpSae(torch.nn.Module):
                     -5 + torch.randn(self.n_groups, self.z_dim, n_rois),
             )
             self.logit_weights = torch.nn.Parameter(
-                    -3 * torch.ones(1,self.n_classes),
+                    -5 * torch.ones(1,self.n_classes),
             )
         self.logit_biases = torch.nn.Parameter(torch.zeros(1,self.n_classes))
         self.to(self.device)
@@ -114,8 +117,11 @@ class CpSae(torch.nn.Module):
 
     def _get_H(self, flatten=True):
         """
-        groups: [b]
-        H: [b,frr]
+
+        Returns
+        -------
+        H: [g,b,frr] if flatten
+           [g,b,f,r,r] otherwise
         """
         freq_f = F.softplus(self.freq_factors) # [g,z,f]
         roi_1_f = F.softplus(self.roi_1_factors) # [g,z,r]
@@ -127,7 +133,7 @@ class CpSae(torch.nn.Module):
                 roi_2_f,
         ) # [g,z,f,r,r]
         if flatten:
-            volume = volume.view(volume.shape[0], volume.shape[1], -1) # [g,z,frr]
+            volume = volume.view(volume.shape[0], volume.shape[1], -1)
         return volume
 
 
@@ -137,7 +143,7 @@ class CpSae(torch.nn.Module):
         return torch.mean(volume, dim=0) # [z,f,r,r]
 
 
-    def fit(self, features, labels, groups, print_freq=100):
+    def fit(self, features, labels, groups, print_freq=100, test_freq=1):
         """
         Fit the model to data.
 
@@ -148,6 +154,7 @@ class CpSae(torch.nn.Module):
         groups :
         weights :
         print_freq :
+        test_freq :
         """
         # Check arguments.
         assert features.ndim == 4
@@ -156,12 +163,15 @@ class CpSae(torch.nn.Module):
         assert groups.ndim == 1
         assert len(features) == len(labels) and len(labels) == len(groups)
         # Initialize.
+        orig_labels = np.copy(labels)
+        orig_groups = np.copy(groups)
         weights = get_weights(labels, groups) # NOTE: here with invalid labels?
-        idx = np.argwhere(labels == INVALID_LABEL)
+        idx = np.argwhere(labels == INVALID_LABEL).flatten()
+        idx_comp = np.argwhere(labels != INVALID_LABEL).flatten()
         temp_label = np.unique(labels[labels != INVALID_LABEL])[0]
-        labels[idx] = temp_label
+        labels[idx] = temp_label # Mask the labels temporarily.
         self.classes_, labels = np.unique(labels, return_inverse=True)
-        labels[idx] = INVALID_LABEL
+        labels[idx] = INVALID_LABEL # Unmask the labels.
         assert len(self.classes_) > 1
         self.groups_, groups = np.unique(groups, return_inverse=True)
         assert len(self.groups_) > 1
@@ -210,6 +220,18 @@ class CpSae(torch.nn.Module):
                 self.writer.add_scalar('f loss', i_f_loss, self.iter_)
             if print_freq is not None and self.iter_ % print_freq == 0:
                 print(f"iter {self.iter_:04d}, loss: {i_loss:3f}")
+            if test_freq is not None and self.iter_ % test_freq == 0:
+                weighted_acc = self.score(
+                        features[idx_comp],
+                        orig_labels[idx_comp],
+                        orig_groups[idx_comp],
+                )
+                if self.log_dir is not None:
+                    self.writer.add_scalar(
+                            'weighted accuracy',
+                            weighted_acc,
+                            self.iter_,
+                    )
             self.iter_ += 1
         return self
 
@@ -244,20 +266,22 @@ class CpSae(torch.nn.Module):
         flat_features = flat_features.unsqueeze(1) # [b,1,fr^2]
         H = self._get_H() # [g,z,fr^2]
         group_oh = F.one_hot(groups, len(self.groups_)) # [b,g]
-        H = (group_oh.unsqueeze(-1).unsqueeze(-1) * H).sum(dim=1) # [b,z,fr^2]
+        group_oh = group_oh.unsqueeze(-1).unsqueeze(-1) # [b,g,1,1]
+        H = (group_oh * H.unsqueeze(0)).sum(dim=1) # [b,g,z,fr^2] -> [b,z,fr^2]
         for i in range(self.n_updates):
-            numerator = flat_features @ H.transpose(-1,-2) # [b,1,z]
+            # [b,1,fr^2][b,fr^2,z] -> [b,1,z]
+            numerator = flat_features @ H.transpose(-1,-2)
+            # [b,1,z][b,z,fr^2][b,fr^2,z] -> [b,1,z]
             denominator = zs @ H @ H.transpose(-1,-2) # [b,1,z]
             zs = zs * numerator / denominator
-            # In the last iteration, collect the reconstruction errors.
-            if i == self.n_updates - 1:
-                flat_features = (flat_features - zs @ H).squeeze(1) # [b,fr^2]
-                zs = zs.squeeze(1) # [b,z]
-        rec_loss = torch.mean(torch.pow(flat_features, 2), dim=1) # [b]
+        rec_features = (zs @ H).squeeze(1) # [b,1,z][b,z,fr^2] -> [b,fr^2]
+        flat_features = flat_features.squeeze(1) # [b,fr^2]
+        rec_loss = torch.mean(torch.abs(flat_features-rec_features), dim=1) #[b]
 
         # Predict the labels and get weighted label log probabilities.
+        zs = zs.squeeze(1) # [b,1,z] -> [b,z]
         logits = zs[:,:self.n_classes] * F.softplus(self.logit_weights)
-        logits = logits + self.logit_biases
+        logits = logits + self.logit_biases # [b,c]
         if return_logits:
             return logits
         log_probs = Categorical(logits=logits).log_prob(labels) # [b]
@@ -278,13 +302,19 @@ class CpSae(torch.nn.Module):
         return loss, label_loss, rec_loss, factor_loss
 
 
-    def _get_factor_loss(self):
+    def _get_factor_loss(self, eps=1e-7):
         f_mean = torch.mean(self.freq_factors, dim=0, keepdim=True)
-        f_loss = torch.pow(self.freq_factors - f_mean, 2).sum()
+        f_norm = torch.linalg.norm(f_mean, dim=2, keepdim=True)
+        f_loss = (self.freq_factors - f_mean) / (f_norm + eps)
+        f_loss = torch.pow(f_loss, 2).sum()
         roi_1_mean = torch.mean(self.roi_1_factors, dim=0, keepdim=True)
-        roi_1_loss = torch.pow(self.roi_1_factors - roi_1_mean, 2).sum()
+        roi_1_norm = torch.linalg.norm(roi_1_mean, dim=2, keepdim=True)
+        roi_1_loss = (self.roi_1_factors - roi_1_mean) / (roi_1_norm + eps)
+        roi_1_loss = torch.pow(roi_1_loss, 2).sum()
         roi_2_mean = torch.mean(self.roi_2_factors, dim=0, keepdim=True)
-        roi_2_loss = torch.pow(self.roi_2_factors - roi_2_mean, 2).sum()
+        roi_2_norm = torch.linalg.norm(roi_2_mean, dim=2, keepdim=True)
+        roi_2_loss = (self.roi_2_factors - roi_2_mean) / (roi_2_norm + eps)
+        roi_2_loss = torch.pow(roi_2_loss, 2).sum()
         return f_loss + roi_1_loss + roi_2_loss
 
 
@@ -299,7 +329,7 @@ class CpSae(torch.nn.Module):
 
         Parameters
         ----------
-        features : numpy.ndarray
+        features : numpy.ndarray or torch.Tensor
             Shape: [b,f,r,r]
         groups : numpy.ndarray
             Shape: [b]
@@ -311,18 +341,20 @@ class CpSae(torch.nn.Module):
         probs : numpy.ndarray
             Shape: [batch, n_classes]
         """
+        if isinstance(groups, torch.Tensor):
+            groups = groups.detach().cpu().numpy()
         # Figure out the group mapping.
         temp_groups = np.unique(groups)
+        setdiff = np.setdiff1d(temp_groups, self.groups_, assume_unique=True)
+        assert len(setdiff) == 0, f"Found unexpected groups: {setdiff}"
         new_groups = np.zeros_like(groups)
         group_list = self.groups_.tolist()
         for temp_group in temp_groups:
-            try:
-                new_groups[groups == temp_group] = group_list.index(temp_group)
-            except:
-                new_groups[groups == temp_group] = -1
+            new_groups[groups == temp_group] = group_list.index(temp_group)
         groups = new_groups
         # To PyTorch Tensors.
-        features = torch.tensor(features, dtype=FLOAT)
+        if not isinstance(features, torch.Tensor):
+            features = torch.tensor(features, dtype=FLOAT)
         groups = torch.tensor(groups, dtype=INT).to(self.device)
         logits = []
         i = 0
@@ -385,7 +417,7 @@ class CpSae(torch.nn.Module):
 
         Return
         ------
-        weighted_acc : float
+        weighted_accuracy : float
         """
         # Derive groups, labels, and weights from labels.
         weights = get_weights(labels, groups)
@@ -393,8 +425,8 @@ class CpSae(torch.nn.Module):
         scores = np.zeros(len(features))
         scores[predictions == labels] = 1.0
         scores = scores * weights
-        weighted_acc = np.mean(scores)
-        return weighted_acc
+        weighted_accuracy = np.mean(scores)
+        return weighted_accuracy
 
 
     def get_params(self, deep=True):
@@ -410,10 +442,13 @@ class CpSae(torch.nn.Module):
             'factor_reg': self.factor_reg,
             'n_updates': self.n_updates,
             'device': self.device,
-            'classes_': self.classes_,
-            'groups_': self.groups_,
-            'iter_': self.iter_,
         }
+        try:
+            params['classes_'] = self.classes_
+            params['groups_'] = self.groups_
+            params['iter_'] = self.iter_
+        except:
+            pass
         if deep:
             params['model_state_dict'] = self.state_dict()
         return params

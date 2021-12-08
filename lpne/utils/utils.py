@@ -7,6 +7,7 @@ __date__ = "July - November 2021"
 
 import numpy as np
 import os
+import torch
 import warnings
 
 from .data import load_features, save_labels
@@ -219,23 +220,31 @@ def get_weights(labels, groups):
     """
     Get weights inversely proportional to the label and group frequency.
 
-    The average weight is fixed at one.
+    The average weight is fixed at one. If `labels` or `groups` are PyTorch
+    tensors, they are converted to NumPy arrays.
 
     Parameters
     ----------
-    labels : numpy.ndarray
+    labels : numpy.ndarray or torch.Tensor
         Label array
-    groups : numpy.ndarray
+        Shape: [n]
+    groups : numpy.ndarray or torch.Tensor
         Group array
+        Shape: [n]
 
     Returns
     -------
     weights : numpy.ndarray
         Weights
+        Shape: [n]
     """
     assert len(labels) == len(groups), f"{len(labels)} != {len(groups)}"
     n = len(labels)
     assert n > 0, f"len(labels) <= 0"
+    if isinstance(labels, torch.Tensor):
+        labels = labels.detach().cpu().numpy()
+    if isinstance(groups, torch.Tensor):
+        groups = groups.detach().cpu().numpy()
     ids = np.array(labels) + (np.max(labels)+1) * np.array(groups)
     unique_ids = np.unique(ids)
     id_counts = [len(np.argwhere(ids==id).flatten()) for id in unique_ids]
