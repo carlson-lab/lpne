@@ -26,8 +26,9 @@ Required directory structure:
 The subdirectories `Data` and `CHANS` are inputs to this pipeline and the
 subdirectory `features` is the output.
 
+TO DO; filter!
 """
-__date__ = "July 2021"
+__date__ = "July - December 2021"
 
 
 import os
@@ -67,6 +68,9 @@ if __name__ == '__main__':
     for file_num in range(len(lfp_fns)):
         # Load LFP data.
         lfps = lpne.load_lfps(lfp_fns[file_num])
+
+        # Filter LFPs.
+        lfps = lpne.filter_lfps(lfps, FS)
 
         # Plot the LFPs for fun.
         if file_num == 0:

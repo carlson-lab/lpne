@@ -1,9 +1,6 @@
 """
 CANDECOMP/PARAFAC supervised autoencoder with deterministic factors.
 
-TO DO
------
-* test this on real data!
 """
 __date__ = "November 2021"
 
@@ -22,9 +19,6 @@ except:
 import warnings
 
 from ..utils.utils import get_weights, squeeze_triangular_array
-
-# TEMP!
-from sklearn.metrics import confusion_matrix
 
 
 # https://stackoverflow.com/questions/53014306/
