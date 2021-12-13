@@ -18,6 +18,15 @@ lpne.preprocess.channel_maps module
     :show-inheritance:
 
 
+lpne.preprocess.filter module
+-----------------------------
+
+.. automodule:: lpne.preprocess.filter
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
 lpne.preprocess.make_features module
 ------------------------------------
 

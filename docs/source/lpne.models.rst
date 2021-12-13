@@ -16,3 +16,21 @@ lpne.models.factor_analysis_sae module
     :members:
     :undoc-members:
     :show-inheritance:
+
+
+lpne.models.cp_sae module
+-------------------------
+
+.. automodule:: lpne.models.cp_sae
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+lpne.models.grid_search_cv module
+---------------------------------
+
+.. automodule:: lpne.models.grid_search_cv
+    :members:
+    :undoc-members:
+    :show-inheritance:

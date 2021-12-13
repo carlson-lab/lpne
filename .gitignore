@@ -9,3 +9,4 @@ docs/build/*
 .ipynb_checkpoints
 *.DS_Store
 logs
+*.egg-info

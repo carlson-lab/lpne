@@ -2,16 +2,20 @@
 Filter LFP and EMG waveforms.
 
 """
-__date__ = "October 2021"
+__date__ = "October - December 2021"
 
 
 from scipy.signal import butter, lfilter, stft, iirnotch, freqz, welch
 
 
 ORDER = 3 # Butterworth filter order
+"""Butterworth filter order"""
 LOWCUT = 0.5
+"""Default lowcut for filtering (Hz)"""
 HIGHCUT = 55.0
+"""Default highcut for filtering (Hz)"""
 Q = 1.5 # Notch filter parameter
+"""Notch filter quality parameter"""
 
 
 

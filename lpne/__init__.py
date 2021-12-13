@@ -4,14 +4,12 @@ LPNE feature pipeline
 Code for preprocessing and building models with local field potentials.
 
 """
-__date__ = "July - November 2021"
-__version__ = "0.0.5"
+__date__ = "July - December 2021"
+__version__ = "0.0.6"
 
 
 
-from .contrib import make_sleep_labels
-
-from .models import FaSae
+from .models import FaSae, CpSae, GridSearchCV
 
 from .plotting import \
         plot_lfps, \
