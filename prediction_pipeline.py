@@ -19,7 +19,7 @@ Required directory structure:
 
 
 """
-__date__ = "July - November 2021"
+__date__ = "July 2021 - January 2022"
 
 
 import numpy as np
@@ -34,7 +34,7 @@ from lpne.models import FaSae, CpSae
 USAGE = "Usage:\n$ python prediction_pipeline.py <experiment_directory>"
 FEATURE_SUBDIR = 'features'
 LABEL_SUBDIR = 'labels'
-CP_SAE = False
+CP_SAE = True
 TENSORBOARD = False
 
 
@@ -84,7 +84,7 @@ if __name__ == '__main__':
     # Make the model.
     if CP_SAE:
         log_dir = 'logs/' if TENSORBOARD else None
-        model = CpSae(n_iter=5000, log_dir=log_dir)
+        model = CpSae(n_iter=50, log_dir=log_dir)
     else:
         model = FaSae(n_iter=50)
 

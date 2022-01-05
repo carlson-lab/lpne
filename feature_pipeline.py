@@ -26,7 +26,6 @@ Required directory structure:
 The subdirectories `Data` and `CHANS` are inputs to this pipeline and the
 subdirectory `features` is the output.
 
-TO DO; filter!
 """
 __date__ = "July - December 2021"
 

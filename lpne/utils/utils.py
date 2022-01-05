@@ -2,7 +2,7 @@
 Useful functions
 
 """
-__date__ = "July - November 2021"
+__date__ = "July 2021 - January 2022"
 
 
 import numpy as np
@@ -228,7 +228,7 @@ def get_weights(labels, groups):
     labels : numpy.ndarray or torch.Tensor
         Label array
         Shape: [n]
-    groups : numpy.ndarray or torch.Tensor
+    groups : None or numpy.ndarray or torch.Tensor
         Group array
         Shape: [n]
 
@@ -238,14 +238,17 @@ def get_weights(labels, groups):
         Weights
         Shape: [n]
     """
-    assert len(labels) == len(groups), f"{len(labels)} != {len(groups)}"
+    if groups is not None:
+        assert len(labels) == len(groups), f"{len(labels)} != {len(groups)}"
     n = len(labels)
     assert n > 0, f"len(labels) <= 0"
     if isinstance(labels, torch.Tensor):
         labels = labels.detach().cpu().numpy()
     if isinstance(groups, torch.Tensor):
         groups = groups.detach().cpu().numpy()
-    ids = np.array(labels) + (np.max(labels)+1) * np.array(groups)
+    ids = np.array(labels)
+    if groups is not None:
+        ids = ids + (np.max(labels)+1) * np.array(groups)
     unique_ids = np.unique(ids)
     id_counts = [len(np.argwhere(ids==id).flatten()) for id in unique_ids]
     id_weights = n / (len(unique_ids) * np.array(id_counts))

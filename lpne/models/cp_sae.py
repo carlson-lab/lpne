@@ -2,7 +2,7 @@
 CANDECOMP/PARAFAC supervised autoencoder with deterministic factors.
 
 """
-__date__ = "November 2021"
+__date__ = "November 2021 - January 2022"
 
 
 import numpy as np
@@ -40,7 +40,7 @@ class CpSae(torch.nn.Module):
         lr=1e-3, batch_size=256, beta=0.5, factor_reg=1e-1, log_dir=None,
         n_updates=0, device='auto'):
         """
-        A supervised autoencoder with nonnegative and variational options.
+        A supervised autoencoder using CP-style generative model.
 
         Parameters
         ----------
@@ -143,12 +143,14 @@ class CpSae(torch.nn.Module):
 
         Parameters
         ----------
-        features : [b,f,r,r]
-        labels :
-        groups :
-        weights :
-        print_freq :
-        test_freq :
+        features : numpy.ndarray
+            Shape: [b,f,r,r]
+        labels : numpy.ndarray
+            Shape: [b]
+        groups : None ore numpy.ndarray
+            Shape: [b]
+        print_freq : int, optional
+        test_freq : int, optional
         """
         # Check arguments.
         assert features.ndim == 4
@@ -238,7 +240,7 @@ class CpSae(torch.nn.Module):
         ----------
         features : [b,f,r,r]
         labels : [b]
-        groups : [b]
+        groups : None or [b]
         weights : [b]
 
         Returns
@@ -254,6 +256,13 @@ class CpSae(torch.nn.Module):
         flat_features = features.view(features.shape[0], -1) # [b,fr^2]
         rec_features = torch.zeros_like(flat_features)
         zs = F.softplus(self.rec_model(flat_features)) # [b,z]
+
+        if groups is None:
+            assert self.n_updates == 0
+            assert return_logits
+            logits = zs[:,:self.n_classes] * F.softplus(self.logit_weights)
+            logits = logits + self.logit_biases # [b,c]
+            return logits
 
         # Update latents with multiplicative updates.
         zs = zs.unsqueeze(1) # [b,1,z]
@@ -313,7 +322,7 @@ class CpSae(torch.nn.Module):
 
 
     @torch.no_grad()
-    def predict_proba(self, features, groups, to_numpy=True):
+    def predict_proba(self, features, groups=None, to_numpy=True):
         """
         Probability estimates.
 
@@ -325,7 +334,7 @@ class CpSae(torch.nn.Module):
         ----------
         features : numpy.ndarray or torch.Tensor
             Shape: [b,f,r,r]
-        groups : numpy.ndarray
+        groups : None or numpy.ndarray
             Shape: [b]
         to_numpy : bool, optional
         stochastic : bool, optional
@@ -335,26 +344,30 @@ class CpSae(torch.nn.Module):
         probs : numpy.ndarray
             Shape: [batch, n_classes]
         """
-        if isinstance(groups, torch.Tensor):
-            groups = groups.detach().cpu().numpy()
-        # Figure out the group mapping.
-        temp_groups = np.unique(groups)
-        setdiff = np.setdiff1d(temp_groups, self.groups_, assume_unique=True)
-        assert len(setdiff) == 0, f"Found unexpected groups: {setdiff}"
-        new_groups = np.zeros_like(groups)
-        group_list = self.groups_.tolist()
-        for temp_group in temp_groups:
-            new_groups[groups == temp_group] = group_list.index(temp_group)
-        groups = new_groups
-        # To PyTorch Tensors.
-        if not isinstance(features, torch.Tensor):
+        if isinstance(features, np.ndarray):
             features = torch.tensor(features, dtype=FLOAT)
-        groups = torch.tensor(groups, dtype=INT).to(self.device)
+        # Figure out group mapping.
+        if groups is not None:
+            if isinstance(groups, torch.Tensor):
+                groups = groups.detach().cpu().numpy()
+            # Figure out the group mapping.
+            temp_groups = np.unique(groups)
+            setdiff = np.setdiff1d(temp_groups, self.groups_, assume_unique=True)
+            assert len(setdiff) == 0, f"Found unexpected groups: {setdiff}"
+            new_groups = np.zeros_like(groups)
+            group_list = self.groups_.tolist()
+            for temp_group in temp_groups:
+                new_groups[groups == temp_group] = group_list.index(temp_group)
+            groups = new_groups
+            # To PyTorch Tensors.
+            if not isinstance(features, torch.Tensor):
+                features = torch.tensor(features, dtype=FLOAT)
+            groups = torch.tensor(groups, dtype=INT).to(self.device)
         logits = []
         i = 0
         while i <= len(features):
             batch_f = features[i:i+self.batch_size].to(self.device)
-            batch_g = groups[i:i+self.batch_size]
+            batch_g = None if groups is None else groups[i:i+self.batch_size]
             batch_logit = self(batch_f, None, batch_g, None, return_logits=True)
             logits.append(batch_logit)
             i += self.batch_size
@@ -366,7 +379,7 @@ class CpSae(torch.nn.Module):
 
 
     @torch.no_grad()
-    def predict(self, features, groups):
+    def predict(self, features, groups=None):
         """
         Predict class labels for the features.
 
@@ -374,7 +387,7 @@ class CpSae(torch.nn.Module):
         ----------
         features : numpy.ndarray
             Shape: [b,f,r,r]
-        groups : numpy.ndarray
+        groups : None or numpy.ndarray, optional
             Shape: [b]
 
         Returns
@@ -393,7 +406,7 @@ class CpSae(torch.nn.Module):
 
 
     @torch.no_grad()
-    def score(self, features, labels, groups):
+    def score(self, features, labels, groups=None):
         """
         Get a class weighted accuracy.
 
@@ -406,7 +419,7 @@ class CpSae(torch.nn.Module):
             Shape: [b,f,r,r]
         labels : numpy.ndarray
             Shape: [b]
-        groups : None or numpy.ndarray
+        groups : None or numpy.ndarray, optional
             Shape: [b]
 
         Return
@@ -527,9 +540,9 @@ class CpSae(torch.nn.Module):
         assert isinstance(factor_num, int)
         assert factor_num >= 0 and factor_num < self.z_dim
         volume = self._get_mean_projection()[factor_num]  # [f,r,r]
-        volume = volume.detach().cpu().numpy()
-        volume = squeeze_triangular_array(volume, dims=(1,2))
-        return volume.T
+        volume = volume.detach().cpu().numpy() # [f,r,r]
+        volume = squeeze_triangular_array(volume, dims=(1,2)) # [f,r(r+1)/2]
+        return volume.T # [r(r+1)/2,f]
 
 
 

@@ -3,7 +3,7 @@ Factor Analysis-regularized logistic regression.
 
 Is `linear_layer` necessary?
 """
-__date__ = "June - November 2021"
+__date__ = "June - December 2021"
 
 
 import numpy as np
@@ -142,7 +142,9 @@ class FaSae(torch.nn.Module, BaseEstimator):
         Parameters
         ----------
         features : numpy.ndarray
+            Shape: [n_data, n_features]
         labels : numpy.ndarray
+            Shape: [n_data]
         n_iter : int, optional
             Number of training epochs.
         lr : float, optional

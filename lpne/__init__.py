@@ -4,8 +4,8 @@ LPNE feature pipeline
 Code for preprocessing and building models with local field potentials.
 
 """
-__date__ = "July - December 2021"
-__version__ = "0.0.6"
+__date__ = "July 2021 - January 2022"
+__version__ = "0.0.7"
 
 
 

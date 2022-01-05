@@ -29,6 +29,7 @@ class GridSearchCV:
 
     def fit(self, features, labels, groups, print_freq=5):
         """
+        Fit the model to data.
 
         Parameters
         ----------

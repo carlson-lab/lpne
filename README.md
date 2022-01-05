@@ -32,4 +32,5 @@ $ pip install .
 21. Make some pre-zipped features and labels
 22. Generalize the GridSearchCV
 23. Model factor movie
-25. Add feature/model metadata
+25. Add feature/model metadata: `datetime.datetime.now()`
+26. Add random seeds
