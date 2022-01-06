@@ -4,14 +4,14 @@ An app for making LFP features.
 TO DO
 -----
 * Input the channel map
-* Multiselect CHANS and Data files
 """
 __date__ = "December 2021 - January 2022"
 
 
 from bokeh.layouts import column, row
 from bokeh.models import Button, CheckboxGroup, ColumnDataSource, Select, \
-        Panel, PreText, Slider, Tabs, TextInput, MultiSelect
+        Panel, PreText, Slider, Tabs, TextInput, MultiSelect, DataTable, \
+        TableColumn
 from bokeh.models.callbacks import CustomJS
 from bokeh.plotting import figure, curdoc
 import numpy as np
@@ -40,10 +40,73 @@ LFP_LOWCUT = 0.5
 LFP_HIGHCUT = 55.0
 Q = 1.5
 
+# CHANNEL MAP
+DEFAULT_MAP = dict(
+        channel_names=['foo', 'bar'],
+        roi_names=['foo', 'bar'],
+)
+
 
 
 def feature_app(doc):
     """Define the app."""
+
+    ###################
+    # Channel map tab #
+    ###################
+    source = ColumnDataSource(DEFAULT_MAP)
+
+    columns = [
+        TableColumn(field="channel_names", title="Channel Name"),
+        TableColumn(field="roi_names", title="ROI Name"),
+    ]
+    data_table = DataTable(
+            source=source,
+            columns=columns,
+            width=500,
+            height=280,
+            editable=True,
+    )
+
+    channel_map_button = Button(label="Populate with Defaults", default_size=200)
+
+    def channel_map_callback():
+        lfp_dir = lfp_dir_input.value
+        if not os.path.exists(lfp_dir):
+            alert_box.text = f"LFP directory does not exist: {lfp_dir}"
+            channel_map_button.button_type="warning"
+            return
+        combine_hemi = 0 in hemisphere_checkbox.active
+        lfp_fns = sorted([os.path.join(lfp_dir,i) for i in multi_select_1.value])
+        if len(lfp_fns) == 0:
+            alert_box.text = f"No LFP filenames selected!"
+            channel_map_button.button_type="warning"
+            return
+        all_keys = []
+        for file_num in range(len(lfp_fns)):
+            if not os.path.exists(lfp_fns[file_num]):
+                alert_box.text = f"LFP filename does not exist: {lfp_fns[file_num]}"
+                channel_map_button.button_type="warning"
+                return
+            # Load LFP data.
+            lfps = lpne.load_lfps(lfp_fns[file_num])
+            all_keys.append(list(lfps.keys()))
+        all_keys = np.unique(all_keys)
+        channel_map = lpne.get_default_channel_map(
+                all_keys,
+                combine_hemispheres=combine_hemi,
+        )
+        new_data = dict(
+            channel_names=list(channel_map.keys()),
+            roi_names=list(channel_map.values()),
+        )
+        source.data = new_data
+        channel_map_button.button_type = "default"
+
+
+    channel_map_button.on_click(channel_map_callback)
+
+
     ###################
     # Input data tab. #
     ###################
@@ -158,6 +221,11 @@ def feature_app(doc):
             active=[0],
     )
 
+    channel_map_checkbox = CheckboxGroup(
+            labels=["Use default ROIs?"],
+            active=[],
+    )
+
     save_dir_input = TextInput(
             value=DEFAULT_FEATURE_DIR,
             title="Enter feature directory:",
@@ -168,12 +236,12 @@ def feature_app(doc):
     def save_callback():
         lfp_dir = lfp_dir_input.value
         if not os.path.exists(lfp_dir):
-            alert_box.text = f"Directory does not exist: {lfp_dir}"
+            alert_box.text = f"LFP directory does not exist: {lfp_dir}"
             save_button.button_type="warning"
             return
         chans_dir = chans_dir_input.value
         if not os.path.exists(chans_dir):
-            alert_box.text = f"Directory does not exist: {chans_dir}"
+            alert_box.text = f"CHANS directory does not exist: {chans_dir}"
             save_button.button_type="warning"
             return
         feature_dir = save_dir_input.value
@@ -184,6 +252,7 @@ def feature_app(doc):
         window_duration = window_slider.value
         combine_hemi = 0 in hemisphere_checkbox.active
         overwrite = 0 in overwrite_checkbox.active
+        default_channel_map = 0 in channel_map_checkbox.active
         # Get the filenames.
         saved_channels = {}
         chans_fns = sorted([os.path.join(chans_dir,i) for i in multi_select_2.value])
@@ -208,10 +277,16 @@ def feature_app(doc):
             # Filter LFPs.
             lfps = lpne.filter_lfps(lfps, int(fs_input.value))
             # Get the default channel grouping.
-            channel_map = lpne.get_default_channel_map(
-                    list(lfps.keys()),
-                    combine_hemispheres=combine_hemi,
-            )
+            if default_channel_map:
+                channel_map = lpne.get_default_channel_map(
+                        list(lfps.keys()),
+                        combine_hemispheres=combine_hemi,
+                )
+            else:
+                channel_map = dict(zip(
+                        source.data["channel_names"],
+                        source.data["roi_names"],
+                ))
             # Load the contents of a file to determine which channels to remove.
             to_remove = lpne.get_removed_channels_from_file(chans_fns[file_num])
             # Remove these channels.
@@ -243,13 +318,24 @@ def feature_app(doc):
             save_dir_input,
             hemisphere_checkbox,
             overwrite_checkbox,
+            channel_map_checkbox,
             save_button,
             alert_box,
     )
-
     column_2 = column(multi_select_1, multi_select_2)
+    tab_1 = Panel(
+        child=row(column_1, column_2),
+        title="Data Stuff",
+    )
 
-    doc.add_root(row(column_1, column_2))
+    tab_2 = Panel(
+        child=column(data_table, channel_map_button, alert_box),
+        title="ROI Definitions",
+    )
+
+    tabs = Tabs(tabs=[tab_1, tab_2])
+
+    doc.add_root(tabs)
 
 
 def _my_listdir(dir):

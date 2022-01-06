@@ -1,11 +1,8 @@
 """
-Normalize features
+Normalize LFPs and features.
 
-TO DO
------
-* add more normalization methods
 """
-__date__ = "July - October 2021"
+__date__ = "July 2021 - January 2022"
 
 
 import numpy as np
@@ -14,22 +11,27 @@ EPSILON = 1e-6
 
 
 
-def normalize_features(power_features, partition, mode='max'):
+def normalize_features(power_features, partition=None, mode='std'):
     """
     Normalize the features.
+
+    This is an in-place operation!
 
     Parameters
     ----------
     power_features : numpy.ndarray
         LFP power features.
         Shape: [n_windows, n_roi*(n_roi+1)//2, n_freq]
-    partition : dict
+    partition : None or dict, optional
+        If `None`, use all the indices to calculate window statistics.
+        Otherwise, use only the indices contained in `partition['train']`.s
         'train': numpy.ndarray
             Train indices.
         'test': numpy.ndarray
             Test indices.
     mode : {'max'}, optional
         Normalization method.
+        'std': normalize by the standard deviation of the training set.
         'max': normalize by the maximum value of the training set, scaling to
                [0,1].
 
@@ -39,8 +41,15 @@ def normalize_features(power_features, partition, mode='max'):
         Normalized LFP power features.
         Shape: [n_windows, n_roi*(n_roi+1)//2, n_freq]
     """
-    if mode == 'max':
-        max_val = np.max(power_features[partition['train']])
+    if partition is None:
+        idx = np.arange(len(power_features))
+    else:
+        idx = partition['train']
+    if mode == 'std':
+        temp = np.std(power_features[idx])
+        power_features /= temp
+    elif mode == 'max':
+        max_val = np.max(power_features[idx])
         power_features /= max_val
     else:
         raise NotImplementedError(f"Mode {mode} not implemented!")

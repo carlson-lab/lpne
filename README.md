@@ -20,7 +20,6 @@ $ pip install .
 
 
 ### TO DO
-1. add normalization options
 4. remove bad windows
 6. consolidate plot_factor.py and plot_power.py
 7. add docstrings for channel maps
@@ -34,3 +33,6 @@ $ pip install .
 23. Model factor movie
 25. Add feature/model metadata: `datetime.datetime.now()`
 26. Add random seeds
+27. Make CpSae and FaSae compatible
+28. Save label names with labels?
+29. Plot multiple factors

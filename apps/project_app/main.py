@@ -106,8 +106,7 @@ def project_app(doc):
         features, labels, rois = \
                 lpne.load_features_and_labels(feature_fns, label_fns)
         # Normalize the power features.
-        partition = {'train': np.arange(len(features))}
-        features = lpne.normalize_features(features, partition)
+        features = lpne.normalize_features(features, mode='std')
         # Load the model.
         if not os.path.exists(model_in.value):
             project_button.button_type = "warning"
@@ -132,8 +131,12 @@ def project_app(doc):
         # Confusion matrix
         confusion = confusion_matrix(labels, predictions)
 
+        # Filter out ignored classes.
+        idx = [i for i in range(len(labels)) if labels[i] in model.classes_]
+        idx = np.array(idx)
+
         # Calculate a weighted accuracy.
-        acc = model.score(features, labels)
+        acc = model.score(features[idx], labels[idx])
 
         message = f"Confusion matrix (rows are true labels, columns are " \
                   f"predicted labels):\n{confusion}\n\nWeighted accuracy: {acc}"
