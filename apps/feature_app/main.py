@@ -1,11 +1,12 @@
 """
-Feature app.
+An app for making LFP features.
 
 TO DO
 -----
 * Input the channel map
+* Multiselect CHANS and Data files
 """
-__date__ = "December 2021"
+__date__ = "December 2021 - January 2022"
 
 
 from bokeh.layouts import column, row
@@ -47,6 +48,41 @@ def feature_app(doc):
     # Input data tab. #
     ###################
 
+
+    if os.path.exists(DEFAULT_LFP_DIR):
+        initial_options = _my_listdir(DEFAULT_LFP_DIR)
+    else:
+        initial_options = []
+
+    multi_select_1 = MultiSelect(
+            value=[],
+            options=initial_options,
+            title="Select LFP files:",
+            height=MULTISELECT_HEIGHT,
+            width=MULTISELECT_WIDTH,
+    )
+
+    def update_multi_select_1(new_options):
+        multi_select_1.options = new_options
+
+
+    if os.path.exists(DEFAULT_CHANS_DIR):
+        initial_options = _my_listdir(DEFAULT_CHANS_DIR)
+    else:
+        initial_options = []
+
+    multi_select_2 = MultiSelect(
+            value=[],
+            options=initial_options,
+            title="Select CHANS file or files:",
+            height=MULTISELECT_HEIGHT,
+            width=MULTISELECT_WIDTH,
+    )
+
+    def update_multi_select_2(new_options):
+        multi_select_2.options = new_options
+
+
     def lfp_dir_input_callback(attr, old, new):
         """If the directory exists, populate the file selector."""
         if os.path.exists(new):
@@ -55,9 +91,10 @@ def feature_app(doc):
                 load_dir = load_dir[:-1]
             if len(load_dir.split(os.path.sep)) > 1:
                 save_dir = load_dir.split(os.path.sep)[:-1]
-                save_dir.append('labels')
+                save_dir.append('features')
                 save_dir.append(str(window_slider.value)+'s')
                 save_dir_input.value = os.path.sep + os.path.join(*save_dir)
+            update_multi_select_1(_my_listdir(load_dir))
         else:
             alert_box.text = f"Not a valid directory: {new}"
 
@@ -71,7 +108,9 @@ def feature_app(doc):
 
     def chans_dir_input_callback(attr, old, new):
         """If the directory exists, populate the file selector."""
-        if not os.path.exists(new):
+        if os.path.exists(new):
+            update_multi_select_2(_my_listdir(new))
+        else:
             alert_box.text = f"Not a valid directory: {new}"
 
     chans_dir_input = TextInput(
@@ -96,7 +135,7 @@ def feature_app(doc):
             load_dir = load_dir[:-1]
         if os.path.exists(load_dir) and len(load_dir.split(os.path.sep)) > 1:
             save_dir = load_dir.split(os.path.sep)[:-1]
-            save_dir.append('labels')
+            save_dir.append('features')
             save_dir.append(str(window_slider.value)+'s')
             save_dir_input.value = os.path.sep + os.path.join(*save_dir)
 
@@ -147,7 +186,22 @@ def feature_app(doc):
         overwrite = 0 in overwrite_checkbox.active
         # Get the filenames.
         saved_channels = {}
-        lfp_fns, chans_fns = lpne.get_lfp_chans_filenames(lfp_dir, chans_dir)
+        chans_fns = sorted([os.path.join(chans_dir,i) for i in multi_select_2.value])
+        lfp_fns = sorted([os.path.join(lfp_dir,i) for i in multi_select_1.value])
+        if len(chans_fns) > 1 and len(chans_fns) != len(lfp_fns):
+            alert_box.text = f"Unequal number of CHANS and LFP files: {len(chans_fns)} {len(lfp_fns)}"
+            save_button.button_type="warning"
+            return
+        elif len(chans_fns) == 1:
+            chans_fns = chans_fns * len(lfp_fns)
+        if len(lfp_fns) == 0:
+            alert_box.text = f"No LFP filenames selected!"
+            save_button.button_type="warning"
+            return
+        if len(chans_fns) == 0:
+            alert_box.text = f"No CHANS filenames selected!"
+            save_button.button_type="warning"
+            return
         for file_num in range(len(lfp_fns)):
             # Load LFP data.
             lfps = lpne.load_lfps(lfp_fns[file_num])
@@ -193,7 +247,15 @@ def feature_app(doc):
             alert_box,
     )
 
-    doc.add_root(column_1)
+    column_2 = column(multi_select_1, multi_select_2)
+
+    doc.add_root(row(column_1, column_2))
+
+
+def _my_listdir(dir):
+    if dir == '':
+        return []
+    return sorted([i for i in os.listdir(dir) if not i.startswith('.')])
 
 
 # Run the app.

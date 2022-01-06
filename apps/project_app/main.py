@@ -158,6 +158,8 @@ def project_app(doc):
 
 
 def _my_listdir(dir):
+    if dir == '':
+        return []
     return sorted([i for i in os.listdir(dir) if not i.startswith('.')])
 
 
