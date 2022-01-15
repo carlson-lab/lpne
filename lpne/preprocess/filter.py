@@ -61,7 +61,7 @@ def filter_lfps(lfps, fs, lowcut=LOWCUT, highcut=HIGHCUT, q=Q, order=ORDER):
 
     Returns
     -------
-    x : numpy.ndarray
+    lfps : dict
     """
     for channel in list(lfps.keys()):
         lfps[channel] = filter_signal(

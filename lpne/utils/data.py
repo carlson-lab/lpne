@@ -2,7 +2,7 @@
 Data utilities
 
 """
-__date__ = "July - November 2021"
+__date__ = "July 2021 - January 2022"
 
 
 import numpy as np
@@ -76,29 +76,45 @@ def save_features(features, fn):
         raise NotImplementedError(f"Unsupported file type: {fn}")
 
 
-def load_features(fn):
+def load_features(fns, return_counts=False):
     """
-    Load the features saved in the given filename.
-
-    Raises
-    ------
-    * `NotImplementedError` if `fn` is an unsupported file type.
+    Load the features saved in the given filenames.
 
     Parameters
     ----------
-    fn : str
+    fns : str or list of str
         Where the data is saved. Supported file types: {'.npy'}
+    return_counts : bool, optional
+        Return the number of windows for each file.
 
     Returns
     -------
-    features : dict
-        LFP features
+    features : numpy.ndarray
+        LFP power features
+        Shape: [n_windows,feature_dim]
+    rois : list of str
+        ROI names
+    counts : list of int
+        Number of windows in each file. Returned if `return_counts` is `True`.
     """
-    assert isinstance(fn, str)
-    if fn.endswith('.npy'):
-        return np.load(fn, allow_pickle=True).item()
-    else:
-        raise NotImplementedError(f"Unsupported file type: {fn}")
+    if isinstance(fns, str):
+        fns = [fns]
+    assert isinstance(fns, list)
+    features, counts = [], []
+    prev_rois = None
+    for fn in fns:
+        assert fn.endswith('.npy'), f"Unsupported file type: {fn}"
+        temp = np.load(fn, allow_pickle=True).item()
+        rois = temp['rois']
+        if prev_rois is not None:
+            assert prev_rois == rois, f"Inconsitent ROIs: {rois} != {prev_rois}"
+        prev_rois = rois
+        features.append(temp['power'])
+        counts.append(len(features[-1]))
+    features = np.concatenate(features, axis=0)
+    if return_counts:
+        return features, rois, counts
+    return features, rois
 
 
 def save_labels(labels, fn, overwrite=True):
@@ -158,7 +174,8 @@ def load_labels(fn):
     return labels
 
 
-def load_features_and_labels(feature_fns, label_fns, group_func=None):
+def load_features_and_labels(feature_fns, label_fns, group_func=None,
+    return_counts=False):
     """
     Load the features and labels.
 
@@ -175,6 +192,8 @@ def load_features_and_labels(feature_fns, label_fns, group_func=None):
         `group_func(feature_fn)` for the corresponding feature filename of each
         window. `group_func` should map strings (filenames) to integers
         (groups).
+    return_counts : bool, optional
+        Return the number of windows for each file.
 
     Returns
     -------
@@ -185,8 +204,10 @@ def load_features_and_labels(feature_fns, label_fns, group_func=None):
     rois : list of str
         Regions of interest, channel names
     groups : numpy.ndarray
-        Only returned if `group_func is not None`
+        Returned if `group_func is not None`
         Shape: [n_windows]
+    counts : list of int
+        Number of windows in each file. Returned if `return_counts` is `True`.
     """
     assert group_func is None or isinstance(group_func, type(lambda x: x)), \
             "group_func must either be None or a function!"
@@ -194,26 +215,28 @@ def load_features_and_labels(feature_fns, label_fns, group_func=None):
             f"Expected the same number of feature and label filenames. " \
             f"Found {len(feature_fns)} and {len(label_fns)}."
     # Collect everything.
-    features, labels, groups = [], [], []
+    features, labels, groups, counts = [], [], [], []
     prev_rois = None
     for feature_fn, label_fn in zip(feature_fns, label_fns):
-        temp = load_features(feature_fn)
-        rois = temp['rois']
+        power, rois = load_features(feature_fn)
         if prev_rois is not None:
-            assert prev_rois == rois, \
-                    f"Found inconsitent ROIs: {rois} and {prev_rois}"
+            assert prev_rois == rois, f"Inconsitent ROIs: {rois} != {prev_rois}"
         prev_rois = rois
-        features.append(temp['power'])
+        features.append(power)
+        counts.append(len(power))
         labels.append(load_labels(label_fn))
         if group_func is not None:
             groups.append([group_func(feature_fn)]*len(labels[-1]))
     # Concatenate and return.
     features = np.concatenate(features, axis=0)
     labels = np.concatenate(labels, axis=0)
+    res = (features, labels, rois)
     if group_func is not None:
         groups = np.concatenate(groups, axis=0)
-        return features, labels, rois, groups
-    return features, labels, rois
+        res += (groups,)
+    if return_counts:
+        res += (counts,)
+    return res
 
 
 

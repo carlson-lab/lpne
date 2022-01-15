@@ -75,6 +75,7 @@ def label_editing_app(doc):
             line_width=LINE_WIDTH,
             color="slategray",
     )
+    cortex_plot.yaxis[0].axis_label = 'Cortical Channel'
 
     emg_plot = figure(
             tools=LFP_TOOLS,
@@ -330,6 +331,7 @@ def label_editing_app(doc):
         label_source.data = new_label_data
         load_button.button_type="success"
         load_button.label = "Loaded"
+        alert_box.text = f"Loaded: {lfp_fn}"
 
     load_button.on_click(load_callback)
 
@@ -461,8 +463,8 @@ def label_editing_app(doc):
     )
 
     buttons = row(*label_buttons)
-    plots = column(hipp_plot, cortex_plot, emg_plot, label_plot, alert_box)
-    tab_2 = Panel(child=column(plots, buttons), title="Edit Labels")
+    plots = column(hipp_plot, cortex_plot, emg_plot, label_plot)
+    tab_2 = Panel(child=column(plots, buttons, alert_box), title="Edit Labels")
 
     npy_save_things = column(
             npy_text,

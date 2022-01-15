@@ -1,9 +1,6 @@
 """
 An app for making LFP features.
 
-TO DO
------
-* Input the channel map
 """
 __date__ = "December 2021 - January 2022"
 
@@ -64,7 +61,7 @@ def feature_app(doc):
             source=source,
             columns=columns,
             width=500,
-            height=280,
+            height=400,
             editable=True,
     )
 
@@ -102,6 +99,7 @@ def feature_app(doc):
         )
         source.data = new_data
         channel_map_button.button_type = "default"
+        alert_box.text = ""
 
 
     channel_map_button.on_click(channel_map_callback)
@@ -158,6 +156,7 @@ def feature_app(doc):
                 save_dir.append(str(window_slider.value)+'s')
                 save_dir_input.value = os.path.sep + os.path.join(*save_dir)
             update_multi_select_1(_my_listdir(load_dir))
+            alert_box.text = ""
         else:
             alert_box.text = f"Not a valid directory: {new}"
 
@@ -173,6 +172,7 @@ def feature_app(doc):
         """If the directory exists, populate the file selector."""
         if os.path.exists(new):
             update_multi_select_2(_my_listdir(new))
+            alert_box.text = ""
         else:
             alert_box.text = f"Not a valid directory: {new}"
 
@@ -230,6 +230,16 @@ def feature_app(doc):
             value=DEFAULT_FEATURE_DIR,
             title="Enter feature directory:",
     )
+
+
+    reset_save_button = Button(label="Reset Save Button", default_size=200)
+
+    def reset_save_button_callback():
+        save_button.button_type = "default"
+        save_button.label = "Save"
+        alert_box.text = ""
+
+    reset_save_button.on_click(reset_save_button_callback)
 
     save_button = Button(label="Save", default_size=200)
 
@@ -320,6 +330,7 @@ def feature_app(doc):
             overwrite_checkbox,
             channel_map_checkbox,
             save_button,
+            reset_save_button,
             alert_box,
     )
     column_2 = column(multi_select_1, multi_select_2)

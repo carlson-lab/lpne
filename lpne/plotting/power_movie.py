@@ -24,10 +24,19 @@ def make_power_movie(lfps, duration, window_duration, fs=1000, speed_factor=5,
 
     Parameters
     ----------
-
-    Saves
-    -----
-
+    lfps : dict
+        Maps channel names to LFP waveforms (Numpy arrays)
+    duration : float
+        Duration of LFPs.
+    window_duration : float
+        Duration used to calculate power features.
+    fs : int, optional
+        LFP samplerate, in Hz.
+    speed_factor : float, optional
+    fps : int, optional
+        Frames per second
+    fn : str, optional
+        Movie filename.
     """
     # Get the features.
     movie_duration = duration / speed_factor
@@ -38,13 +47,12 @@ def make_power_movie(lfps, duration, window_duration, fs=1000, speed_factor=5,
             window_duration=window_duration,
             window_step=window_step,
     )
-
     # Set up the plot.
     power = res['power']
     n_freqs = power.shape[2]
     rois = list(lfps.keys())
     fig, axarr = _set_up_plot(power[0], rois)
-
+    # Iterate over frames.
     frames = []
     title = fig.suptitle("", fontsize=FONTSIZE, y=0.93)
     for k in range(power.shape[0]):
@@ -79,8 +87,6 @@ def make_power_movie(lfps, duration, window_duration, fs=1000, speed_factor=5,
     else:
         animation.write_videofile(fn, fps=fps)
     plt.close('all')
-
-
 
 
 def _set_up_plot(power, rois):

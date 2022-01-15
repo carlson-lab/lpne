@@ -36,3 +36,5 @@ $ pip install .
 27. Make CpSae and FaSae compatible
 28. Save label names with labels?
 29. Plot multiple factors
+30. Save the model name with the model.
+31. Movie app

@@ -45,8 +45,8 @@ def write_fake_labels(feature_dir, label_dir, n_label_types=2,
     # For each file pair...
     for feature_fn, label_fn in zip(feature_fns, label_fns):
         # Make the appropiate number of labels and save them.
-        features = load_features(feature_fn)
-        n = len(features['power'])
+        features = load_features(feature_fn)[0]
+        n = len(features)
         labels = np.random.randint(0,high=n_label_types,size=n)
         save_labels(labels, label_fn)
     # Undo the seed.
