@@ -392,7 +392,10 @@ class FaSae(torch.nn.Module, BaseEstimator):
             'classes_': self.classes_,
         }
         if deep:
-            params['model_state_dict'] = self.state_dict()
+            temp = self.state_dict()
+            for key in temp:
+                temp[key] = temp[key].to('cpu')
+            params['model_state_dict'] = temp
         return params
 
 
@@ -436,6 +439,8 @@ class FaSae(torch.nn.Module, BaseEstimator):
                     f"'model.bias' not in {list(model_state_dict.keys())}"
             n_features = len(model_state_dict['model.bias'].view(-1))
             self._initialize(n_features)
+            for key in model_state_dict:
+                model_state_dict[key] = model_state_dict[key].to(self.device)
             self.load_state_dict(model_state_dict)
         return self
 

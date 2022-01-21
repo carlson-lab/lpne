@@ -457,7 +457,10 @@ class CpSae(torch.nn.Module):
         except:
             pass
         if deep:
-            params['model_state_dict'] = self.state_dict()
+            temp = self.state_dict()
+            for key in temp:
+                temp[key] = temp[key].to('cpu')
+            params['model_state_dict'] = temp
         return params
 
 
@@ -507,6 +510,8 @@ class CpSae(torch.nn.Module):
                     f"'roi_1_factors' not in {list(model_state_dict.keys())}"
             n_rois = model_state_dict['roi_1_factors'].shape[-1]
             self._initialize(n_freqs, n_rois)
+            for key in model_state_dict:
+                model_state_dict[key] = model_state_dict[key].to(self.device)
             self.load_state_dict(model_state_dict)
         return self
 
@@ -518,7 +523,8 @@ class CpSae(torch.nn.Module):
 
     def load_state(self, fn):
         """Load and set the parameters for this estimator."""
-        self.set_params(**np.load(fn, allow_pickle=True).item())
+        self.set_params(**torch.load(fn, map_location=self.device))
+        # self.set_params(**np.load(fn, allow_pickle=True).item())
 
 
     @torch.no_grad()
