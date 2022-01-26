@@ -401,7 +401,7 @@ class FaSae(torch.nn.Module, BaseEstimator):
 
     def set_params(self, reg_strength=None, z_dim=None, weight_reg=None,
         nonnegative=None, variational=None, kl_factor=None, n_iter=None,
-        lr=None, batch_size=None, beta=None, device=None, classes_=None,
+        lr=None, batch_size=None, beta=None, classes_=None,
         model_state_dict=None):
         """
         Set the parameters of this estimator.
@@ -430,8 +430,6 @@ class FaSae(torch.nn.Module, BaseEstimator):
             self.batch_size = batch_size
         if beta is not None:
             self.beta = beta
-        if device is not None:
-            self.device = device
         if classes_ is not None:
             self.classes_ = classes_
         if model_state_dict is not None:

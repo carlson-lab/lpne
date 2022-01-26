@@ -448,7 +448,6 @@ class CpSae(torch.nn.Module):
             'beta': self.beta,
             'factor_reg': self.factor_reg,
             'n_updates': self.n_updates,
-            'device': self.device,
         }
         try:
             params['classes_'] = self.classes_
@@ -466,7 +465,7 @@ class CpSae(torch.nn.Module):
 
     def set_params(self, reg_strength=None, z_dim=None, weight_reg=None,
         n_iter=None, lr=None, batch_size=None, beta=None, factor_reg=None,
-        n_updates=None, device=None, classes_=None, groups_=None, iter_=None,
+        n_updates=None, classes_=None, groups_=None, iter_=None,
         model_state_dict=None):
         """
         Set the parameters of this estimator.
@@ -493,8 +492,6 @@ class CpSae(torch.nn.Module):
             self.factor_reg = factor_reg
         if n_updates is not None:
             self.n_updates = n_updates
-        if device is not None:
-            self.device = device
         if classes_ is not None:
             self.classes_ = classes_
         if groups_ is not None:
@@ -523,8 +520,7 @@ class CpSae(torch.nn.Module):
 
     def load_state(self, fn):
         """Load and set the parameters for this estimator."""
-        self.set_params(**torch.load(fn, map_location=self.device))
-        # self.set_params(**np.load(fn, allow_pickle=True).item())
+        self.set_params(**np.load(fn, allow_pickle=True).item())
 
 
     @torch.no_grad()
