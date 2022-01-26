@@ -11,7 +11,7 @@ setuptools.setup(
 	description="Local field potential feature extraction pipeline",
 	long_description=long_description,
 	long_description_content_type="text/markdown",
-	url="",
+	url="https://github.com/carlson-lab/lpne",
 	packages=setuptools.find_packages(),
 	classifiers=[
 		"Programming Language :: Python :: 3",

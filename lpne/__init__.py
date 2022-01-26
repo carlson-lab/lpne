@@ -5,8 +5,12 @@ Code for preprocessing and building models with local field potentials.
 
 """
 __date__ = "July 2021 - January 2022"
-__version__ = "0.0.8"
-
+__version__ = "0.0.9"
+try:
+	with open(".git/logs/HEAD", "r") as fh:
+		__commit__ = fh.read().split('\n')[-2]
+except:
+	__commit__ = "unknown commit"
 
 
 from .models import FaSae, CpSae, GridSearchCV

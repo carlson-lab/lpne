@@ -18,6 +18,9 @@ except:
     pass
 import warnings
 
+from lpne import __commit__ as LPNE_COMMIT
+from lpne import __version__ as LPNE_VERSION
+
 from ..utils.utils import get_weights, squeeze_triangular_array
 
 
@@ -147,7 +150,7 @@ class CpSae(torch.nn.Module):
             Shape: [b,f,r,r]
         labels : numpy.ndarray
             Shape: [b]
-        groups : None ore numpy.ndarray
+        groups : None or numpy.ndarray
             Shape: [b]
         print_freq : int, optional
         test_freq : int, optional
@@ -466,7 +469,7 @@ class CpSae(torch.nn.Module):
     def set_params(self, reg_strength=None, z_dim=None, weight_reg=None,
         n_iter=None, lr=None, batch_size=None, beta=None, factor_reg=None,
         n_updates=None, classes_=None, groups_=None, iter_=None,
-        model_state_dict=None):
+        model_state_dict=None, **kwargs):
         """
         Set the parameters of this estimator.
 
@@ -515,7 +518,10 @@ class CpSae(torch.nn.Module):
 
     def save_state(self, fn):
         """Save parameters for this estimator."""
-        np.save(fn, self.get_params(deep=True))
+        params = self.get_params(deep=True)
+        params['__commit__'] = LPNE_COMMIT
+        params['__version__'] = LPNE_VERSION
+        np.save(fn, params)
 
 
     def load_state(self, fn):

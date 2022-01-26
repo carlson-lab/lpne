@@ -17,6 +17,9 @@ import torch.nn.functional as F
 from torch.utils.data import TensorDataset, DataLoader, WeightedRandomSampler
 import warnings
 
+from lpne import __commit__ as LPNE_COMMIT
+from lpne import __version__ as LPNE_VERSION
+
 from ..utils.utils import get_weights
 
 
@@ -402,7 +405,7 @@ class FaSae(torch.nn.Module, BaseEstimator):
     def set_params(self, reg_strength=None, z_dim=None, weight_reg=None,
         nonnegative=None, variational=None, kl_factor=None, n_iter=None,
         lr=None, batch_size=None, beta=None, classes_=None,
-        model_state_dict=None):
+        model_state_dict=None, **kwargs):
         """
         Set the parameters of this estimator.
 
@@ -445,7 +448,10 @@ class FaSae(torch.nn.Module, BaseEstimator):
 
     def save_state(self, fn):
         """Save parameters for this estimator."""
-        np.save(fn, self.get_params(deep=True))
+        params = self.get_params(deep=True)
+        params['__commit__'] = LPNE_COMMIT
+        params['__version__'] = LPNE_VERSION
+        np.save(fn, params)
 
 
     def load_state(self, fn):
