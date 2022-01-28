@@ -11,18 +11,19 @@ from scipy.signal import welch, csd
 
 
 EPSILON = 1e-6
-SHARED_PARAMS = {
+DEFAULT_CSD_PARAMS = {
     'detrend': 'linear',
     'window': 'hann',
     'nperseg': 512,
     'noverlap': 256,
     'nfft': None,
 }
+"""Default parameters sent to `scipy.signal.csd`"""
 
 
 
 def make_features(lfps, fs=1000, min_freq=0.0, max_freq=55.0,
-    window_duration=5.0, window_step=None, max_n_windows=None):
+    window_duration=5.0, window_step=None, max_n_windows=None, csd_params={}):
     """
     Main function: make features from an LFP waveform.
 
@@ -31,10 +32,8 @@ def make_features(lfps, fs=1000, min_freq=0.0, max_freq=55.0,
     zero-indexed. When i == j, this is simply the power spectral density. The
     ROI order is sorted by the channel names.
 
-    min/max frequency
-    frequency scaling
-    Include a JSON parameter file?
-    normalization
+    See `lpne.unsqueeze_triangular_array` and `lpne.squeeze_triangular_array`
+    to convert the power between dense and redundant forms.
 
     Parameters
     ----------
@@ -53,6 +52,8 @@ def make_features(lfps, fs=1000, min_freq=0.0, max_freq=55.0,
         set to `window_duration`.
     max_n_windows : None or int, optional
         Maximum number of windows
+    csd_params : dict, optional
+        Parameters sent to `scipy.signal.csd`
 
     Returns
     -------
@@ -86,20 +87,21 @@ def make_features(lfps, fs=1000, min_freq=0.0, max_freq=55.0,
         onsets = onsets[:max_n_windows]
 
     # Make cross power spectral density features for each pair of ROIs.
+    csd_params = {**DEFAULT_CSD_PARAMS, **csd_params}
     for i in range(len(rois)):
         lfp_i = lfps[rois[i]].flatten()
         for j in range(i+1):
             lfp_j = lfps[rois[j]].flatten()
             if i == 0 and j == 0:
                 k = window_samp
-                f, _ = csd(lfp_i[:k], lfp_j[:k], fs=fs, **SHARED_PARAMS)
+                f, _ = csd(lfp_i[:k], lfp_j[:k], fs=fs, **csd_params)
                 i1, i2 = np.searchsorted(f, [min_freq, max_freq])
                 power = np.zeros((len(onsets), (n*(n+1))//2, i2-i1))
             idx = (i * (i + 1)) // 2 + j
             for k in range(len(onsets)):
                 k1 = int(fs*onsets[k])
                 k2 = k1 + window_samp
-                _, Cxy = csd(lfp_i[k1:k2], lfp_j[k1:k2], fs=fs, **SHARED_PARAMS)
+                _, Cxy = csd(lfp_i[k1:k2], lfp_j[k1:k2], fs=fs, **csd_params)
                 power[k,idx] = np.abs(Cxy[i1:i2])
 
     # Get 1/f-scaled power features.

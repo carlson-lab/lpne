@@ -28,6 +28,8 @@ from .preprocess.channel_maps import \
         remove_channels, \
         get_removed_channels_from_file
 
+from preprocess.directed_spectrum import get_directed_spectrum
+
 from .preprocess.filter import filter_signal, filter_lfps
 
 from .preprocess.make_features import make_features
