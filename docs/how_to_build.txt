@@ -1,5 +1,6 @@
 To make the docs locally:
 
+$ cd path/to/lpne/docs/
 $ make html
 
 Then open build/html/index.html.

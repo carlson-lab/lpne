@@ -1,8 +1,8 @@
 """
-Make a movie.
+Make a movie of LFP power features.
 
 """
-__date__ = "August 2021"
+__date__ = "August 2021 - January 2022"
 
 
 import os
@@ -11,7 +11,7 @@ import lpne
 
 
 FN = os.path.join('test_data', 'data', 'example_LFP.mat')
-
+FEATURE = ['power', 'dir_spec'][0]
 
 
 if __name__ == '__main__':
@@ -25,7 +25,7 @@ if __name__ == '__main__':
     lfps = lpne.average_channels(lfps, channel_map)
 
     # Make the movie.
-    lpne.make_power_movie(lfps, 50.0, 3.0, fps=15)
+    lpne.make_power_movie(lfps, 50.0, 3.0, fps=15, feature=FEATURE)
 
 
 

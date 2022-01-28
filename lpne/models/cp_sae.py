@@ -1,5 +1,5 @@
 """
-CANDECOMP/PARAFAC supervised autoencoder with deterministic factors.
+CANDECOMP/PARAFAC supervised autoencoder with deterministic factors
 
 """
 __date__ = "November 2021 - January 2022"
@@ -18,9 +18,8 @@ except:
     pass
 import warnings
 
-from lpne import __commit__ as LPNE_COMMIT
-from lpne import __version__ as LPNE_VERSION
-
+from .. import __commit__ as LPNE_COMMIT
+from .. import __version__ as LPNE_VERSION
 from ..utils.utils import get_weights, squeeze_triangular_array
 
 
@@ -43,7 +42,7 @@ class CpSae(torch.nn.Module):
         lr=1e-3, batch_size=256, beta=0.5, factor_reg=1e-1, log_dir=None,
         n_updates=0, device='auto'):
         """
-        A supervised autoencoder using CP-style generative model.
+        A supervised autoencoder with a CP-style generative model
 
         Parameters
         ----------
@@ -87,6 +86,7 @@ class CpSae(torch.nn.Module):
         ----------
         n_freqs : int
         n_rois : int
+        features : ``None`` or numpy.ndarray
         """
         # Set up TensorBoard.
         if self.log_dir is not None:
@@ -147,11 +147,11 @@ class CpSae(torch.nn.Module):
         Parameters
         ----------
         features : numpy.ndarray
-            Shape: [b,f,r,r]
+            Shape: ``[b,f,r,r]``
         labels : numpy.ndarray
-            Shape: [b]
+            Shape: ``[b]``
         groups : None or numpy.ndarray
-            Shape: [b]
+            Shape: ``[b]``
         print_freq : int, optional
         test_freq : int, optional
         """
@@ -241,15 +241,15 @@ class CpSae(torch.nn.Module):
 
         Parameters
         ----------
-        features : [b,f,r,r]
-        labels : [b]
-        groups : None or [b]
-        weights : [b]
+        features : ``[b,f,r,r]``
+        labels : ``None`` or ``[b]``
+        groups : ``None`` or ``[b]``
+        weights : ``[b]``
 
         Returns
         -------
         loss : torch.Tensor
-            Shape: []
+            Shape: ``[]``
         """
         if labels is not None:
             nan_mask = torch.isinf(1/(labels - INVALID_LABEL))
@@ -336,16 +336,16 @@ class CpSae(torch.nn.Module):
         Parameters
         ----------
         features : numpy.ndarray or torch.Tensor
-            Shape: [b,f,r,r]
-        groups : None or numpy.ndarray
-            Shape: [b]
+            Shape: ``[b,f,r,r]``
+        groups : ``None`` or numpy.ndarray
+            Shape: ``[b]``
         to_numpy : bool, optional
         stochastic : bool, optional
 
         Returns
         -------
         probs : numpy.ndarray
-            Shape: [batch, n_classes]
+            Shape: ``[batch, n_classes]``
         """
         if isinstance(features, np.ndarray):
             features = torch.tensor(features, dtype=FLOAT)
@@ -389,14 +389,14 @@ class CpSae(torch.nn.Module):
         Parameters
         ----------
         features : numpy.ndarray
-            Shape: [b,f,r,r]
+            Shape: ``[b,f,r,r]``
         groups : None or numpy.ndarray, optional
-            Shape: [b]
+            Shape: ``[b]``
 
         Returns
         -------
         predictions : numpy.ndarray
-            Shape: [b]
+            Shape: ``[b]``
         """
         # Checks
         assert features.ndim == 4
@@ -419,11 +419,11 @@ class CpSae(torch.nn.Module):
         Parameters
         ----------
         features : numpy.ndarray
-            Shape: [b,f,r,r]
+            Shape: ``[b,f,r,r]``
         labels : numpy.ndarray
-            Shape: [b]
-        groups : None or numpy.ndarray, optional
-            Shape: [b]
+            Shape: ``[b]``
+        groups : ``None`` or numpy.ndarray, optional
+            Shape: ``[b]``
 
         Return
         ------
@@ -470,13 +470,7 @@ class CpSae(torch.nn.Module):
         n_iter=None, lr=None, batch_size=None, beta=None, factor_reg=None,
         n_updates=None, classes_=None, groups_=None, iter_=None,
         model_state_dict=None, **kwargs):
-        """
-        Set the parameters of this estimator.
-
-        Parameters
-        ----------
-        ...
-        """
+        """Set the parameters of this estimator."""
         if reg_strength is not None:
             self.reg_strength = reg_strength
         if z_dim is not None:
@@ -537,12 +531,12 @@ class CpSae(torch.nn.Module):
         Parameters
         ----------
         feature_num : int
-            Which factor to return. 0 <= `factor_num` < self.z_dim
+            Which factor to return. ``0 <= `factor_num` < self.z_dim``
 
         Returns
         -------
         factor : numpy.ndarray
-            Shape: [r(r+1)/2,f]
+            Shape: ``[r(r+1)/2,f]``
         """
         check_is_fitted(self, attributes=FIT_ATTRIBUTES)
         assert isinstance(factor_num, int)

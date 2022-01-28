@@ -17,9 +17,8 @@ import torch.nn.functional as F
 from torch.utils.data import TensorDataset, DataLoader, WeightedRandomSampler
 import warnings
 
-from lpne import __commit__ as LPNE_COMMIT
-from lpne import __version__ as LPNE_VERSION
-
+from .. import __commit__ as LPNE_COMMIT
+from .. import __version__ as LPNE_VERSION
 from ..utils.utils import get_weights
 
 

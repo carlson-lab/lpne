@@ -18,6 +18,15 @@ lpne.preprocess.channel_maps module
     :show-inheritance:
 
 
+lpne.preprocess.directed_spectrum module
+----------------------------------------
+
+.. automodule:: lpne.preprocess.directed_spectrum
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
 lpne.preprocess.filter module
 -----------------------------
 

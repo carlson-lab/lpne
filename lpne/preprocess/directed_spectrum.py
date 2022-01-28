@@ -47,32 +47,34 @@ DEFAULT_CSD_PARAMS = {
     'noverlap': 256,
     'nfft': None,
 }
-"""Default parameters sent to `scipy.signal.csd`"""
+"""Default parameters sent to ``scipy.signal.csd``"""
 
 
 
 def get_directed_spectrum(X, fs, max_iter=1000, csd_params={}):
     """
-    Calculate the directed spectrum from the signal `X`.
+    Calculate the directed spectrum from the signal ``X``.
 
     Parameters
     ----------
     X : numpy.ndarray
         Timeseries data from multiple channels
-        Shape: [n_roi, time] or [n_window, n_roi, time]
+        Shape: ``[n_roi, time]`` or ``[n_window, n_roi, time]``
     fs : float
         Sampling frequency
     max_iter : int
         Maximum number of Wilson factorization iterations
     csd_params : dict, optional
-        Parameters sent to `scipy.signal.csd`
+        Parameters sent to ``scipy.signal.csd``
 
     Returns
     -------
     f : numpy.ndarray
-        Shape: [n_freq]
-    dir_spec : numpy.ndarray
-        Shape: [n-window, n_freq, n_roi, n_roi]
+        Array of sample frequencies
+        Shape: ``[n_freq]``
+    ds : numpy.ndarray
+        Directed spectrum
+        Shape: ``[n_window, n_freq, n_roi, n_roi]``
     """
     if X.ndim == 2:
         X = X.reshape(1, X.shape[0], X.shape[1]) # [r,t] -> [1,r,t]
@@ -80,21 +82,22 @@ def get_directed_spectrum(X, fs, max_iter=1000, csd_params={}):
     # Get a cross power spectral density matrix.
     csd_params = {**DEFAULT_CSD_PARAMS, **csd_params}
     f, cpsd = csd(
-            X[:,:,np.newaxis],
             X[:,np.newaxis],
+            X[:,:,np.newaxis],
             fs=fs,
             return_onesided=False,
             **csd_params,
     ) # [f], [n,r,r,f]
-    cpsd = cpsd.transpose(0,3,2,1) # [n,r,r,f] -> [n,f,r,r]
+    cpsd = np.moveaxis(cpsd, 3, 1) # [n,r,r,f] -> [n,f,r,r]
     # Factorize the CPSD into h: [n,f,r,r] and sigma: [n,r,r]
     h, sigma = _wilson_factorize(cpsd, fs, max_iter)
     h = np.power(np.abs(h),2) # convert to squared magnitude
-    new_f = (len(f) // 2) + 1 # remove negative frequencies
+    # Remove the redundant negative frequencies.
+    new_f = (len(f) // 2) + 1
     f = f[:new_f]
     n, r = sigma.shape[:2]
-    ds_array = np.zeros((n,new_f,r,r), dtype=np.float64) # [n,f,r,r]
-    # Iterate through pairs to calculate DS from the CPSD factorization.
+    ds = np.zeros((n,new_f,r,r), dtype=np.float64) # [n,f,r,r]
+    # Iterate through pairs of ROIs calculate DS from the CPSD factorization.
     for i in range(X.shape[1]):
         for j in range(X.shape[1]):
             if i == j:
@@ -102,8 +105,8 @@ def get_directed_spectrum(X, fs, max_iter=1000, csd_params={}):
             temp = (np.abs(sigma[:,i,j]) / np.abs(sigma[:,j,j]))**2
             temp = sigma[:,i,i].real - temp * sigma[:,j,j].real
             temp = h[:,:new_f,j,i] * temp[:,np.newaxis]
-            ds_array[:,:,i,j] = temp
-    return f, ds_array
+            ds[:,:,i,j] = temp
+    return f, ds
 
 
 def _wilson_factorize(cpsd, fs, max_iter, eps_multiplier=100):
@@ -123,7 +126,7 @@ def _wilson_factorize(cpsd, fs, max_iter, eps_multiplier=100):
     ----------
     cpsd : numpy.ndarray
         Cross power spectral density matrix
-        Shape: [n,f,r,r]
+        Shape: ``[n,f,r,r]``
     fs : float
         Sampling rate
     max_iter : int
@@ -135,10 +138,10 @@ def _wilson_factorize(cpsd, fs, max_iter, eps_multiplier=100):
     -------
     h : numpy.ndarray
         Wilson factorization solutions for transfer matrix
-        Shape: [n,f,r,r]
+        Shape: ``[n,f,r,r]``
     sigma : numpy.ndarray
         Wilson factorization solutions for innovation covariance matrix
-        Shape: [n,r,r]
+        Shape: ``[n,r,r]``
     """
     psi, a0 = _init_psi(cpsd)
     # Make sure the CPSD is well-conditioned.
@@ -185,16 +188,16 @@ def _init_psi(cpsd):
     ----------
     cpsd : numpy.ndarray
         Cross power spectral density matrix
-        Shape: [n,f,r,r]
+        Shape: ``[n,f,r,r]``
 
     Returns
     -------
     psi : numpy.ndarray
         Initial value for psi used in Wilson factorization.
-        Shape: [n,f,r,r]
+        Shape: ``[n,f,r,r]``
     h : numpy.ndarray
-        Initial value for a0 used in Wilson factorization.
-        Shape: [n,r,r]
+        Initial value for A0 used in Wilson factorization.
+        Shape: ``[n,r,r]``
     """
     gamma = fft(cpsd, axis=1)
     gamma0 = gamma[:, 0]
@@ -213,16 +216,16 @@ def _plus_operator(g):
     ----------
     g: numpy.ndarray
         Frequency-domain representation to which transformation will be applied
-        Shape: [f,r,r]
+        Shape: ``[f,r,r]``
 
     Returns
     -------
     g_pos : numpy.ndarray
         Transformed version of g with negative lag components removed
-        Shape: [f,r,r]
+        Shape: ``[f,r,r]``
     gamma_0 : numpy.ndarray
-        Zero-lag component of g in time-domain
-        Shape: [r,r]
+        Zero-lag component of ``g`` in time-domain
+        Shape: ``[r,r]``
     """
     # Remove the imaginary components from ifft due to rounding errors.
     gamma = ifft(g, axis=0).real

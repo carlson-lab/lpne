@@ -44,6 +44,7 @@ LFP_SUFFIX = '_LFP.mat'
 CHANS_SUFFIX = '_CHANS.mat'
 FS = 1000
 WINDOW_DURATION = 2
+DIR_SPEC = True
 
 
 
@@ -98,7 +99,11 @@ if __name__ == '__main__':
         # lfps = lpne.normalize_lfps(lfps)
 
         # Make features.
-        features = lpne.make_features(lfps, window_duration=WINDOW_DURATION)
+        features = lpne.make_features(
+                lfps,
+                window_duration=WINDOW_DURATION,
+                directed_spectrum=DIR_SPEC,
+        )
 
         # Plot the first window for fun.
         lpne.plot_power(features['power'][0], features['rois'])

@@ -21,25 +21,25 @@ def normalize_features(power_features, partition=None, mode='std'):
     ----------
     power_features : numpy.ndarray
         LFP power features.
-        Shape: [n_windows, n_roi*(n_roi+1)//2, n_freq]
+        Shape: ``[n_windows, n_roi*(n_roi+1)//2, n_freq]``
     partition : None or dict, optional
-        If `None`, use all the indices to calculate window statistics.
-        Otherwise, use only the indices contained in `partition['train']`.s
-        'train': numpy.ndarray
+        If ``None``, use all the indices to calculate window statistics.
+        Otherwise, use only the indices contained in ``partition['train']``.
+        ``'train'``: numpy.ndarray
             Train indices.
-        'test': numpy.ndarray
+        ``'test'``: numpy.ndarray
             Test indices.
     mode : {'max'}, optional
         Normalization method.
-        'std': normalize by the standard deviation of the training set.
-        'max': normalize by the maximum value of the training set, scaling to
-               [0,1].
+        ``'std'``: normalize by the standard deviation of the training set.
+        ``'max'``: normalize by the maximum value of the training set, scaling
+                   to [0,1].
 
     Returns
     -------
     normalized_power_features : numpy.ndarray
         Normalized LFP power features.
-        Shape: [n_windows, n_roi*(n_roi+1)//2, n_freq]
+        Shape: ``[n_windows, n_roi*(n_roi+1)//2, n_freq]``
     """
     if partition is None:
         idx = np.arange(len(power_features))
@@ -69,7 +69,7 @@ def normalize_lfps(lfps, mode='zscore'):
         Maps ROI names to waveforms.
     mode : str, optional
         Normalization method.
-        'zscore': normalize by z-score
+        ``'zscore'``: normalize by z-score
 
     Returns
     -------
