@@ -9,6 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
 from moviepy.video.io.bindings import mplfig_to_npimage
+from tqdm import tqdm
 
 import lpne
 
@@ -62,9 +63,9 @@ def make_power_movie(lfps, duration, window_duration, fs=1000, feature='power',
     # Iterate over frames.
     frames = []
     title = fig.suptitle("", fontsize=FONTSIZE, y=0.93)
-    for k in range(power.shape[0]):
+    for k in tqdm(range(power.shape[0])):
         to_remove = []
-        t = k*window_step
+        t = k * window_step
         time_str = str(int(np.floor(t / 3600))).zfill(2)
         time_str += ":" + str(int(np.floor(t / 60))).zfill(2)
         time_str += ":" + str(int(np.floor(t % 60))).zfill(2)

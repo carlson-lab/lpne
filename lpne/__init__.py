@@ -4,8 +4,8 @@ LPNE feature pipeline
 Code for preprocessing and building models with local field potentials.
 
 """
-__date__ = "July 2021 - January 2022"
-__version__ = "0.0.10"
+__date__ = "July 2021 - February 2022"
+__version__ = "0.0.11"
 try:
 	with open(".git/logs/HEAD", "r") as fh:
 		__commit__ = fh.read().split('\n')[-2]
@@ -54,6 +54,8 @@ from .utils.utils import \
         get_weights, \
         unsqueeze_triangular_array, \
         squeeze_triangular_array
+
+from .utils.viterbi import viterbi, sequence_log_like
 
 
 
