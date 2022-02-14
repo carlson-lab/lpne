@@ -29,7 +29,6 @@ $ pip install .
 17. Change q parameter to bandwidth in notch filters
 18. Add a GP prior on CP decomposition factors
 21. Make some pre-zipped features and labels
-22. Generalize the GridSearchCV
 23. Model factor movie
 25. Add feature/model metadata: `datetime.datetime.now()`
 26. Add random seeds
@@ -38,3 +37,5 @@ $ pip install .
 29. Plot multiple factors
 30. Save the model name with the model.
 31. Movie app
+32. `from joblib import Parallel, delayed`
+33. PCGM for tensor models

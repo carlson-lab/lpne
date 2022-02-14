@@ -119,24 +119,24 @@ def get_label_stats(viterbi_paths, viterbi_scores, n_classes):
 
 def _bout_info(seq, n_classes):
     """Return bout counts and bout average duration."""
-    bout_counts = np.zeros(n_classes, dtype=int)
+    bout_counts = np.zeros(n_classes)
     bout_duration = np.zeros(n_classes)
     # First window
-    bout_counts[seq[0]] = 1
+    bout_counts[seq[0]] = 1.0
     bout_duration[seq[0]] = 1.0
     for i in range(1,len(seq)):
         if seq[i] != seq[i-1]:
-            bout_counts[seq[i]] += 1
+            bout_counts[seq[i]] += 1.0
         bout_duration[seq[i]] += 1.0
     return bout_counts, bout_duration/bout_counts
 
 
 def _transition_info(seq, n_classes):
     """Return the transition count matrix."""
-    mat = np.zeros((n_classes, n_classes), dtype=int)
+    mat = np.zeros((n_classes, n_classes))
     for i in range(1, len(seq)):
         if seq[i] != seq[i-1]:
-            mat[seq[i-1],seq[i]] += 1
+            mat[seq[i-1],seq[i]] += 1.0
     return mat
 
 
