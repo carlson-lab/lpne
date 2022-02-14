@@ -55,7 +55,7 @@ from .utils.utils import \
         unsqueeze_triangular_array, \
         squeeze_triangular_array
 
-from .utils.viterbi import viterbi, sequence_log_like
+from .utils.viterbi import top_k_viterbi, get_label_stats
 
 
 

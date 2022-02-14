@@ -229,13 +229,13 @@ def project_app(doc):
         # Run Viterbi.
         n_classes = PREDICTIONS.shape[1]
         trans_mat = np.load(mat_fn)
-        map_seq = lpne.viterbi(PREDICTIONS, trans_mat)
+        map_seqs, map_scores = lpne.top_k_viterbi(PREDICTIONS, trans_mat)
         iid_seq = np.argmax(PREDICTIONS, axis=1)
         # Make stats.
-        map_counts, map_dur = bout_info(map_seq, n_classes)
-        iid_counts, iid_dur = bout_info(iid_seq, n_classes)
-        map_transitions = transition_info(map_seq, n_classes)
-        iid_transitions = transition_info(iid_seq, n_classes)
+        map_counts, map_dur, map_transitions = \
+                lpne.get_label_stats(map_seqs, map_scores, n_classes)
+        iid_counts, iid_dur, iid_transitions = \
+                lpne.get_label_stats(iid_seq, None, n_classes)
         # Display stats.
         msg = f"Results with temporal info:\nNumber of bouts: {map_counts}\n" \
               f"Average bout durations (windows): {map_dur}\n" \
@@ -318,28 +318,6 @@ def _my_listdir(dir):
         return []
     return sorted([i for i in os.listdir(dir) if not i.startswith('.')])
 
-
-def bout_info(seq, n_classes):
-    """Return bout counts and bout average duration."""
-    bout_counts = np.zeros(n_classes, dtype=int)
-    bout_duration = np.zeros(n_classes)
-    # First window
-    bout_counts[seq[0]] = 1
-    bout_duration[seq[0]] = 1.0
-    for i in range(1,len(seq)):
-        if seq[i] != seq[i-1]:
-            bout_counts[seq[i]] += 1
-        bout_duration[seq[i]] += 1.0
-    return bout_counts, bout_duration/bout_counts
-
-
-def transition_info(seq, n_classes):
-    """Return the transition count matrix."""
-    mat = np.zeros((n_classes, n_classes), dtype=int)
-    for i in range(1, len(seq)):
-        if seq[i] != seq[i-1]:
-            mat[seq[i-1],seq[i]] += 1
-    return mat
 
 
 # Run the app.
