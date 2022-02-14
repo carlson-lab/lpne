@@ -23,7 +23,6 @@ def test_viterbi_1():
         assert np.all(true_seq == pred_seq)
 
 
-
 def test_viterbi_2():
     """Make sure Viterbi returns a more likely estimate than random."""
     T, K, N  = 3, 2, 5

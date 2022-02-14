@@ -299,6 +299,7 @@ class FaSae(torch.nn.Module, BaseEstimator):
                 dist = Normal(z_mus, EPSILON + z_log_stds.exp())
                 zs = dist.rsample() # [b,z]
             else:
+                # Just take the mean.
                 zs = z_mus
             # Project.
             zs = self.linear_layer(zs)

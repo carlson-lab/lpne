@@ -1,11 +1,11 @@
 """
 LPNE feature pipeline
 
-Code for preprocessing and building models with local field potentials.
+Code for preprocessing and building factor models with local field potentials.
 
 """
 __date__ = "July 2021 - February 2022"
-__version__ = "0.0.11"
+__version__ = "0.0.12"
 try:
 	with open(".git/logs/HEAD", "r") as fh:
 		__commit__ = fh.read().split('\n')[-2]

@@ -19,7 +19,7 @@ Required directory structure:
 
 
 """
-__date__ = "July 2021 - January 2022"
+__date__ = "July 2021 - February 2022"
 
 
 import numpy as np
@@ -55,7 +55,7 @@ if __name__ == '__main__':
             lpne.get_feature_label_filenames(feature_dir, label_dir)
 
     # Write fake labels.
-    lpne.write_fake_labels(feature_dir, label_dir)
+    lpne.write_fake_labels(feature_dir, label_dir, n_classes=3)
 
     # Collect all the features and labels.
     features, labels, rois = \

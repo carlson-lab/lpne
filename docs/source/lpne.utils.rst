@@ -25,3 +25,12 @@ lpne.utils.utils module
     :members:
     :undoc-members:
     :show-inheritance:
+
+
+lpne.utils.viterbi module
+-------------------------
+
+.. automodule:: lpne.utils.viterbi
+    :members:
+    :undoc-members:
+    :show-inheritance:

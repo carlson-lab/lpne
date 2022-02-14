@@ -3,12 +3,12 @@ Project data onto a network.
 
 Add a plot of predictions?
 """
-__date__ = "January 2022"
+__date__ = "January - February 2022"
 
 from bokeh.plotting import curdoc
 from bokeh.layouts import column, row
 from bokeh.models import Button, PreText, TextInput, MultiSelect, \
-        RadioButtonGroup, CheckboxGroup
+        RadioButtonGroup, CheckboxGroup, Tabs, Panel
 import numpy as np
 import os
 from sklearn.metrics import confusion_matrix
@@ -20,6 +20,7 @@ DEFAULT_FEATURE_DIR = '/Users/jack/Desktop/lpne/test_data/features/'
 DEFAULT_LABEL_DIR = '/Users/jack/Desktop/lpne/test_data/labels/'
 DEFAULT_SAVE_DIR = '/Users/jack/Desktop/lpne/test_data/projected_labels/'
 DEFAULT_MODEL_FN = '/Users/jack/Desktop/lpne/test_data/model_state.npy'
+DEFAULT_MAT_FN = '/Users/jack/Desktop/lpne/test_data/transition_mat.npy'
 
 MULTISELECT_HEIGHT = 350
 MULTISELECT_WIDTH = 400
@@ -88,6 +89,12 @@ def project_app(doc):
     feature_dir_in.on_change("value", feature_dir_input_callback)
 
     project_button = Button(label="Project Data", width=150)
+
+    transition_mat_in = TextInput(
+            value=DEFAULT_MAT_FN,
+            title="Enter a transition matrix filename (.npy):",
+    )
+    stats_button = Button(label="Get Stats", width=300)
 
     save_button = Button(label="Save Predictions", width=150)
 
@@ -177,13 +184,14 @@ def project_app(doc):
             return
 
         # Make predictions and print message.
-        predictions = model.predict(features)
+        predictions = model.predict_proba(features)
+        hard_predictions = model.classes_[np.argmax(predictions, axis=1)]
         COUNTS = counts
         FNS = feature_fns
         PREDICTIONS = predictions
         if 0 in label_checkbox.active:
             # Confusion matrix
-            confusion = confusion_matrix(labels, predictions)
+            confusion = confusion_matrix(labels, hard_predictions)
             # Filter out ignored classes.
             idx = [i for i in range(len(labels)) if labels[i] in model.classes_]
             idx = np.array(idx)
@@ -193,7 +201,8 @@ def project_app(doc):
                       f"predicted labels):\n{confusion}\n\n" \
                       f"Weighted accuracy: {acc}"
         else:
-            pred_vals, pred_counts = np.unique(predictions, return_counts=True)
+            pred_vals, pred_counts = \
+                    np.unique(hard_predictions, return_counts=True)
             message = f"Predictions: {pred_vals}\n" \
                       f"Counts: {pred_counts}"
 
@@ -202,6 +211,42 @@ def project_app(doc):
         alert_box.text = message
 
     project_button.on_click(project_callback)
+
+
+    def stats_callback():
+        global PREDICTIONS
+        # Make sure transition matrix exists.
+        mat_fn = transition_mat_in.value
+        if not os.path.exists(mat_fn):
+            stats_button.button_type = "warning"
+            alert_box.text = "Transition matrix file doesn't exist!"
+            return
+        # Make sure data is projected.
+        if PREDICTIONS is None:
+            stats_button.button_type = "warning"
+            alert_box.text = "Project data before making stats!"
+            return
+        # Run Viterbi.
+        n_classes = PREDICTIONS.shape[1]
+        trans_mat = np.load(mat_fn)
+        map_seq = lpne.viterbi(PREDICTIONS, trans_mat)
+        iid_seq = np.argmax(PREDICTIONS, axis=1)
+        # Make stats.
+        map_counts, map_dur = bout_info(map_seq, n_classes)
+        iid_counts, iid_dur = bout_info(iid_seq, n_classes)
+        map_transitions = transition_info(map_seq, n_classes)
+        iid_transitions = transition_info(iid_seq, n_classes)
+        # Display stats.
+        msg = f"Results with temporal info:\nNumber of bouts: {map_counts}\n" \
+              f"Average bout durations (windows): {map_dur}\n" \
+              f"Number of transistions:\n{map_transitions}\n\n" \
+              f"Results without temporal info:\nNumber of bouts: {iid_counts}\n" \
+              f"Average bout durations (windows): {iid_dur}\n" \
+              f"Number of transistions:\n{iid_transitions}"
+        alert_box.text = msg
+
+
+    stats_button.on_click(stats_callback)
 
 
     def save_callback():
@@ -248,18 +293,53 @@ def project_app(doc):
             project_button,
             alert_box,
     )
+    tab_1 = Panel(child=column_1, title="Data Stuff")
+
     column_2 = column(
+            transition_mat_in,
+            stats_button,
+            alert_box,
+    )
+    tab_2 = Panel(child=column_2, title="Transitions")
+
+    column_3 = column(
             save_dir_in,
             overwrite_checkbox,
             save_button,
+            alert_box,
     )
-    doc.add_root(row(column_1,column_2))
+    tab_3= Panel(child=column_3, title="Save Projections")
+    tabs = Tabs(tabs=[tab_1, tab_2, tab_3])
+    doc.add_root(tabs)
 
 
 def _my_listdir(dir):
     if dir == '':
         return []
     return sorted([i for i in os.listdir(dir) if not i.startswith('.')])
+
+
+def bout_info(seq, n_classes):
+    """Return bout counts and bout average duration."""
+    bout_counts = np.zeros(n_classes, dtype=int)
+    bout_duration = np.zeros(n_classes)
+    # First window
+    bout_counts[seq[0]] = 1
+    bout_duration[seq[0]] = 1.0
+    for i in range(1,len(seq)):
+        if seq[i] != seq[i-1]:
+            bout_counts[seq[i]] += 1
+        bout_duration[seq[i]] += 1.0
+    return bout_counts, bout_duration/bout_counts
+
+
+def transition_info(seq, n_classes):
+    """Return the transition count matrix."""
+    mat = np.zeros((n_classes, n_classes), dtype=int)
+    for i in range(1, len(seq)):
+        if seq[i] != seq[i-1]:
+            mat[seq[i-1],seq[i]] += 1
+    return mat
 
 
 # Run the app.

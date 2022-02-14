@@ -107,11 +107,13 @@ def sequence_log_like(seq, emissions, transition_mat):
 
 
 def _check_params(emissions, transition_mat):
-    assert emissions.ndim == 2
+    assert emissions.ndim == 2, f"len({emissions.shape}) != 2"
     T, K = emissions.shape
-    assert np.allclose(np.sum(emissions, axis=1), np.ones(T))
-    assert transition_mat.shape == (K,K)
-    assert np.allclose(np.sum(transition_mat, axis=1), np.ones(K))
+    assert np.allclose(np.sum(emissions, axis=1), np.ones(T)), \
+            f"Incorrect emissions normalization!"
+    assert transition_mat.shape == (K,K), f"{transition_mat.shape} != {(K,K)}"
+    assert np.allclose(np.sum(transition_mat, axis=1), np.ones(K)), \
+            f"Incorrect transition_mat normalization!"
     return T, K
 
 

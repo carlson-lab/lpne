@@ -2,7 +2,7 @@
 Data utilities
 
 """
-__date__ = "July 2021 - January 2022"
+__date__ = "July 2021 - February 2022"
 
 
 import numpy as np
@@ -129,7 +129,7 @@ def save_labels(labels, fn, overwrite=True):
     Parameters
     ----------
     labels : numpy.ndarray
-        ...
+        Shape: [n_window] or [n_window, n_classes]
     fn : str
         Where to save the data. Supported file types: {'.npy'}
     overwrite : bool, optional
@@ -146,7 +146,7 @@ def save_labels(labels, fn, overwrite=True):
         raise NotImplementedError(f"Unsupported file type: {fn}")
 
 
-def load_labels(fn):
+def load_labels(fn, soft_labels=False):
     """
     Load the labels saved in the given filename.
 
@@ -158,24 +158,27 @@ def load_labels(fn):
     ----------
     fn : str
         Where the data is saved. Supported file types: {'.npy'}
+    soft_labels : bool, optional
+        If labels are given as probabilities, don't perform an argmax operation.
 
     Returns
     -------
     labels : numpy.ndarray
         LFP window labels.
-        Shape: [n_windows]
+        Shape: [n_windows] or [n_windows,n_classes]
     """
     assert isinstance(fn, str)
     if fn.endswith('.npy'):
         labels = np.load(fn)
     else:
         raise NotImplementedError(f"Unsupported file type: {fn}")
-    assert len(labels.shape) == 1, f"len({labels.shape}) != 1"
+    if labels.ndim == 2 and not soft_labels:
+        labels = np.argmax(labels, axis=1)
     return labels
 
 
 def load_features_and_labels(feature_fns, label_fns, group_func=None,
-    return_counts=False):
+    return_counts=False, soft_labels=False):
     """
     Load the features and labels.
 
@@ -194,6 +197,8 @@ def load_features_and_labels(feature_fns, label_fns, group_func=None,
         (groups).
     return_counts : bool, optional
         Return the number of windows for each file.
+    soft_labels : bool, optional
+        If labels are given as probabilities, don't perform an argmax operation.
 
     Returns
     -------
@@ -230,6 +235,8 @@ def load_features_and_labels(feature_fns, label_fns, group_func=None,
     # Concatenate and return.
     features = np.concatenate(features, axis=0)
     labels = np.concatenate(labels, axis=0)
+    if labels.ndim == 2 and not soft_labels:
+        labels = np.argmax(labels, axis=1)
     res = (features, labels, rois)
     if group_func is not None:
         groups = np.concatenate(groups, axis=0)

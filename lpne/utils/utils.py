@@ -20,8 +20,8 @@ LABEL_FN_SUFFIX = '.npy'
 
 
 
-def write_fake_labels(feature_dir, label_dir, n_label_types=2,
-    label_format='.npy', seed=42):
+def write_fake_labels(feature_dir, label_dir, n_classes=2, label_format='.npy',
+    seed=42):
     """
     Write fake behavioral labels.
 
@@ -29,7 +29,7 @@ def write_fake_labels(feature_dir, label_dir, n_label_types=2,
     ----------
     feature_dir : str
     label_dir : str
-    n_label_types : int, optional
+    n_classes : int, optional
     label_format : str, optional
     seed : int, optional
     """
@@ -47,7 +47,7 @@ def write_fake_labels(feature_dir, label_dir, n_label_types=2,
         # Make the appropiate number of labels and save them.
         features = load_features(feature_fn)[0]
         n = len(features)
-        labels = np.random.randint(0,high=n_label_types,size=n)
+        labels = np.random.randint(0,high=n_classes,size=n)
         save_labels(labels, label_fn)
     # Undo the seed.
     if seed is not None:
@@ -111,18 +111,14 @@ def get_feature_filenames(feature_dir):
 
 def get_label_filenames_from_feature_filenames(feature_fns, label_dir):
     """
-    ...
-
-    Raises
-    ------
-    *
+    Given features filenames, return corresponding label filenames.
 
     Parameters
     ----------
     feature_fns : list of str
-        ...
+        Feature filenames
     label_dir : str
-        ...
+        Label directory
 
     Returns
     -------
@@ -182,7 +178,9 @@ def get_feature_label_filenames(feature_dir, label_dir):
     Parameters
     ----------
     feature_dir : str
+        Feature directory
     label_dir : str
+        Label directory
 
     Returns
     -------
