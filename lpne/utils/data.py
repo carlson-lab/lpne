@@ -48,7 +48,7 @@ def load_lfps(fn):
             continue
         try:
             lfps[channel] = np.array(lfps[channel]).astype(np.float).flatten()
-        except ValueError:
+        except (ValueError, TypeError):
             warnings.warn(f"Unable to normalize channel: {channel}")
             del lfps[channel]
     return lfps
