@@ -8,6 +8,9 @@ import numpy as np
 import torch
 
 
+MIN_LOG_EMISSION = -50.0
+
+
 
 def top_k_viterbi(emissions, transition_mat, top_k=10):
     """
@@ -35,7 +38,7 @@ def top_k_viterbi(emissions, transition_mat, top_k=10):
         Shape: ``[k]``
     """
     # Convert to logspace and torch Tensors.
-    tag_sequence = torch.tensor(np.log(emissions))
+    tag_sequence = torch.tensor(np.maximum(np.log(emissions), MIN_LOG_EMISSION))
     transition_matrix = torch.tensor(np.log(transition_mat))
     sequence_length, num_tags = list(tag_sequence.size())
     path_scores = []
@@ -74,9 +77,9 @@ def top_k_viterbi(emissions, transition_mat, top_k=10):
 
 def get_label_stats(viterbi_paths, viterbi_scores, n_classes):
     """
-    Get approximate posterior predictive statistics of the label sequences.
+    Get statistics of the label sequences.
 
-    Approximate the posterior predictive using the top-K Viterbi decoding.
+    This is made more robust by using top-K Viterbi decoding.
 
     Parameters
     ----------

@@ -44,7 +44,7 @@ LFP_SUFFIX = '_LFP.mat'
 CHANS_SUFFIX = '_CHANS.mat'
 FS = 1000
 WINDOW_DURATION = 2
-DIR_SPEC = True
+DIR_SPEC = False
 
 
 
