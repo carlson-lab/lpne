@@ -221,6 +221,11 @@ def feature_app(doc):
             active=[0],
     )
 
+    dir_spec_checkbox = CheckboxGroup(
+            labels=["Calculate directed features too?"],
+            active=[],
+    )
+
     channel_map_checkbox = CheckboxGroup(
             labels=["Use default ROIs?"],
             active=[],
@@ -261,6 +266,7 @@ def feature_app(doc):
             return
         window_duration = window_slider.value
         combine_hemi = 0 in hemisphere_checkbox.active
+        directed_spectrum = 0 in dir_spec_checkbox.active
         overwrite = 0 in overwrite_checkbox.active
         default_channel_map = 0 in channel_map_checkbox.active
         # Get the filenames.
@@ -305,7 +311,11 @@ def feature_app(doc):
             lfps = lpne.average_channels(lfps, channel_map)
             saved_channels = {**saved_channels, **dict(zip(lfps.keys(),repeat(0)))}
             # Make features.
-            features = lpne.make_features(lfps, window_duration=window_duration)
+            features = lpne.make_features(
+                    lfps,
+                    window_duration=window_duration,
+                    directed_spectrum=directed_spectrum,
+            )
             # Save features.
             fn = os.path.split(lfp_fns[file_num])[-1][:-len(LFP_SUFFIX)] + '.npy'
             fn = os.path.join(feature_dir, fn)
@@ -327,6 +337,7 @@ def feature_app(doc):
             window_slider,
             save_dir_input,
             hemisphere_checkbox,
+            dir_spec_checkbox,
             overwrite_checkbox,
             channel_map_checkbox,
             save_button,
