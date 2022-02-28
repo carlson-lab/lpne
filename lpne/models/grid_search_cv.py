@@ -18,9 +18,12 @@ class GridSearchCV:
 
         Parameters
         ----------
-        model :
-        param_grid :
+        model : CpSae or FaSae
+            Model
+        param_grid : dict
+            Maps model parameters to lists of values.
         cv : int, optional
+            Number of folds to estimate the performance of each parameter set.
         """
         self.model = model
         self.param_grid = param_grid

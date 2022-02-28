@@ -11,7 +11,7 @@ EPSILON = 1e-6
 
 
 
-def normalize_features(power_features, partition=None, mode='std'):
+def normalize_features(power_features, partition=None, mode='median'):
     """
     Normalize the features.
 
@@ -34,6 +34,7 @@ def normalize_features(power_features, partition=None, mode='std'):
         ``'std'``: normalize by the standard deviation of the training set.
         ``'max'``: normalize by the maximum value of the training set, scaling
                    to [0,1].
+        ``'median'``: normalize by the median of the training set.
 
     Returns
     -------
@@ -51,12 +52,13 @@ def normalize_features(power_features, partition=None, mode='std'):
     power_subset = power_subset[np.sum(np.isnan(d), axis=axes) == 0]
     if mode == 'std':
         temp = np.std(power_subset)
-        power_features /= temp
     elif mode == 'max':
-        max_val = np.max(power_subset)
-        power_features /= max_val
+        temp = np.max(power_subset)
+    elif mode == 'median':
+        temp = np.median(power_subset)
     else:
         raise NotImplementedError(f"Mode {mode} not implemented!")
+    power_features /= temp
     return power_features
 
 
