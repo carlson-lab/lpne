@@ -139,6 +139,7 @@ def project_app(doc):
             alert_box.text = "No feature files selected!"
             return
         if 0 in label_checkbox.active:
+            # Load labels and features.
             label_dir = label_dir_in.value
             if not os.path.exists(label_dir):
                 project_button.button_type = "warning"
@@ -160,8 +161,10 @@ def project_app(doc):
             )
         else:
             # Just load the features.
-            features, rois, counts = \
-                    lpne.load_features(feature_fns, return_counts=True)
+            features, rois, counts = lpne.load_features(
+                    feature_fns,
+                    return_counts=True,
+            )
         # Normalize the power features.
         features = lpne.normalize_features(features, mode='std')
         # Load the model.

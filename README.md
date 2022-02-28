@@ -10,6 +10,7 @@ See `feature_pipeline.py` and `prediction_pipeline.py` for usage.
 $ git clone https://github.com/carlson-lab/lpne.git
 $ cd lpne
 $ pip install .
+$ pytest test
 ```
 
 #### Dependencies

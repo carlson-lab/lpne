@@ -2,7 +2,7 @@
 Normalize LFPs and features.
 
 """
-__date__ = "July 2021 - January 2022"
+__date__ = "July 2021 - February 2022"
 
 
 import numpy as np
@@ -45,16 +45,19 @@ def normalize_features(power_features, partition=None, mode='std'):
         idx = np.arange(len(power_features))
     else:
         idx = partition['train']
+    power_subset = power_features[idx]
+    # Remove NaNs.
+    axes = tuple(i for i in range(1,power.ndim))
+    power_subset = power_subset[np.sum(np.isnan(d), axis=axes) == 0]
     if mode == 'std':
-        temp = np.std(power_features[idx])
+        temp = np.std(power_subset)
         power_features /= temp
     elif mode == 'max':
-        max_val = np.max(power_features[idx])
+        max_val = np.max(power_subset)
         power_features /= max_val
     else:
         raise NotImplementedError(f"Mode {mode} not implemented!")
     return power_features
-
 
 
 def normalize_lfps(lfps, mode='zscore'):
@@ -78,7 +81,9 @@ def normalize_lfps(lfps, mode='zscore'):
     """
     if mode == 'zscore':
         for channel in lfps:
-            mean, std = np.mean(lfps[channel]), np.std(lfps[channel])
+            temp_lfp = lfps[channel]
+            temp_lfp = temp_lfp[~np.isnan(temp_lfp)]
+            mean, std = np.mean(temp_lfp), np.std(temp_lfp)
             lfps[channel] = (lfps[channel] - mean) / (std + EPSILON)
     else:
         raise NotImplementedError(f"Mode {mode} not implemented!")

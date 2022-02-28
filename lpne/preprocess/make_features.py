@@ -2,7 +2,7 @@
 Make features
 
 """
-__date__ = "July 2021 - January 2022"
+__date__ = "July 2021 - February 2022"
 
 
 import numpy as np
@@ -105,7 +105,7 @@ def make_features(lfps, fs=1000, min_freq=0.0, max_freq=55.0,
         X = X[:,:idx] # [r,t]
         X = X.reshape(X.shape[0], -1, window_samp).transpose(1,0,2) # [w,r,t]
         if max_n_windows is not None:
-            X = X[:max_n_windows]
+            X = X[:max_n_windows] # [w,r,t]
     else:
         # Window overlap: copy the data.
         onsets = np.arange(
@@ -121,9 +121,11 @@ def make_features(lfps, fs=1000, min_freq=0.0, max_freq=55.0,
                 k2 = k1 + window_samp
                 temp.append(X[:,k1:k2])
         X = np.stack(temp, axis=0) # [w,r,t]
-
+    assert X.ndim == 3, f"len({X.shape}) != 3"
     # Make cross power spectral density features for each pair of ROIs.
     # f: [f], cpsd: [w,r,r,f]
+    nan_mask = np.sum(np.isnan(X), axis=(1,2)) != 0
+    X[nan_mask] = np.random.randn(*X[nan_mask].shape)
     f, cpsd = csd(
             X[:,:,np.newaxis],
             X[:,np.newaxis],
@@ -135,6 +137,7 @@ def make_features(lfps, fs=1000, min_freq=0.0, max_freq=55.0,
     cpsd = np.abs(cpsd[...,i1:i2])
     cpsd = squeeze_triangular_array(cpsd, dims=(1,2)) # [w,r*(r+1)//2,f]
     cpsd[:,:] *= f # scale the power features by frequency.
+    cpsd[nan_mask] = np.nan
 
     # Assemble features.
     res = {
@@ -153,7 +156,8 @@ def make_features(lfps, fs=1000, min_freq=0.0, max_freq=55.0,
         f_temp = f_temp[i1:i2]
         assert np.allclose(f, f_temp), \
                 f"Frequencies don't match:\n{f}\n{f_temp}"
-        dir_spec = np.moveaxis(dir_spec[:,i1:i2], 3, 1) # [w,r,r,f]
+        dir_spec = np.moveaxis(dir_spec[:,i1:i2], 1, -1) # [w,r,r,f]
+        dir_spec[nan_mask] = np.nan
         res['dir_spec'] = dir_spec
 
     return res

@@ -1,10 +1,11 @@
 """
-Filter LFP and EMG waveforms.
+Filter LFP waveforms.
 
 """
-__date__ = "October - December 2021"
+__date__ = "October 2021 - February 2022"
 
 
+import numpy as np
 from scipy.signal import butter, lfilter, stft, iirnotch, freqz, welch
 
 
@@ -36,12 +37,18 @@ def filter_signal(x, fs, lowcut=LOWCUT, highcut=HIGHCUT, q=Q, order=ORDER):
     -------
     x : numpy.ndarray
     """
+    assert x.ndim == 1, f"len({x.shape}) != 1"
+    # Remove NaNs.
+    nan_mask = np.isnan(x)
+    x[nan_mask] = 0.0
     # Bandpass.
     x = _butter_bandpass_filter(x, lowcut, highcut, fs, order=ORDER)
     # Remove electrical noise at 60Hz and harmonics.
     for freq in range(60,int(highcut),60):
         b, a = iirnotch(freq, q, fs)
         x = lfilter(b, a, x)
+    # Reintroduce NaNs.
+    x[nan_mask] = np.nan
     return x
 
 
