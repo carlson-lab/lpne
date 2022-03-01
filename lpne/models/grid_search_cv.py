@@ -1,8 +1,11 @@
 """
 A simple grid search cross validation model.
 
+TO DO
+-----
+* make compatible with FaSae
 """
-__date__ = "December 2021"
+__date__ = "December 2021 - March 2022"
 
 
 import numpy as np
@@ -21,7 +24,8 @@ class GridSearchCV:
         model : CpSae or FaSae
             Model
         param_grid : dict
-            Maps model parameters to lists of values.
+            Maps names of model parameters (strings) to lists of values. These
+            are passed to the ``model.set_params`` method.
         cv : int, optional
             Number of folds to estimate the performance of each parameter set.
         """
@@ -34,12 +38,18 @@ class GridSearchCV:
         """
         Fit the model to data.
 
+        These parameters are passed to ``CpSae.fit``.
+
         Parameters
         ----------
-        features :
-        labels :
-        groups :
+        features : numpy.ndarray
+            Shape: ``[b,f,r,r]``
+        labels : numpy.ndarray
+            Shape: ``[b]``
+        groups : numpy.ndarray
+            Shape: ``[b]``
         print_freq : int, optional
+            Print loss every ``print_freq`` epochs.
         """
         # Split data into folds.
         skf = StratifiedKFold(n_splits=self.cv, shuffle=True)
@@ -92,11 +102,14 @@ class GridSearchCV:
         Parameters
         ----------
         features : numpy.ndarray
-        groups : numpy.ndarray
+            Shape: ``[b,f,r,r]``
+        groups : None or numpy.ndarray
+            Shape: ``[b]``
 
         Returns
         -------
         predicted_labels : numpy.ndarray
+            Shape: ``[b]``
         """
         return self.best_estimator_.predict(features, groups)
 
@@ -108,12 +121,16 @@ class GridSearchCV:
         Parameters
         ----------
         features : numpy.ndarray
+            Shape: ``[b,f,r,r]``
         labels : numpy.ndarray
-        groups : numpy.ndarray
+            Shape: ``[b]``
+        groups : None or numpy.ndarray
+            Shape: ``[b]``
 
         Returns
         -------
         score : float
+            Weighted accuracy
         """
         return self.best_estimator_.score(features, labels, groups)
 

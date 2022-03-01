@@ -2,7 +2,7 @@
 CANDECOMP/PARAFAC supervised autoencoder with deterministic factors
 
 """
-__date__ = "November 2021 - January 2022"
+__date__ = "November 2021 - March 2022"
 
 
 import numpy as np
@@ -153,7 +153,10 @@ class CpSae(torch.nn.Module):
         groups : None or numpy.ndarray
             Shape: ``[b]``
         print_freq : int, optional
+            How often to print loss values.
         test_freq : int, optional
+            How often to compute the weigthed accuracy objective on the training
+            set.
         """
         # Check arguments.
         assert features.ndim == 4

@@ -11,7 +11,7 @@ EPSILON = 1e-6
 
 
 
-def normalize_features(power_features, partition=None, mode='median'):
+def normalize_features(power_features, partition=None, mode='std'):
     """
     Normalize the features.
 
@@ -29,7 +29,7 @@ def normalize_features(power_features, partition=None, mode='median'):
             Train indices.
         ``'test'``: numpy.ndarray
             Test indices.
-    mode : {'max'}, optional
+    mode : {'std'}, optional
         Normalization method.
         ``'std'``: normalize by the standard deviation of the training set.
         ``'max'``: normalize by the maximum value of the training set, scaling
@@ -48,8 +48,8 @@ def normalize_features(power_features, partition=None, mode='median'):
         idx = partition['train']
     power_subset = power_features[idx]
     # Remove NaNs.
-    axes = tuple(i for i in range(1,power.ndim))
-    power_subset = power_subset[np.sum(np.isnan(d), axis=axes) == 0]
+    axes = tuple(i for i in range(1,power_subset.ndim))
+    power_subset = power_subset[np.sum(np.isnan(power_subset), axis=axes) == 0]
     if mode == 'std':
         temp = np.std(power_subset)
     elif mode == 'max':
