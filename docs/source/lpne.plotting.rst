@@ -36,6 +36,15 @@ lpne.plotting.plot_power module
     :show-inheritance:
 
 
+lpne.plotting.plot_spec module
+------------------------------
+
+.. automodule:: lpne.plotting.plot_spec
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
 lpne.plotting.power_movie module
 --------------------------------
 

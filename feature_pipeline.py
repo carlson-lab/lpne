@@ -72,6 +72,11 @@ if __name__ == '__main__':
         # Filter LFPs.
         lfps = lpne.filter_lfps(lfps, FS)
 
+        # Plot a spectrogram for fun.
+        if False:
+            roi = list(lfps.keys())[0]
+            lpne.plot_spec(lfps[roi], fs=FS, roi=roi, fn='example_spec.pdf')
+
         # Plot the LFPs for fun.
         if file_num == 0:
             lpne.plot_lfps(
