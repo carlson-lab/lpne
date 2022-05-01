@@ -24,7 +24,8 @@ DEFAULT_STFT_PARAMS = {
 
 
 
-def plot_spec(lfp, fs, max_freq=50.0, stft_params={}, roi=None, fn='temp.pdf'):
+def plot_spec(lfp, fs, max_freq=50.0, stft_params={}, roi=None,
+    min_max_quantiles=[0.005,0.995], fn='temp.pdf'):
     """
     Plot a spectrogram of the given LFP.
     
@@ -40,6 +41,8 @@ def plot_spec(lfp, fs, max_freq=50.0, stft_params={}, roi=None, fn='temp.pdf'):
         Parameters sent to ``scipy.signal.stft``
     roi : None or str, optional
         Name of the channel
+    min_max_quantiles : list of float, optional
+        Used for color normalization
     fn : str, optional
         Image filename
     """
@@ -50,12 +53,16 @@ def plot_spec(lfp, fs, max_freq=50.0, stft_params={}, roi=None, fn='temp.pdf'):
     idx = np.searchsorted(f, max_freq)
     f = f[:idx]
     Zxx = Zxx[:idx]
+    Zxx = np.log(np.abs(Zxx)+EPSILON)
+    vmin, vmax = np.quantile(Zxx, min_max_quantiles)
     # Plot the spectrogram.
     plt.imshow(
-            np.log(np.abs(Zxx)+EPSILON), 
-            extent=[f[0], f[-1], t[0], t[-1]],
+            Zxx, 
+            extent=[t[0], t[-1], f[0], f[-1]],
             origin='lower',
             aspect='auto',
+            vmin=vmin,
+            vmax=vmax,
     )
     plt.ylabel("Frequency (Hz)")
     plt.xlabel("Time (s)")
