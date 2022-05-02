@@ -59,7 +59,7 @@ def average_channels(lfps, channel_map, check_channel_map=True):
                 avg[i][nan_masks[i]] = 0.0
             avg = sum(avg) / len(avg)
             # Reintroduce the NaNs into the averaged LFP.
-            avg[nan_mask] = np.nan
+            avg[nan_mask > 0] = np.nan
             out_lfps[grouped_roi] = avg
     return out_lfps
 

@@ -50,6 +50,7 @@ def plot_lfps(lfps, rois=None, t1=0.0, t2=None, fs=1000, y_space=4.0,
     i1 = int(fs * t1)
     if t2 is None:
         i2 = len(lfps[list(lfps.keys())[0]])
+        t2 = fs * i2
     else:
         i2 = int(fs * t2)
     t_vals = np.linspace(t1, t2, i2-i1)
@@ -57,15 +58,20 @@ def plot_lfps(lfps, rois=None, t1=0.0, t2=None, fs=1000, y_space=4.0,
     lfp_num = 0
     nan_bar = None
     for roi in rois:
-        trace = _zscore(lfps[roi].flatten()[i1:i2])
+        trace = _zscore(lfps[roi][i1:i2])
         plt.plot(t_vals, lfp_num*y_space+trace, lw=lw, alpha=alpha)
         if nan_bar is None:
             nan_bar = np.zeros(len(trace), dtype=int)
-        nan_bar += np.isnan(trace)
+        nan_trace = np.isnan(trace)
+        nan_bar += nan_trace
+        idx = np.argwhere(nan_trace > 0).flatten()
+        if len(idx) > 0:
+            y_vals = [lfp_num*y_space] * len(idx)
+            plt.scatter(t_vals[idx], y_vals, c='k', s=4.0)
         lfp_num += 1
-    idx = np.argwhere(nan_bar > 0)
+    idx = np.argwhere(nan_bar > 0).flatten()
     if len(idx) > 0:
-        plt.scatter(t_vals[idx], [-y_space]*len(idx), c='k')
+        plt.scatter(t_vals[idx], [-2*y_space]*len(idx), c='k')
     pretty_rois = [roi.replace('_', ' ') for roi in rois]
     plt.yticks(
             y_space*np.arange(len(rois)),
@@ -89,8 +95,8 @@ def plot_lfps(lfps, rois=None, t1=0.0, t2=None, fs=1000, y_space=4.0,
 
 def _zscore(trace):
     temp = np.copy(trace)
-    nan_mask = np.isnan(temp)
-    temp[np.isnan(temp)] = 0.0
+    nan_mask = np.argwhere(np.isnan(temp) > 0).flatten()
+    temp[nan_mask] = 0.0
     temp = zscore(temp)
     temp[nan_mask] = np.nan
     return temp
