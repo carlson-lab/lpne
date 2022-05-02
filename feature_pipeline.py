@@ -42,9 +42,12 @@ CHANS_SUBDIR = 'CHANS'
 FEATURE_SUBDIR = 'features'
 LFP_SUFFIX = '_LFP.mat'
 CHANS_SUFFIX = '_CHANS.mat'
-FS = 1000
-WINDOW_DURATION = 2
-DIR_SPEC = False
+FS = 1000 # Samplerate (Hz)
+WINDOW_DURATION = 2 # Window duration (s)
+DIR_SPEC = False # Whether to calculate directed spectrum features
+LOWCUT = 0.5 # Lowcut for bandpass filter (Hz)
+HIGHCUT = 200 # Highcut for bandpass filter (Hz)
+MAX_FREQ = 55.0 # Maximum frequency for popwer features (Hz)
 
 
 
@@ -70,12 +73,18 @@ if __name__ == '__main__':
         lfps = lpne.load_lfps(lfp_fns[file_num])
 
         # Filter LFPs.
-        lfps = lpne.filter_lfps(lfps, FS)
+        lfps = lpne.filter_lfps(lfps, FS, lowcut=LOWCUT, highcut=HIGHCUT)
 
         # Plot a spectrogram for fun.
-        if False:
+        if True:
             roi = list(lfps.keys())[0]
-            lpne.plot_spec(lfps[roi], fs=FS, roi=roi, fn='example_spec.pdf')
+            lpne.plot_spec(
+                lfps[roi],
+                max_freq=150,
+                fs=FS,
+                roi=roi,
+                fn='example_spec.pdf',
+            )
 
         # Plot the LFPs for fun.
         if file_num == 0:
@@ -105,6 +114,7 @@ if __name__ == '__main__':
                 lfps,
                 window_duration=WINDOW_DURATION,
                 directed_spectrum=DIR_SPEC,
+                max_freq=MAX_FREQ,
         )
 
         # Plot the first window for fun.

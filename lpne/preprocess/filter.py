@@ -9,13 +9,13 @@ import numpy as np
 from scipy.signal import butter, lfilter, stft, iirnotch, freqz, welch
 
 
-ORDER = 3 # Butterworth filter order
+ORDER = 3 # Butterworth bandpass filter order
 """Butterworth filter order"""
-LOWCUT = 0.5
+LOWCUT = 0.5 # Butterworth bandpass filter parameter
 """Default lowcut for filtering (Hz)"""
-HIGHCUT = 55.0
+HIGHCUT = 55.0 # Butterworth bandpass filter parameter
 """Default highcut for filtering (Hz)"""
-Q = 1.5 # Notch filter parameter
+Q = 2.0 # Notch filter parameter
 """Notch filter quality parameter"""
 
 
@@ -44,8 +44,8 @@ def filter_signal(x, fs, lowcut=LOWCUT, highcut=HIGHCUT, q=Q, order=ORDER):
     # Bandpass.
     x = _butter_bandpass_filter(x, lowcut, highcut, fs, order=ORDER)
     # Remove electrical noise at 60Hz and harmonics.
-    for freq in range(60,int(highcut),60):
-        b, a = iirnotch(freq, q, fs)
+    for i, freq in enumerate(range(60,int(fs/2),60)):
+        b, a = iirnotch(freq, (i+1)*q, fs)
         x = lfilter(b, a, x)
     # Reintroduce NaNs.
     x[nan_mask] = np.nan

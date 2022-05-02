@@ -24,7 +24,7 @@ DEFAULT_STFT_PARAMS = {
 
 
 
-def plot_spec(lfp, fs, max_freq=50.0, stft_params={}, roi=None,
+def plot_spec(lfp, fs, max_freq=55.0, stft_params={}, roi=None,
     min_max_quantiles=[0.005,0.995], fn='temp.pdf'):
     """
     Plot a spectrogram of the given LFP.
@@ -42,7 +42,7 @@ def plot_spec(lfp, fs, max_freq=50.0, stft_params={}, roi=None,
     roi : None or str, optional
         Name of the channel
     min_max_quantiles : list of float, optional
-        Used for color normalization
+        Used to determine color normalization
     fn : str, optional
         Image filename
     """

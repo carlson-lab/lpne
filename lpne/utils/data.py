@@ -2,7 +2,7 @@
 Data utilities
 
 """
-__date__ = "July 2021 - February 2022"
+__date__ = "July 2021 - May 2022"
 
 
 import numpy as np
@@ -91,7 +91,7 @@ def load_features(fns, return_counts=False):
     -------
     features : numpy.ndarray
         LFP power features
-        Shape: [n_windows,feature_dim]
+        Shape: ``[n_windows] + feature_dims``
     rois : list of str
         ROI names
     counts : list of int
@@ -107,7 +107,8 @@ def load_features(fns, return_counts=False):
         temp = np.load(fn, allow_pickle=True).item()
         rois = temp['rois']
         if prev_rois is not None:
-            assert prev_rois == rois, f"Inconsitent ROIs: {rois} != {prev_rois}"
+            assert prev_rois == rois, \
+                    f"Inconsitent ROIs: {rois} != {prev_rois}"
         prev_rois = rois
         features.append(temp['power'])
         counts.append(len(features[-1]))
