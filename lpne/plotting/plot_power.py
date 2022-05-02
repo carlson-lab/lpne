@@ -2,11 +2,13 @@
 Plot cross power spectral density features in a grid.
 
 """
-__date__ = "July 2021"
+__date__ = "July 2021 - May 2022"
 
 
 import matplotlib.pyplot as plt
 import numpy as np
+
+import warnings
 
 
 
@@ -24,6 +26,9 @@ def plot_power(power, rois, fn='temp.pdf'):
         Image filename
     """
     pretty_rois = [roi.replace('_', ' ') for roi in rois]
+    if np.isnan(power).sum() > 0:
+        warnings.warn("Power contains NaNs! Returning...")
+        return
     ylim = (-0.05*np.max(power), 1.05*np.max(power))
     n = int(round((-1 + np.sqrt(1+8*power.shape[0]))/2))
     assert n == len(rois)

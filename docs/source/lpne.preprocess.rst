@@ -52,3 +52,12 @@ lpne.preprocess.normalize module
     :members:
     :undoc-members:
     :show-inheritance:
+
+
+lpne.preprocess.outlier_detection module
+----------------------------------------
+
+.. automodule:: lpne.preprocess.outlier_detection
+    :members:
+    :undoc-members:
+    :show-inheritance:

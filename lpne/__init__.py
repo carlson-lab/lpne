@@ -5,7 +5,7 @@ Code for preprocessing and building factor models with local field potentials.
 
 """
 __date__ = "July 2021 - May 2022"
-__version__ = "0.0.15"
+__version__ = "0.0.16"
 try:
 	with open(".git/logs/HEAD", "r") as fh:
 		__commit__ = fh.read().split('\n')[-2]
@@ -27,6 +27,7 @@ from .preprocess.channel_maps import \
         average_channels, \
         get_default_channel_map, \
         remove_channels, \
+        remove_channels_from_lfps, \
         get_removed_channels_from_file
 
 from .preprocess.directed_spectrum import get_directed_spectrum
@@ -36,6 +37,8 @@ from .preprocess.filter import filter_signal, filter_lfps
 from .preprocess.make_features import make_features
 
 from .preprocess.normalize import normalize_features, normalize_lfps
+
+from .preprocess.outlier_detection import mark_outliers
 
 from .utils.data import \
         load_lfps, \

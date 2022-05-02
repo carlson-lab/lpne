@@ -2,7 +2,7 @@
 Make features
 
 """
-__date__ = "July 2021 - February 2022"
+__date__ = "July 2021 - May 2022"
 
 
 import numpy as np
@@ -17,7 +17,7 @@ from ..utils.utils import squeeze_triangular_array
 
 EPSILON = 1e-6
 DEFAULT_CSD_PARAMS = {
-    'detrend': 'linear',
+    'detrend': 'constant',
     'window': 'hann',
     'nperseg': 512,
     'noverlap': 256,
@@ -85,8 +85,8 @@ def make_features(lfps, fs=1000, min_freq=0.0, max_freq=55.0,
         '__version__' : str
             Version number of LPNE package
     """
-    if window_step is not None:
-        assert window_step > 0.0, f"Nonpositive window step: {window_step}"
+    assert window_step is None or window_step > 0.0, \
+            f"Nonpositive window step: {window_step}"
     assert max_n_windows is None or max_n_windows > 0
     rois = sorted(lfps.keys())
     n = len(rois)
@@ -115,12 +115,12 @@ def make_features(lfps, fs=1000, min_freq=0.0, max_freq=55.0,
         )
         if max_n_windows is not None:
             onsets = onsets[:max_n_windows]
-        temp = []
+        temp_X = []
         for k in range(len(onsets)):
                 k1 = int(fs*onsets[k])
                 k2 = k1 + window_samp
-                temp.append(X[:,k1:k2])
-        X = np.stack(temp, axis=0) # [w,r,t]
+                temp_X.append(X[:,k1:k2])
+        X = np.stack(temp_X, axis=0) # [w,r,t]
     assert X.ndim == 3, f"len({X.shape}) != 3"
     # Make cross power spectral density features for each pair of ROIs.
     # f: [f], cpsd: [w,r,r,f]
@@ -136,8 +136,8 @@ def make_features(lfps, fs=1000, min_freq=0.0, max_freq=55.0,
     f = f[i1:i2]
     cpsd = np.abs(cpsd[...,i1:i2])
     cpsd = squeeze_triangular_array(cpsd, dims=(1,2)) # [w,r*(r+1)//2,f]
-    cpsd[:,:] *= f # scale the power features by frequency.
-    cpsd[nan_mask] = np.nan
+    cpsd[:,:] *= f # scale the power features by frequency
+    cpsd[nan_mask] = np.nan # reintroduce NaNs
 
     # Assemble features.
     res = {
@@ -157,7 +157,7 @@ def make_features(lfps, fs=1000, min_freq=0.0, max_freq=55.0,
         assert np.allclose(f, f_temp), \
                 f"Frequencies don't match:\n{f}\n{f_temp}"
         dir_spec = np.moveaxis(dir_spec[:,i1:i2], 1, -1) # [w,r,r,f]
-        dir_spec[nan_mask] = np.nan
+        dir_spec[nan_mask] = np.nan # reintroduce NaNs
         res['dir_spec'] = dir_spec
 
     return res

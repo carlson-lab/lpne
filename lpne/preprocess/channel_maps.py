@@ -2,7 +2,7 @@
 Channel maps are used to determine which channels to average together
 
 """
-__date__ = "July - August 2021"
+__date__ = "July 2021 - May 2022"
 
 
 import numpy as np
@@ -23,7 +23,8 @@ def average_channels(lfps, channel_map, check_channel_map=True):
     """
     Average different channels in the the same region.
 
-    Expected behavior -- ... finish this
+    Channels (keys) in ``lfps`` that map to the same group name (value) in
+    ``channel_map`` will be averaged together and named by the group name.
 
     Parameters
     ----------
@@ -51,38 +52,26 @@ def average_channels(lfps, channel_map, check_channel_map=True):
         if len(avg) == 0:
             warnings.warn(f"No channels to make grouped channel {grouped_roi}!")
         else:
+            # Find NaNs and replace them with zeros to calculate an average.
+            nan_masks = [np.isnan(trace) for trace in avg]
+            nan_mask = np.minimum(sum(nan_masks), 1)
+            for i in range(len(avg)):
+                avg[i][nan_masks[i]] = 0.0
             avg = sum(avg) / len(avg)
+            # Reintroduce the NaNs into the averaged LFP.
+            avg[nan_mask] = np.nan
             out_lfps[grouped_roi] = avg
     return out_lfps
 
 
-def _check_channel_map(lfps, channel_map):
-    """
-    Check that every channel in `channel_map` is in `lfps`.
-
-    Warnings
-    --------
-    * Whenever there is a channel in `channel_map` that isn't in `lfps`.
-
-    Parameters
-    ----------
-    lfps : dict
-        Maps ROI names to LFP waveforms.
-    channel_map : dict
-        Maps ROI names to grouped ROI names.
-    """
-    for channel in channel_map:
-        if channel not in lfps:
-            warnings.warn(f"Channel {channel} is not present!")
-
-
 def get_default_channel_map(channels, combine_hemispheres=True):
     """
-    Make a default channel map...
+    Make a default channel map.
 
     Raises
     ------
-    * UserWarning if ...
+    * UserWarning if a channel doesn't have an underscore or a hemisphere
+      indication in its name.
 
     Parameters
     ----------
@@ -157,6 +146,29 @@ def remove_channels(channel_map, to_remove):
     return channel_map
 
 
+def remove_channels_from_lfps(lfps, fn):
+    """
+    Remove channels specified in the CHANS file from the LFPs.
+    
+    Parameters
+    ----------
+    lfps : dict
+        Maps ROI names to LFP waveforms.
+    fn : str
+        CHANS file filename
+
+    Returns
+    -------
+    lfps : dict
+        Maps ROI names to LFP waveforms
+    """
+    to_remove = get_removed_channels_from_file(fn)
+    for roi in to_remove:
+        if roi in lfps:
+            del lfps[roi]
+    return lfps
+
+
 def get_removed_channels_from_file(fn):
     """
     Load a list of removed channels from a file.
@@ -190,6 +202,26 @@ def get_removed_channels_from_file(fn):
         return channel_names[idx].tolist()
     else:
         raise NotImplementedError(f"Cannot load file: {fn}")
+
+
+def _check_channel_map(lfps, channel_map):
+    """
+    Check that every channel in `channel_map` is in `lfps`.
+
+    Warnings
+    --------
+    * Whenever there is a channel in `channel_map` that isn't in `lfps`.
+
+    Parameters
+    ----------
+    lfps : dict
+        Maps ROI names to LFP waveforms.
+    channel_map : dict
+        Maps ROI names to grouped ROI names.
+    """
+    for channel in channel_map:
+        if channel not in lfps:
+            warnings.warn(f"Channel {channel} is not present in LFPS!")
 
 
 
