@@ -46,6 +46,7 @@ FS = 1000 # Samplerate (Hz)
 WINDOW_DURATION = 2 # Window duration (s)
 DIR_SPEC = False # Whether to calculate directed spectrum features
 LOWCUT = 0.5 # Lowcut for bandpass filter (Hz)
+OUTLIER_LOWCUT = 30.0 # Lowcut filter for outlier detection (Hz)
 HIGHCUT = 200 # Highcut for bandpass filter (Hz)
 MAX_FREQ = 55.0 # Maximum frequency for popwer features (Hz)
 REMOVE_OUTLIERS = True # Remove windows with outlier samples
@@ -82,7 +83,7 @@ if __name__ == '__main__':
         lfps = lpne.remove_channels_from_lfps(lfps, chans_fns[file_num])
 
         # Mark outliers with NaNs.
-        lfps = lpne.mark_outliers(lfps)
+        lfps = lpne.mark_outliers(lfps, FS, OUTLIER_LOWCUT, HIGHCUT)
 
         # Get the default channel grouping.
         channel_map = lpne.get_default_channel_map(list(lfps.keys()))
@@ -111,17 +112,16 @@ if __name__ == '__main__':
             lpne.plot_power(features['power'][1], features['rois'])
 
             # Plot a spectrogram for fun.
-            if True:
-                roi = list(lfps.keys())[1]
-                lpne.plot_spec(
-                    lfps[roi],
-                    FS,
-                    t1=1.0,
-                    t2=None,
-                    max_freq=150,
-                    roi=roi,
-                    fn='example_spec.pdf',
-                )
+            roi = list(lfps.keys())[1]
+            lpne.plot_spec(
+                lfps[roi],
+                FS,
+                t1=1.0,
+                t2=None,
+                max_freq=150,
+                roi=roi,
+                fn='example_spec.pdf',
+            )
 
             # Plot the LFPs for fun.
             lpne.plot_lfps(

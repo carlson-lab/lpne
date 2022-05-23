@@ -7,13 +7,20 @@ __date__ = "May 2022"
 
 import numpy as np
 
+from .filter import filter_signal
+
 
 DEFAULT_MAD_TRESHOLD = 15.0
 """Default median absolute deviation threshold for outlier detection"""
+LOWCUT = 30.0 # Butterworth bandpass filter parameter
+"""Default lowcut for filtering (Hz)"""
+HIGHCUT = 55.0 # Butterworth bandpass filter parameter
+"""Default highcut for filtering (Hz)"""
 
 
 
-def mark_outliers(lfps, mad_threshold=DEFAULT_MAD_TRESHOLD):
+def mark_outliers(lfps, fs, lowcut=LOWCUT, highcut=HIGHCUT,
+    mad_threshold=DEFAULT_MAD_TRESHOLD):
     """
     Detect outlying samples in the LFPs.
 
@@ -21,6 +28,8 @@ def mark_outliers(lfps, mad_threshold=DEFAULT_MAD_TRESHOLD):
     ----------
     lfps : dict
         Maps ROI names to LFP waveforms.
+    fs : int, optional
+        Samplerate
     mad_threshold : float, optional
         A median absolute deviation treshold used to determine whether a point
         is an outlier. A lower value marks more points as outliers.
@@ -31,16 +40,24 @@ def mark_outliers(lfps, mad_threshold=DEFAULT_MAD_TRESHOLD):
         Maps ROI names to LFP waveforms.
     """
     assert mad_threshold > 0.0, "mad_threshold must be positive!"
-
     for roi in lfps:
-        # Subtract out the median.
-        trace = np.abs(lfps[roi] - np.median(lfps[roi]))
+        # Copy the signal.
+        trace = np.copy(lfps[roi])
+        # Filter the signal.
+        trace = filter_signal(
+                trace,
+                fs,
+                lowcut=lowcut,
+                highcut=highcut,
+                apply_notch_filters=False,
+        )
+        # Subtract out the median and rectify.
+        trace = np.abs(trace - np.median(trace))
         # Calculate the MAD and the treshold.
         mad = np.median(trace) # median absolute deviation
         thresh = mad_threshold * mad
         # Mark outlying samples.
         lfps[roi][trace > thresh] = np.nan
-
     return lfps
 
 
