@@ -21,7 +21,6 @@ $ pytest test
 
 
 ### TO DO
-4. remove bad windows
 6. consolidate plot_factor.py and plot_power.py
 7. add docstrings for channel maps
 9. Add a Tucker decomposition model

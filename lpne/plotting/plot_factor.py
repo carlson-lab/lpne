@@ -28,7 +28,7 @@ def plot_factor(factor, rois, fn='temp.pdf'):
     ylim = (-temp, temp)
     n = len(rois)
     factor = factor.reshape(n*(n+1)//2,-1)
-    fig, axarr = plt.subplots(n,n)
+    _, axarr = plt.subplots(n,n)
     for i in range(n):
         for j in range(i+1):
             idx = (i * (i+1)) // 2 + j

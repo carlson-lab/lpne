@@ -9,14 +9,13 @@ import numpy as np
 import os
 from sklearn.utils.validation import check_is_fitted
 import torch
-from torch.distributions import Categorical, Normal, kl_divergence
+from torch.distributions import Categorical
 import torch.nn.functional as F
 from torch.utils.data import TensorDataset, DataLoader, WeightedRandomSampler
 try:
     from torch.utils.tensorboard import SummaryWriter
 except:
     pass
-import warnings
 
 from .. import __commit__ as LPNE_COMMIT
 from .. import __version__ as LPNE_VERSION
@@ -38,9 +37,9 @@ FIT_ATTRIBUTES = ['classes_', 'groups_', 'iter_']
 
 class CpSae(torch.nn.Module):
 
-    def __init__(self, reg_strength=1.0, z_dim=32, weight_reg=0.0, n_iter=10000,
-        lr=1e-3, batch_size=256, beta=0.5, factor_reg=1e-1, log_dir=None,
-        n_updates=0, device='auto'):
+    def __init__(self, reg_strength=1.0, z_dim=32, weight_reg=0.0,
+        n_iter=10000, lr=1e-3, batch_size=256, beta=0.5, factor_reg=1e-1,
+        log_dir=None, n_updates=0, device='auto'):
         """
         A supervised autoencoder with a CP-style generative model
 

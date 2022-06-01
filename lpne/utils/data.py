@@ -2,9 +2,10 @@
 Data utilities
 
 """
-__date__ = "July 2021 - May 2022"
+__date__ = "July 2021 - June 2022"
 
 
+import h5py
 import numpy as np
 import os
 from scipy.io import loadmat
@@ -36,9 +37,10 @@ def load_lfps(fn):
     """
     assert isinstance(fn, str)
     if fn.endswith('.mat'):
-        # try:
-        lfps = loadmat(fn)
-        # except: for old .mat files...
+        try:
+            lfps = loadmat(fn)
+        except NotImplementedError:
+            lfps = dict(h5py.File(fn, 'r'))
     else:
         raise NotImplementedError(f"Cannot load file: {fn}")
     # Make sure all the channels are 1D float arrays.
