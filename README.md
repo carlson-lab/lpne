@@ -26,7 +26,6 @@ $ pytest test
 9. Add a Tucker decomposition model
 10. PoE?
 12. Manually remove regions from LFPs
-18. Add a GP prior on CP decomposition factors
 21. Make some pre-zipped features and labels
 23. Model factor movie
 25. Add feature/model metadata: `datetime.datetime.now()`

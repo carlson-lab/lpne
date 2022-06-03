@@ -2,16 +2,16 @@
 CANDECOMP/PARAFAC supervised autoencoder with deterministic factors
 
 """
-__date__ = "November 2021 - March 2022"
+__date__ = "November 2021 - June 2022"
 
 
 import numpy as np
 import os
 from sklearn.utils.validation import check_is_fitted
 import torch
-from torch.distributions import Categorical
+from torch.distributions import Categorical, MultivariateNormal
 import torch.nn.functional as F
-from torch.utils.data import TensorDataset, DataLoader, WeightedRandomSampler
+from torch.utils.data import TensorDataset, DataLoader
 try:
     from torch.utils.tensorboard import SummaryWriter
 except:
@@ -22,24 +22,25 @@ from .. import __version__ as LPNE_VERSION
 from ..utils.utils import get_weights, squeeze_triangular_array
 
 
-# https://stackoverflow.com/questions/53014306/
-if float(torch.__version__[:3]) >= 1.9:
-    os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
-
-
 FLOAT = torch.float32
 INT = torch.int64
 EPSILON = 1e-5
 INVALID_LABEL = -1
 FIT_ATTRIBUTES = ['classes_', 'groups_', 'iter_']
+DEFAULT_GP_PARAMS = {
+    'mean': -3,
+    'ls': 5.0,
+    'obs_noise_var': 1e-1,
+    'reg': 2e-6,
+}
 
 
 
 class CpSae(torch.nn.Module):
 
-    def __init__(self, reg_strength=1.0, z_dim=32, weight_reg=0.0,
-        n_iter=10000, lr=1e-3, batch_size=256, beta=0.5, factor_reg=1e-1,
-        log_dir=None, n_updates=0, device='auto'):
+    def __init__(self, reg_strength=1.0, z_dim=32, gp_params=DEFAULT_GP_PARAMS,
+        n_iter=10000, lr=1e-3, batch_size=256, factor_reg=1e-1,
+        log_dir=None, device='auto'):
         """
         A supervised autoencoder with a CP-style generative model
 
@@ -50,8 +51,8 @@ class CpSae(torch.nn.Module):
             should be positive, and larger values indicate more regularization.
         z_dim : int, optional
             Latent dimension/number of networks.
-        weight_reg : float, optional
-            Model L2 weight regularization.
+        gp_params : dict, optional
+            Maps 'mean', 'ls', 'obs_noise_var', and 'reg' to values.
         n_iter : int, optional
             Number of gradient steps during training.
         lr : float, optional
@@ -63,20 +64,19 @@ class CpSae(torch.nn.Module):
         # Set parameters.
         self.reg_strength = float(reg_strength)
         self.z_dim = z_dim
-        self.weight_reg = float(weight_reg)
+        self.gp_params = gp_params
         self.n_iter = n_iter
         self.lr = float(lr)
         self.batch_size = batch_size
-        self.beta = float(beta)
         self.factor_reg = float(factor_reg)
         self.log_dir = log_dir
         if device == 'auto':
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.device = device
-        self.n_updates = n_updates
         self.classes_ = None
 
-
+    
+    @torch.no_grad()
     def _initialize(self, n_freqs, n_rois, features=None):
         """
         Initialize the network parameters.
@@ -94,19 +94,33 @@ class CpSae(torch.nn.Module):
         self.n_classes = len(self.classes_)
         n_features = n_freqs * n_rois**2
         self.rec_model = torch.nn.Linear(n_features, self.z_dim)
-        with torch.no_grad():
-            self.freq_factors = torch.nn.Parameter(
-                    -5 + torch.randn(self.n_groups, self.z_dim, n_freqs),
-            )
-            self.roi_1_factors = torch.nn.Parameter(
-                    -5 + torch.randn(self.n_groups, self.z_dim, n_rois),
-            )
-            self.roi_2_factors = torch.nn.Parameter(
-                    -5 + torch.randn(self.n_groups, self.z_dim, n_rois),
-            )
-            self.logit_weights = torch.nn.Parameter(
-                    -5 * torch.ones(1,self.n_classes),
-            )
+
+        # Set up the GP kernel and make the frequency factors.
+        kernel = torch.arange(n_freqs).unsqueeze(0)
+        kernel = torch.abs(kernel - torch.arange(n_freqs).unsqueeze(1))
+        kernel = 2**(-1/2) * torch.pow(kernel / self.gp_params['ls'], 2)
+        kernel = torch.exp(-kernel)
+        kernel = kernel + self.gp_params['obs_noise_var'] * torch.eye(n_freqs)
+        self.gp_dist = MultivariateNormal(
+                self.gp_params['mean'] * torch.ones(n_freqs).to(self.device),
+                covariance_matrix=kernel.to(self.device),
+        )
+        freq_factors = self.gp_dist.sample(sample_shape=(self.z_dim,)) # [z,f]
+        self.freq_factors = torch.nn.Parameter(
+            freq_factors.unsqueeze(0).expand(self.n_groups,-1,-1).clone(),
+        )
+        # Make the ROI factors.
+        roi_1_factors = -5 + torch.randn(1,self.z_dim,n_rois)
+        self.roi_1_factors = torch.nn.Parameter(
+           roi_1_factors.expand(self.n_groups,-1,-1).clone(),
+        )
+        roi_2_factors = -5 + torch.randn(1,self.z_dim,n_rois)
+        self.roi_2_factors = torch.nn.Parameter(
+            roi_2_factors.expand(self.n_groups,-1,-1).clone(),
+        )
+        self.logit_weights = torch.nn.Parameter(
+                -5 * torch.ones(1,self.n_classes),
+        )
         self.logit_biases = torch.nn.Parameter(torch.zeros(1,self.n_classes))
         self.to(self.device)
 
@@ -183,24 +197,16 @@ class CpSae(torch.nn.Module):
         labels = torch.tensor(labels, dtype=INT).to(self.device)
         groups = torch.tensor(groups, dtype=INT).to(self.device)
         weights = torch.tensor(weights, dtype=FLOAT).to(self.device)
-        sampler_weights = torch.pow(weights, 1.0 - self.beta)
-        weights = torch.pow(weights, self.beta)
         # Make some loaders and an optimizer.
         dset = TensorDataset(features, labels, groups, weights)
-        sampler = WeightedRandomSampler(
-                sampler_weights,
-                num_samples=len(sampler_weights),
-                replacement=True,
-        )
         loader = DataLoader(
                 dset,
-                sampler=sampler,
                 batch_size=self.batch_size,
+                shuffle=True,
         )
-        optimizer = torch.optim.AdamW(
+        optimizer = torch.optim.Adam(
                 self.parameters(),
                 lr=self.lr,
-                weight_decay=self.weight_reg,
         )
         # Train.
         while self.iter_ <= self.n_iter:
@@ -263,25 +269,18 @@ class CpSae(torch.nn.Module):
         zs = F.softplus(self.rec_model(flat_features)) # [b,z]
 
         if groups is None:
-            assert self.n_updates == 0
             assert return_logits
             logits = zs[:,:self.n_classes] * F.softplus(self.logit_weights)
             logits = logits + self.logit_biases # [b,c]
             return logits
 
-        # Update latents with multiplicative updates.
+        # Get the reconstruction loss.
         zs = zs.unsqueeze(1) # [b,1,z]
         flat_features = flat_features.unsqueeze(1) # [b,1,fr^2]
         H = self._get_H() # [g,z,fr^2]
         group_oh = F.one_hot(groups, len(self.groups_)) # [b,g]
         group_oh = group_oh.unsqueeze(-1).unsqueeze(-1) # [b,g,1,1]
         H = (group_oh * H.unsqueeze(0)).sum(dim=1) # [b,g,z,fr^2] -> [b,z,fr^2]
-        for i in range(self.n_updates):
-            # [b,1,fr^2][b,fr^2,z] -> [b,1,z]
-            numerator = flat_features @ H.transpose(-1,-2)
-            # [b,1,z][b,z,fr^2][b,fr^2,z] -> [b,1,z]
-            denominator = zs @ H @ H.transpose(-1,-2) # [b,1,z]
-            zs = zs * numerator / denominator
         rec_features = (zs @ H).squeeze(1) # [b,1,z][b,z,fr^2] -> [b,fr^2]
         flat_features = flat_features.squeeze(1) # [b,fr^2]
         rec_loss = torch.mean(torch.abs(flat_features-rec_features), dim=1) #[b]
@@ -296,6 +295,10 @@ class CpSae(torch.nn.Module):
         log_probs = weights * log_probs # [b]
         log_probs[nan_mask] = 0.0 # [b]
 
+        # Calculate the GP loss.
+        gp_loss = self.gp_dist.log_prob(self.freq_factors.mean(dim=0)).mean()
+        gp_loss = self.gp_params['reg'] * gp_loss
+
         # Combine all the terms into a composite loss.
         label_loss = -torch.mean(log_probs) # []
         if torch.isnan(label_loss):
@@ -306,7 +309,8 @@ class CpSae(torch.nn.Module):
         factor_loss = self.factor_reg * self._get_factor_loss() # []
         if torch.isnan(factor_loss):
             quit("factor_loss NaN")
-        loss = label_loss + rec_loss + factor_loss
+    
+        loss = label_loss + rec_loss + factor_loss + gp_loss
         return loss, label_loss, rec_loss, factor_loss
 
 
@@ -327,7 +331,8 @@ class CpSae(torch.nn.Module):
 
 
     @torch.no_grad()
-    def predict_proba(self, features, groups=None, to_numpy=True):
+    def predict_proba(self, features, groups=None, to_numpy=True,
+        return_logits=False):
         """
         Probability estimates.
 
@@ -342,7 +347,8 @@ class CpSae(torch.nn.Module):
         groups : ``None`` or numpy.ndarray
             Shape: ``[b]``
         to_numpy : bool, optional
-        stochastic : bool, optional
+        return_logits : bool, optional
+            Return unnormalized logits instead of probabilities.
 
         Returns
         -------
@@ -377,10 +383,13 @@ class CpSae(torch.nn.Module):
             logits.append(batch_logit)
             i += self.batch_size
         logits = torch.cat(logits, dim=0)
-        probs = F.softmax(logits, dim=1) # [b, n_classes]
+        if return_logits:
+            to_return = logits
+        else:
+            to_return = F.softmax(logits, dim=1) # [b, n_classes]
         if to_numpy:
-            return probs.detach().cpu().numpy()
-        return probs
+            return to_return.detach().cpu().numpy()
+        return to_return
 
 
     @torch.no_grad()
@@ -446,13 +455,11 @@ class CpSae(torch.nn.Module):
         params = {
             'reg_strength': self.reg_strength,
             'z_dim': self.z_dim,
-            'weight_reg': self.weight_reg,
             'n_iter': self.n_iter,
             'lr': self.lr,
             'batch_size': self.batch_size,
-            'beta': self.beta,
             'factor_reg': self.factor_reg,
-            'n_updates': self.n_updates,
+            'gp_params': self.gp_params,
         }
         try:
             params['classes_'] = self.classes_
@@ -468,29 +475,24 @@ class CpSae(torch.nn.Module):
         return params
 
 
-    def set_params(self, reg_strength=None, z_dim=None, weight_reg=None,
-        n_iter=None, lr=None, batch_size=None, beta=None, factor_reg=None,
-        n_updates=None, classes_=None, groups_=None, iter_=None,
-        model_state_dict=None, **kwargs):
+    def set_params(self, reg_strength=None, z_dim=None, n_iter=None, lr=None,
+        batch_size=None, factor_reg=None, gp_params=None, classes_=None,
+        groups_=None, iter_=None, model_state_dict=None, **kwargs):
         """Set the parameters of this estimator."""
         if reg_strength is not None:
             self.reg_strength = reg_strength
         if z_dim is not None:
             self.z_dim = z_dim
-        if weight_reg is not None:
-            self.weight_reg = weight_reg
         if n_iter is not None:
             self.n_iter = n_iter
         if lr is not None:
             self.lr = lr
         if batch_size is not None:
             self.batch_size = batch_size
-        if beta is not None:
-            self.beta = beta
         if factor_reg is not None:
             self.factor_reg = factor_reg
-        if n_updates is not None:
-            self.n_updates = n_updates
+        if gp_params is not None:
+            self.gp_params = gp_params
         if classes_ is not None:
             self.classes_ = classes_
         if groups_ is not None:
