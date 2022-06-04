@@ -2,7 +2,7 @@
 An app for making LFP features.
 
 """
-__date__ = "December 2021 - January 2022"
+__date__ = "December 2021 - June 2022"
 
 
 from bokeh.layouts import column, row
@@ -292,6 +292,13 @@ def feature_app(doc):
             lfps = lpne.load_lfps(lfp_fns[file_num])
             # Filter LFPs.
             lfps = lpne.filter_lfps(lfps, int(fs_input.value))
+
+            # Remove the bad channels marked in the CHANS file.
+            lfps = lpne.remove_channels_from_lfps(lfps, chans_fns[file_num])
+            
+            # Mark outliers with NaNs.
+            lfps = lpne.mark_outliers(lfps, int(fs_input.value))
+
             # Get the default channel grouping.
             if default_channel_map:
                 channel_map = lpne.get_default_channel_map(
@@ -303,10 +310,6 @@ def feature_app(doc):
                         source.data["channel_names"],
                         source.data["roi_names"],
                 ))
-            # Load the contents of a file to determine which channels to remove.
-            to_remove = lpne.get_removed_channels_from_file(chans_fns[file_num])
-            # Remove these channels.
-            channel_map = lpne.remove_channels(channel_map, to_remove)
             # Average channels in the same region together.
             lfps = lpne.average_channels(lfps, channel_map)
             saved_channels = {**saved_channels, **dict(zip(lfps.keys(),repeat(0)))}

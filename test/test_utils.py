@@ -8,6 +8,7 @@ import numpy as np
 import lpne
 
 
+
 def test_unsqueeze_triangular_array():
     # Shape 1
     arr = np.random.randn(3,10,8)
@@ -52,6 +53,26 @@ def test_squeeze_unsqeeuze_triangular_array():
     arr_4 = lpne.squeeze_triangular_array(arr_3, dims=(1,2))
     assert np.allclose(arr_1, arr_3)
     assert np.allclose(arr_2, arr_4)
+
+
+def test_get_weights_1():
+    labels = np.array([0,0,1,0,1], dtype=int)
+    groups = np.array([0,0,0,1,1], dtype=int)
+    weights = lpne.get_weights(labels, groups)
+    assert np.mean(weights) == 1.0
+    assert np.sum(weights[:3]) == np.sum(weights[3:])
+    assert np.allclose(weights / weights[0], np.array([1,1,2,2,2]))
+
+
+def test_get_weights_2():
+    labels = np.array([0,0,1,0,1,-1,-1], dtype=int)
+    groups = np.array([0,0,0,1,1,0,1], dtype=int)
+    weights = lpne.get_weights(labels, groups, invalid_label=-1)
+    print(weights)
+    assert np.mean(weights) == 1.0
+    assert np.sum(weights[:3]) == np.sum(weights[3:5])
+    assert np.allclose(weights[:5] / weights[0], np.array([1,1,2,2,2]))
+    assert np.allclose(weights[-2:], np.ones(2))
 
 
 

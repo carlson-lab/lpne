@@ -19,7 +19,7 @@ Required directory structure:
 
 
 """
-__date__ = "July 2021 - February 2022"
+__date__ = "July 2021 - June 2022"
 
 
 import numpy as np
@@ -137,6 +137,7 @@ if __name__ == '__main__':
         weighted_acc = model.score(
                 features[test_idx],
                 labels[test_idx],
+                None,
         )
     print("Weighted accuracy on test set:", weighted_acc)
 

@@ -6,26 +6,19 @@ __date__ = "November 2021 - June 2022"
 
 
 import numpy as np
-import os
 from sklearn.utils.validation import check_is_fitted
 import torch
 from torch.distributions import Categorical, MultivariateNormal
 import torch.nn.functional as F
-from torch.utils.data import TensorDataset, DataLoader
-try:
-    from torch.utils.tensorboard import SummaryWriter
-except:
-    pass
 
-from .. import __commit__ as LPNE_COMMIT
-from .. import __version__ as LPNE_VERSION
+from .base_model import BaseModel
+from .. import INVALID_LABEL
 from ..utils.utils import get_weights, squeeze_triangular_array
 
 
 FLOAT = torch.float32
 INT = torch.int64
 EPSILON = 1e-5
-INVALID_LABEL = -1
 FIT_ATTRIBUTES = ['classes_', 'groups_', 'iter_']
 DEFAULT_GP_PARAMS = {
     'mean': -3,
@@ -36,11 +29,13 @@ DEFAULT_GP_PARAMS = {
 
 
 
-class CpSae(torch.nn.Module):
+class CpSae(BaseModel):
+
+    MODEL_NAME = 'CP SAE'
+
 
     def __init__(self, reg_strength=1.0, z_dim=32, gp_params=DEFAULT_GP_PARAMS,
-        n_iter=10000, lr=1e-3, batch_size=256, factor_reg=1e-1,
-        log_dir=None, device='auto'):
+        factor_reg=1e-1, **kwargs):
         """
         A supervised autoencoder with a CP-style generative model
 
@@ -53,48 +48,29 @@ class CpSae(torch.nn.Module):
             Latent dimension/number of networks.
         gp_params : dict, optional
             Maps 'mean', 'ls', 'obs_noise_var', and 'reg' to values.
-        n_iter : int, optional
-            Number of gradient steps during training.
-        lr : float, optional
-            Learning rate.
-        batch_size : int, optional
-            Minibatch size
+        factor_reg : float, optional
         """
-        super(CpSae, self).__init__()
-        # Set parameters.
+        super(CpSae, self).__init__(**kwargs)
         self.reg_strength = float(reg_strength)
         self.z_dim = z_dim
         self.gp_params = gp_params
-        self.n_iter = n_iter
-        self.lr = float(lr)
-        self.batch_size = batch_size
         self.factor_reg = float(factor_reg)
-        self.log_dir = log_dir
-        if device == 'auto':
-            device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.device = device
-        self.classes_ = None
 
     
     @torch.no_grad()
-    def _initialize(self, n_freqs, n_rois, features=None):
+    def _initialize(self, feature_shape):
         """
         Initialize the network parameters.
 
         Parameters
         ----------
-        n_freqs : int
-        n_rois : int
-        features : ``None`` or numpy.ndarray
+        feature_shape : tuple
         """
-        # Set up TensorBoard.
-        if self.log_dir is not None:
-            self.writer = SummaryWriter(log_dir=self.log_dir)
-        self.n_groups = len(self.groups_)
-        self.n_classes = len(self.classes_)
-        n_features = n_freqs * n_rois**2
-        self.rec_model = torch.nn.Linear(n_features, self.z_dim)
-
+        _, n_freqs, n_rois, _ = feature_shape
+        n_groups = len(self.groups_)
+        n_classes = len(self.classes_)
+        # Make the recognition model.
+        self.rec_model = torch.nn.Linear(n_freqs * n_rois**2, self.z_dim)
         # Set up the GP kernel and make the frequency factors.
         kernel = torch.arange(n_freqs).unsqueeze(0)
         kernel = torch.abs(kernel - torch.arange(n_freqs).unsqueeze(1))
@@ -107,31 +83,36 @@ class CpSae(torch.nn.Module):
         )
         freq_factors = self.gp_dist.sample(sample_shape=(self.z_dim,)) # [z,f]
         self.freq_factors = torch.nn.Parameter(
-            freq_factors.unsqueeze(0).expand(self.n_groups,-1,-1).clone(),
+            freq_factors.unsqueeze(0).expand(n_groups,-1,-1).clone(),
         )
         # Make the ROI factors.
         roi_1_factors = -5 + torch.randn(1,self.z_dim,n_rois)
         self.roi_1_factors = torch.nn.Parameter(
-           roi_1_factors.expand(self.n_groups,-1,-1).clone(),
+           roi_1_factors.expand(n_groups,-1,-1).clone(),
         )
         roi_2_factors = -5 + torch.randn(1,self.z_dim,n_rois)
         self.roi_2_factors = torch.nn.Parameter(
-            roi_2_factors.expand(self.n_groups,-1,-1).clone(),
+            roi_2_factors.expand(n_groups,-1,-1).clone(),
         )
         self.logit_weights = torch.nn.Parameter(
-                -5 * torch.ones(1,self.n_classes),
+                -5 * torch.ones(1,n_classes),
         )
-        self.logit_biases = torch.nn.Parameter(torch.zeros(1,self.n_classes))
-        self.to(self.device)
+        self.logit_biases = torch.nn.Parameter(torch.zeros(1,n_classes))
+        super(CpSae, self)._initialize()
 
 
     def _get_H(self, flatten=True):
         """
+        Get the factors.
+
+        Parameters
+        ----------
+        flatten : bool, optional
 
         Returns
         -------
-        H: [g,b,frr] if flatten
-           [g,b,f,r,r] otherwise
+        H: torch.Tensor
+            Shape: ``[g,b,frr]`` if ``flatten``, ``[g,b,f,r,r]`` otherwise
         """
         freq_f = F.softplus(self.freq_factors) # [g,z,f]
         roi_1_f = F.softplus(self.roi_1_factors) # [g,z,r]
@@ -153,106 +134,20 @@ class CpSae(torch.nn.Module):
         return torch.mean(volume, dim=0) # [z,f,r,r]
 
 
-    def fit(self, features, labels, groups, print_freq=100, test_freq=1):
-        """
-        Fit the model to data.
-
-        Parameters
-        ----------
-        features : numpy.ndarray
-            Shape: ``[b,f,r,r]``
-        labels : numpy.ndarray
-            Shape: ``[b]``
-        groups : None or numpy.ndarray
-            Shape: ``[b]``
-        print_freq : int, optional
-            How often to print loss values.
-        test_freq : int, optional
-            How often to compute the weigthed accuracy objective on the training
-            set.
-        """
-        # Check arguments.
-        assert features.ndim == 4
-        assert features.shape[2] == features.shape[3]
-        assert labels.ndim == 1
-        assert groups.ndim == 1
-        assert len(features) == len(labels) and len(labels) == len(groups)
-        # Initialize.
-        orig_labels = np.copy(labels)
-        orig_groups = np.copy(groups)
-        weights = get_weights(labels, groups) # NOTE: here with invalid labels?
-        idx = np.argwhere(labels == INVALID_LABEL).flatten()
-        idx_comp = np.argwhere(labels != INVALID_LABEL).flatten()
-        temp_label = np.unique(labels[labels != INVALID_LABEL])[0]
-        labels[idx] = temp_label # Mask the labels temporarily.
-        self.classes_, labels = np.unique(labels, return_inverse=True)
-        labels[idx] = INVALID_LABEL # Unmask the labels.
-        assert len(self.classes_) > 1
-        self.groups_, groups = np.unique(groups, return_inverse=True)
-        assert len(self.groups_) > 1
-        self.iter_ = 1
-        self._initialize(features.shape[1], features.shape[2], features)
-        # NumPy arrays to PyTorch tensors.
-        features = torch.tensor(features, dtype=FLOAT).to(self.device)
-        labels = torch.tensor(labels, dtype=INT).to(self.device)
-        groups = torch.tensor(groups, dtype=INT).to(self.device)
-        weights = torch.tensor(weights, dtype=FLOAT).to(self.device)
-        # Make some loaders and an optimizer.
-        dset = TensorDataset(features, labels, groups, weights)
-        loader = DataLoader(
-                dset,
-                batch_size=self.batch_size,
-                shuffle=True,
-        )
-        optimizer = torch.optim.Adam(
-                self.parameters(),
-                lr=self.lr,
-        )
-        # Train.
-        while self.iter_ <= self.n_iter:
-            i_loss, i_label_loss, i_rec_loss, i_f_loss = [0.0]*4
-            for batch in loader:
-                self.zero_grad()
-                loss, label_loss, rec_loss, f_loss = self(*batch)
-                i_loss += loss.item()
-                i_label_loss += label_loss.item()
-                i_rec_loss += rec_loss.item()
-                i_f_loss += f_loss.item()
-                loss.backward()
-                optimizer.step()
-            if self.log_dir is not None:
-                self.writer.add_scalar('train loss', i_loss, self.iter_)
-                self.writer.add_scalar('label loss', i_label_loss, self.iter_)
-                self.writer.add_scalar('rec loss', i_rec_loss, self.iter_)
-                self.writer.add_scalar('f loss', i_f_loss, self.iter_)
-            if print_freq is not None and self.iter_ % print_freq == 0:
-                print(f"iter {self.iter_:04d}, loss: {i_loss:3f}")
-            if test_freq is not None and self.iter_ % test_freq == 0:
-                weighted_acc = self.score(
-                        features[idx_comp],
-                        orig_labels[idx_comp],
-                        orig_groups[idx_comp],
-                )
-                if self.log_dir is not None:
-                    self.writer.add_scalar(
-                            'weighted accuracy',
-                            weighted_acc,
-                            self.iter_,
-                    )
-            self.iter_ += 1
-        return self
-
-
     def forward(self, features, labels, groups, weights, return_logits=False):
         """
         Calculate a loss.
 
         Parameters
         ----------
-        features : ``[b,f,r,r]``
-        labels : ``None`` or ``[b]``
-        groups : ``None`` or ``[b]``
-        weights : ``[b]``
+        features : torch.Tensor
+            Shape: ``[b,f,r,r]``
+        labels : None or torch.Tensor
+            Shape: ``[b]``
+        groups : None or torch.Tensor
+            Shape: ``[b]``
+        weights : torch.Tensor
+            Shape: ``[b]``
 
         Returns
         -------
@@ -260,8 +155,8 @@ class CpSae(torch.nn.Module):
             Shape: ``[]``
         """
         if labels is not None:
-            nan_mask = torch.isinf(1/(labels - INVALID_LABEL))
-            labels[nan_mask] = 0
+            unlabeled_mask = torch.isinf(1/(labels - INVALID_LABEL))
+            labels[unlabeled_mask] = 0
 
         # Get latents.
         flat_features = features.view(features.shape[0], -1) # [b,fr^2]
@@ -277,13 +172,13 @@ class CpSae(torch.nn.Module):
         # Get the reconstruction loss.
         zs = zs.unsqueeze(1) # [b,1,z]
         flat_features = flat_features.unsqueeze(1) # [b,1,fr^2]
-        H = self._get_H() # [g,z,fr^2]
+        H = self._get_H(flatten=True) # [g,z,fr^2]
         group_oh = F.one_hot(groups, len(self.groups_)) # [b,g]
         group_oh = group_oh.unsqueeze(-1).unsqueeze(-1) # [b,g,1,1]
         H = (group_oh * H.unsqueeze(0)).sum(dim=1) # [b,g,z,fr^2] -> [b,z,fr^2]
         rec_features = (zs @ H).squeeze(1) # [b,1,z][b,z,fr^2] -> [b,fr^2]
         flat_features = flat_features.squeeze(1) # [b,fr^2]
-        rec_loss = torch.mean(torch.abs(flat_features-rec_features), dim=1) #[b]
+        rec_loss = (flat_features-rec_features).abs().mean(dim=1) #[b]
 
         # Predict the labels and get weighted label log probabilities.
         zs = zs.squeeze(1) # [b,1,z] -> [b,z]
@@ -293,7 +188,7 @@ class CpSae(torch.nn.Module):
             return logits
         log_probs = Categorical(logits=logits).log_prob(labels) # [b]
         log_probs = weights * log_probs # [b]
-        log_probs[nan_mask] = 0.0 # [b]
+        log_probs[unlabeled_mask] = 0.0 # disregard the unlabeled data
 
         # Calculate the GP loss.
         gp_loss = self.gp_dist.log_prob(self.freq_factors.mean(dim=0)).mean()
@@ -301,17 +196,10 @@ class CpSae(torch.nn.Module):
 
         # Combine all the terms into a composite loss.
         label_loss = -torch.mean(log_probs) # []
-        if torch.isnan(label_loss):
-            quit("label_loss NaN")
         rec_loss = self.reg_strength * torch.mean(rec_loss) # []
-        if torch.isnan(rec_loss):
-            quit("rec_loss NaN")
         factor_loss = self.factor_reg * self._get_factor_loss() # []
-        if torch.isnan(factor_loss):
-            quit("factor_loss NaN")
-    
         loss = label_loss + rec_loss + factor_loss + gp_loss
-        return loss, label_loss, rec_loss, factor_loss
+        return loss #, label_loss, rec_loss, factor_loss
 
 
     def _get_factor_loss(self, eps=1e-7):
@@ -334,7 +222,7 @@ class CpSae(torch.nn.Module):
     def predict_proba(self, features, groups=None, to_numpy=True,
         return_logits=False):
         """
-        Probability estimates.
+        Get prediction probabilities for the given features.
 
         Note
         ----
@@ -440,91 +328,13 @@ class CpSae(torch.nn.Module):
         ------
         weighted_accuracy : float
         """
-        # Derive groups, labels, and weights from labels.
-        weights = get_weights(labels, groups)
+        weights = get_weights(labels, groups, invalid_label=INVALID_LABEL)
         predictions = self.predict(features, groups)
         scores = np.zeros(len(features))
         scores[predictions == labels] = 1.0
         scores = scores * weights
         weighted_accuracy = np.mean(scores)
         return weighted_accuracy
-
-
-    def get_params(self, deep=True):
-        """Get parameters for this estimator."""
-        params = {
-            'reg_strength': self.reg_strength,
-            'z_dim': self.z_dim,
-            'n_iter': self.n_iter,
-            'lr': self.lr,
-            'batch_size': self.batch_size,
-            'factor_reg': self.factor_reg,
-            'gp_params': self.gp_params,
-        }
-        try:
-            params['classes_'] = self.classes_
-            params['groups_'] = self.groups_
-            params['iter_'] = self.iter_
-        except:
-            pass
-        if deep:
-            temp = self.state_dict()
-            for key in temp:
-                temp[key] = temp[key].to('cpu')
-            params['model_state_dict'] = temp
-        return params
-
-
-    def set_params(self, reg_strength=None, z_dim=None, n_iter=None, lr=None,
-        batch_size=None, factor_reg=None, gp_params=None, classes_=None,
-        groups_=None, iter_=None, model_state_dict=None, **kwargs):
-        """Set the parameters of this estimator."""
-        if reg_strength is not None:
-            self.reg_strength = reg_strength
-        if z_dim is not None:
-            self.z_dim = z_dim
-        if n_iter is not None:
-            self.n_iter = n_iter
-        if lr is not None:
-            self.lr = lr
-        if batch_size is not None:
-            self.batch_size = batch_size
-        if factor_reg is not None:
-            self.factor_reg = factor_reg
-        if gp_params is not None:
-            self.gp_params = gp_params
-        if classes_ is not None:
-            self.classes_ = classes_
-        if groups_ is not None:
-            self.groups_ = groups_
-        if iter_ is not None:
-            self.iter_ = iter_
-        if model_state_dict is not None:
-            # n_freqs, n_rois
-            assert 'freq_factors' in model_state_dict, \
-                    f"'freq_factors' not in {list(model_state_dict.keys())}"
-            n_freqs = model_state_dict['freq_factors'].shape[-1]
-            assert 'roi_1_factors' in model_state_dict, \
-                    f"'roi_1_factors' not in {list(model_state_dict.keys())}"
-            n_rois = model_state_dict['roi_1_factors'].shape[-1]
-            self._initialize(n_freqs, n_rois)
-            for key in model_state_dict:
-                model_state_dict[key] = model_state_dict[key].to(self.device)
-            self.load_state_dict(model_state_dict)
-        return self
-
-
-    def save_state(self, fn):
-        """Save parameters for this estimator."""
-        params = self.get_params(deep=True)
-        params['__commit__'] = LPNE_COMMIT
-        params['__version__'] = LPNE_VERSION
-        np.save(fn, params)
-
-
-    def load_state(self, fn):
-        """Load and set the parameters for this estimator."""
-        self.set_params(**np.load(fn, allow_pickle=True).item())
 
 
     @torch.no_grad()
@@ -535,7 +345,7 @@ class CpSae(torch.nn.Module):
         Parameters
         ----------
         feature_num : int
-            Which factor to return. ``0 <= `factor_num` < self.z_dim``
+            Which factor to return. ``0 <= factor_num < self.z_dim``
 
         Returns
         -------
@@ -549,6 +359,36 @@ class CpSae(torch.nn.Module):
         volume = volume.detach().cpu().numpy() # [f,r,r]
         volume = squeeze_triangular_array(volume, dims=(1,2)) # [f,r(r+1)/2]
         return volume.T # [r(r+1)/2,f]
+
+
+    @torch.no_grad()
+    def get_params(self, deep=True):
+        """Get parameters for this estimator."""
+        super_params = super(CpSae, self).get_params(deep=deep)
+        params = {
+            'reg_strength': self.reg_strength,
+            'z_dim': self.z_dim,
+            'factor_reg': self.factor_reg,
+            'gp_params': self.gp_params,
+        }
+        params = {**super_params, **params}
+        return params
+
+
+    @torch.no_grad()
+    def set_params(self, reg_strength=None, z_dim=None, factor_reg=None,
+        gp_params=None, **kwargs):
+        """Set the parameters of this estimator."""
+        if reg_strength is not None:
+            self.reg_strength = reg_strength
+        if z_dim is not None:
+            self.z_dim = z_dim
+        if factor_reg is not None:
+            self.factor_reg = factor_reg
+        if gp_params is not None:
+            self.gp_params = gp_params
+        super(CpSae, self).set_params(**kwargs)
+        return self
 
 
 

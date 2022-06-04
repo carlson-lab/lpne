@@ -2,7 +2,7 @@
 Useful functions
 
 """
-__date__ = "July 2021 - January 2022"
+__date__ = "July 2021 - June 2022"
 
 
 import numpy as np
@@ -17,6 +17,7 @@ LFP_FN_SUFFIX = '_LFP.mat'
 CHANS_FN_SUFFIX = '_CHANS.mat'
 FEATURE_FN_SUFFIX = '.npy'
 LABEL_FN_SUFFIX = '.npy'
+DEFAULT_INVALID_LABEL = -1
 
 
 
@@ -214,7 +215,7 @@ def get_feature_label_filenames(feature_dir, label_dir):
     return feature_fns, label_fns
 
 
-def get_weights(labels, groups):
+def get_weights(labels, groups, invalid_label=DEFAULT_INVALID_LABEL):
     """
     Get weights inversely proportional to the label and group frequency.
 
@@ -229,6 +230,9 @@ def get_weights(labels, groups):
     groups : None or numpy.ndarray or torch.Tensor
         Group array
         Shape: [n]
+    invalid_label : int, optional
+        A label that should be exempted from this procedure. This label is
+        given a weight of 1.
 
     Returns
     -------
@@ -238,21 +242,27 @@ def get_weights(labels, groups):
     """
     if groups is not None:
         assert len(labels) == len(groups), f"{len(labels)} != {len(groups)}"
-    n = len(labels)
-    assert n > 0, f"len(labels) <= 0"
     if isinstance(labels, torch.Tensor):
         labels = labels.detach().cpu().numpy()
     if isinstance(groups, torch.Tensor):
         groups = groups.detach().cpu().numpy()
     ids = np.array(labels)
+    idx = np.argwhere( ids == invalid_label).flatten()
+    idx_comp = np.argwhere(ids != invalid_label).flatten()
+    n = len(idx_comp)
     if groups is not None:
         ids = ids + (np.max(labels)+1) * np.array(groups)
-    unique_ids = np.unique(ids)
-    id_counts = [len(np.argwhere(ids==id).flatten()) for id in unique_ids]
+    ids_subset = ids[idx_comp]
+    unique_ids = np.unique(ids_subset)
+    id_counts = [ \
+            len(np.argwhere(ids_subset==t_id).flatten()) \
+            for t_id in unique_ids \
+    ]
     id_weights = n / (len(unique_ids) * np.array(id_counts))
-    weights = np.zeros(len(labels))
+    weights = np.ones(len(labels))
     for id, weight in zip(unique_ids, id_weights):
         weights[np.argwhere(ids==id).flatten()] = weight
+    weights[idx] = 1.0
     return weights
 
 

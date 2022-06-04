@@ -27,7 +27,7 @@ The subdirectories `Data` and `CHANS` are inputs to this pipeline and the
 subdirectory `features` is the output.
 
 """
-__date__ = "July 2021 - May 2022"
+__date__ = "July 2021 - June 2022"
 
 
 import os
@@ -76,14 +76,19 @@ if __name__ == '__main__':
         # Load the LFPs.
         lfps = lpne.load_lfps(lfp_fns[file_num])
 
-        # Filter the LFPs.
-        lfps = lpne.filter_lfps(lfps, FS, lowcut=LOWCUT, highcut=HIGHCUT)
-
         # Remove the bad channels marked in the CHANS file.
         lfps = lpne.remove_channels_from_lfps(lfps, chans_fns[file_num])
 
+        # Filter the LFPs.
+        lfps = lpne.filter_lfps(lfps, FS, lowcut=LOWCUT, highcut=HIGHCUT)
+
         # Mark outliers with NaNs.
-        lfps = lpne.mark_outliers(lfps, FS, OUTLIER_LOWCUT, HIGHCUT)
+        lfps = lpne.mark_outliers(
+                lfps,
+                FS,
+                lowcut=OUTLIER_LOWCUT,
+                highcut=HIGHCUT,
+        )
 
         # Get the default channel grouping.
         channel_map = lpne.get_default_channel_map(list(lfps.keys()))
@@ -103,7 +108,6 @@ if __name__ == '__main__':
         fn = os.path.split(lfp_fns[file_num])[-1][:-len(LFP_SUFFIX)] + '.npy'
         fn = os.path.join(feature_dir, fn)
         lpne.save_features(features, fn)
-
 
         # Make some plots.
         if file_num == 0:

@@ -3,7 +3,7 @@ A simple grid search cross validation model.
 
 TO DO
 -----
-* make compatible with FaSae
+* make compatible with BaseModel
 """
 __date__ = "December 2021 - March 2022"
 
@@ -38,7 +38,7 @@ class GridSearchCV:
         """
         Fit the model to data.
 
-        These parameters are passed to ``CpSae.fit``.
+        These parameters are passed to ``BaseModel.fit``.
 
         Parameters
         ----------
