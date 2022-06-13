@@ -34,7 +34,7 @@ from lpne.models import FaSae, CpSae
 USAGE = "Usage:\n$ python prediction_pipeline.py <experiment_directory>"
 FEATURE_SUBDIR = 'features'
 LABEL_SUBDIR = 'labels'
-CP_SAE = True
+CP_SAE = False
 TENSORBOARD = False
 
 
@@ -88,14 +88,12 @@ if __name__ == '__main__':
     else:
         model = FaSae(n_iter=50)
 
+    # Make fake groups.
+    groups = np.random.randint(0,2,len(labels))
+
     # Fit the model.
     print("Training model...")
-    if CP_SAE:
-        # Make fake groups.
-        groups = np.random.randint(0,2,len(labels))
-        model.fit(features[train_idx], labels[train_idx], groups[train_idx], print_freq=5)
-    else:
-        model.fit(features[train_idx], labels[train_idx], print_freq=5)
+    model.fit(features[train_idx], labels[train_idx], groups[train_idx], print_freq=5)
     print("Done training.\n")
 
     # Plot factor.

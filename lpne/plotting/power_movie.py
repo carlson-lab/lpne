@@ -2,13 +2,17 @@
 Plot power in a movie.
 
 """
-__date__ = "August 2021 - January 2022"
+__date__ = "August 2021 - June 2022"
 
 
 import numpy as np
 import matplotlib.pyplot as plt
-from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
-from moviepy.video.io.bindings import mplfig_to_npimage
+try:
+    from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
+    from moviepy.video.io.bindings import mplfig_to_npimage
+    MOVIEPY_INSTALLED = True
+except ModuleNotFoundError:
+    MOVIEPY_INSTALLED = False
 from tqdm import tqdm
 
 import lpne
@@ -41,6 +45,7 @@ def make_power_movie(lfps, duration, window_duration, fs=1000, feature='power',
     fn : str, optional
         Movie filename
     """
+    assert MOVIEPY_INSTALLED, "moviepy needs to be installed!"
     assert feature in ['power', 'dir_spec'], f"{feature} not valid!"
     # Get the features.
     movie_duration = duration / speed_factor

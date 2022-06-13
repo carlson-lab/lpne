@@ -19,23 +19,24 @@ Then see `docs/build/html/index.html` for the docs.
 
 #### Dependencies
 * [Python3](https://www.python.org/)
-* [MoviePy](https://github.com/Zulko/moviepy)
-* [PyTorch](https://pytorch.org)
+* [PyTorch](https://pytorch.org) 1.10+
+* [MoviePy](https://github.com/Zulko/moviepy) (optional)
 * [TensorBoard](https://github.com/tensorflow/tensorboard) (optional)
 
 
 ### TO DO
-6. consolidate plot_factor.py and plot_power.py
 7. add docstrings for channel maps
 9. Add a Tucker decomposition model
 10. PoE?
 12. Manually remove regions from LFPs
 21. Make some pre-zipped features and labels
 23. Model factor movie
-26. Add random seeds
+26. Add random seeds?
 28. Save label names with labels?
 29. Plot multiple factors
 31. Movie app
 32. `from joblib import Parallel, delayed`
 33. PCGM for tensor models
 34. mouse-specific intercepts
+35. GP priors for `FaSae`
+36. SMC for sampling label sequence posterior
