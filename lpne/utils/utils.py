@@ -5,6 +5,7 @@ Useful functions
 __date__ = "July 2021 - June 2022"
 
 
+from feature_pipeline import WINDOW_DURATION
 import numpy as np
 import os
 import torch
@@ -331,6 +332,55 @@ def squeeze_triangular_array(arr, dims=(0,1)):
     dim_list = dim_list[:dims[0]] + [-1] + dim_list[dims[0]:-1]
     new_arr = np.transpose(new_arr, dim_list)
     return new_arr
+
+
+def get_outlier_summary(lfps, fs, window_duration, top_n=6):
+    """
+    Return a message summarizing the outliers found
+    
+    Parameters
+    ----------
+    lfps : 
+    fs : int
+        Samplerate
+    window_duration : float
+        LFP window duration, in seconds
+    top_n : int, optional
+        Show stats for this many channels
+
+    Returns
+    -------
+    message : str
+        A description of the outliers found.
+    """
+    rois = sorted(list(lfps.keys()))
+    roi_counts = np.zeros(len(rois), dtype=int)
+    window_samples = int(fs * window_duration)
+    n_windows = len(lfps[rois[0]]) // window_samples
+    window_count = 0
+    # Collect the number of windows each window is implicated in.
+    for i in range(n_windows):
+        flag = False
+        i1 = int(fs * i * window_duration)
+        i2 = i1 + window_samples
+        for j, roi in enumerate(rois):
+            if np.isnan(lfps[roi][i1:i2]).sum() > 0:
+                roi_counts[j] += 1
+                flag = True
+        if flag:
+            window_count += 1
+    # Make the message.
+    msg = f"{window_count} of {n_windows} windows contain outliers " \
+          f"({100*window_count/n_windows:.2f}%)\n" \
+          f"Top offending channels:\n"
+    sorted_counts = np.sort(-roi_counts)
+    sorted_rois = np.array(rois)[np.argsort(-roi_counts)]
+    for i in range(min(len(rois), top_n)):
+        roi = sorted_rois[i]
+        numerator = -sorted_counts[i]
+        percent = 100 * numerator / n_windows
+        msg += f"  {i+1}) {roi}: {numerator}/{n_windows} ({percent:.2f}%)\n"
+    return msg
 
 
 

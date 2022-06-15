@@ -90,6 +90,9 @@ if __name__ == '__main__':
                 highcut=HIGHCUT,
         )
 
+        # Print outlier summary.
+        print(lpne.get_outlier_summary(lfps, FS, WINDOW_DURATION))
+
         # Get the default channel grouping.
         channel_map = lpne.get_default_channel_map(list(lfps.keys()))
 
@@ -131,7 +134,7 @@ if __name__ == '__main__':
             lpne.plot_lfps(
                     lfps,
                     t1=0.0,
-                    t2=5.0,
+                    t2=20.0,
                     fs=FS,
                     window_duration=WINDOW_DURATION,
                     fn='example_lfps.pdf',

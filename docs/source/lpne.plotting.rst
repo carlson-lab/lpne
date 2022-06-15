@@ -9,10 +9,10 @@ lpne.plotting package
 Submodules
 ----------
 
-lpne.plotting.lfp_plots module
+lpne.plotting.plot_lfps module
 ------------------------------
 
-.. automodule:: lpne.plotting.lfp_plots
+.. automodule:: lpne.plotting.plot_lfps
     :members:
     :undoc-members:
     :show-inheritance:

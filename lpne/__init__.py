@@ -58,7 +58,8 @@ from .utils.utils import \
         get_feature_label_filenames, \
         get_weights, \
         unsqueeze_triangular_array, \
-        squeeze_triangular_array
+        squeeze_triangular_array, \
+        get_outlier_summary
 
 from .utils.viterbi import top_k_viterbi, get_label_stats
 
