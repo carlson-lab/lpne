@@ -88,7 +88,7 @@ def plot_lfps(lfps, rois=None, t1=0.0, t2=None, fs=1000, y_space=4.0,
             while i + window_samp <= i2:
                 if nan_bar[i-i1:i-i1+window_samp].sum() > 0:
                     plt.plot(
-                            [t_vals[i], t_vals[i+window_samp]],
+                            [t_vals[i-i1], t_vals[i-i1+window_samp]],
                             temp_y,
                             c='k',
                             solid_capstyle='butt',
