@@ -48,13 +48,14 @@ def make_power_movie(lfps, duration, window_duration, fs=1000, feature='power',
     assert MOVIEPY_INSTALLED, "moviepy needs to be installed!"
     assert feature in ['power', 'dir_spec'], f"{feature} not valid!"
     # Get the features.
-    movie_duration = duration / speed_factor
     window_step = speed_factor / fps
+    max_n_windows = int((duration - window_duration) / window_step)
     res = lpne.make_features(
             lfps,
             fs=fs,
             window_duration=window_duration,
             window_step=window_step,
+            max_n_windows=max_n_windows,
             directed_spectrum=(feature == 'dir_spec'),
     )
     # Set up the plot.

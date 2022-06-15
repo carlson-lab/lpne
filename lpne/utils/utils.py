@@ -5,7 +5,6 @@ Useful functions
 __date__ = "July 2021 - June 2022"
 
 
-from feature_pipeline import WINDOW_DURATION
 import numpy as np
 import os
 import torch

@@ -4,6 +4,10 @@ Code for preprocessing and building models with local field potentials.
 
 See `feature_pipeline.py` and `prediction_pipeline.py` for usage.
 
+<p align="center">
+<img align="middle" src="example_cpsd.gif" width="320" height="320" />
+</p>
+
 #### Installation
 
 ```bash

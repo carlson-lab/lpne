@@ -12,3 +12,5 @@ logs
 *.egg-info
 build
 *.pyc
+*.gif
+!example_cpsd.gif
