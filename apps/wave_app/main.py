@@ -17,7 +17,6 @@ DEFAULT_LFP_DIR = '/Users/jack/Desktop/lpne/test_data/Data/'
 DEFAULT_CHANNEL = "Hipp_D_L_02"
 DEFAULT_FS = 1000
 
-# lfps = lpne.load_lfps(lfp_fn)
 
 
 def wave_app(doc):

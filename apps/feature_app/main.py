@@ -9,8 +9,7 @@ from bokeh.layouts import column, row
 from bokeh.models import Button, CheckboxGroup, ColumnDataSource, Select, \
         Panel, PreText, Slider, Tabs, TextInput, MultiSelect, DataTable, \
         TableColumn
-from bokeh.models.callbacks import CustomJS
-from bokeh.plotting import figure, curdoc
+from bokeh.plotting import curdoc
 import numpy as np
 from itertools import repeat
 import os
@@ -298,6 +297,15 @@ def feature_app(doc):
             
             # Mark outliers with NaNs.
             lfps = lpne.mark_outliers(lfps, int(fs_input.value))
+
+            # Print outlier summary.
+            msg = lpne.get_outlier_summary(
+                    lfps,
+                    int(fs_input.value),
+                    window_duration,
+            )
+            print(lfp_fns[file_num])
+            print(msg)
 
             # Get the default channel grouping.
             if default_channel_map:

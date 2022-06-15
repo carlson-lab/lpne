@@ -11,7 +11,6 @@ __date__ = "September - October 2021"
 from bokeh.layouts import column, row
 from bokeh.models import Button, CheckboxGroup, ColumnDataSource, MultiSelect, \
         Panel, PreText, Slider, Tabs, TextInput
-from bokeh.models.callbacks import CustomJS
 from bokeh.plotting import figure, curdoc
 from matplotlib.colors import to_hex
 import numpy as np

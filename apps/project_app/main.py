@@ -6,7 +6,7 @@ Add a plot of predictions?
 __date__ = "January - February 2022"
 
 from bokeh.plotting import curdoc
-from bokeh.layouts import column, row
+from bokeh.layouts import column
 from bokeh.models import Button, PreText, TextInput, MultiSelect, \
         RadioButtonGroup, CheckboxGroup, Tabs, Panel
 import numpy as np
