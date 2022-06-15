@@ -53,9 +53,9 @@ def plot_lfps(lfps, rois=None, t1=0.0, t2=None, fs=1000, y_space=4.0,
     i1 = int(fs * t1)
     if t2 is None:
         i2 = len(lfps[list(lfps.keys())[0]])
-        t2 = fs * i2
     else:
         i2 = min(int(fs * t2), len(lfps[rois[0]]))
+    t2 = i2 / fs
     t_vals = np.linspace(t1, t2, i2-i1)
     # Plot.
     lfp_num = 0
