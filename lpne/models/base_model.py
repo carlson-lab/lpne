@@ -67,17 +67,24 @@ class BaseModel(torch.nn.Module):
         Parameters
         ----------
         features : numpy.ndarray
+            Shape: [b,f,r,r]
         labels : numpy.ndarray
+            Shape: [b]
         groups : None or numpy.ndarray
+            Shape: [b]
         print_freq : None or int, optional
         score_freq : None or int, optional
 
         Returns
         -------
         self : BaseModel
+            The fitted model
         """
         # Check arguments.
-        pass
+        assert features.ndim == 4
+        assert labels.ndim == 1
+        assert groups.ndim == 1
+        assert len(features) == len(labels) and len(labels) == len(groups)
         # Remove missing data.
         axes = tuple(i for i in range(1,features.ndim))
         idx = np.argwhere(np.isnan(features).sum(axis=axes) == 0).flatten()
@@ -96,9 +103,9 @@ class BaseModel(torch.nn.Module):
         assert len(self.classes_) > 1
         if groups is None:
             groups = np.zeros(len(features))
+        np_groups = np.copy(groups)
         self.groups_, groups = np.unique(groups, return_inverse=True)
         np_labels = np.copy(labels)
-        np_groups = np.copy(groups)
         # Initialize the parameters.
         self._initialize(features.shape)
         # NumPy arrays to PyTorch tensors.

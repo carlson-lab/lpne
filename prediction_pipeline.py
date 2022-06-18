@@ -34,7 +34,7 @@ from lpne.models import FaSae, CpSae
 USAGE = "Usage:\n$ python prediction_pipeline.py <experiment_directory>"
 FEATURE_SUBDIR = 'features'
 LABEL_SUBDIR = 'labels'
-CP_SAE = False
+CP_SAE = True
 TENSORBOARD = False
 
 
@@ -61,10 +61,6 @@ if __name__ == '__main__':
     features, labels, rois = \
             lpne.load_features_and_labels(feature_fns, label_fns)
 
-    if CP_SAE:
-        features = lpne.unsqueeze_triangular_array(features, 1)
-
-
     # Define a test/train split.
     idx = int(round(0.7 * len(features)))
     train_idx = np.arange(idx)
@@ -74,19 +70,17 @@ if __name__ == '__main__':
         'test': test_idx,
     }
 
-    # Normalize the power features.
+    # Normalize and reshape the power features.
     features = lpne.normalize_features(features, partition)
-    if CP_SAE:
-        features = np.transpose(features, [0,3,1,2])
-    if not CP_SAE:
-        features = features.reshape(len(features), -1)
+    features = lpne.unsqueeze_triangular_array(features, 1)
+    features = np.transpose(features, [0,3,1,2])
 
     # Make the model.
     if CP_SAE:
         log_dir = 'logs/' if TENSORBOARD else None
         model = CpSae(n_iter=50, log_dir=log_dir)
     else:
-        model = FaSae(n_iter=50)
+        model = FaSae(n_iter=50, encoder_type='linear')
 
     # Make fake groups.
     groups = np.random.randint(0,2,len(labels))

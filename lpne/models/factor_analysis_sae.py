@@ -6,20 +6,28 @@ __date__ = "June 2021 - June 2022"
 
 
 import numpy as np
+from sklearn.utils.validation import check_is_fitted
 import torch
-from torch.distributions import Categorical, Normal, kl_divergence
+from torch.distributions import Categorical, Normal, MultivariateNormal, \
+    kl_divergence
 import torch.nn.functional as F
-import warnings
 
 from .base_model import BaseModel
 from .. import INVALID_LABEL
-from ..utils.utils import get_weights
+from ..utils.utils import get_weights, squeeze_triangular_array
 
 
 FLOAT = torch.float32
-INT = torch.int64
 EPSILON = 1e-6
-FIT_ATTRIBUTES = ['classes_']
+FIT_ATTRIBUTES = ['classes_', 'iter_', 'n_freqs_', 'n_rois_']
+DEFAULT_GP_PARAMS = {
+    'mean': -3,
+    'ls': 5.0,
+    'obs_noise_var': 1e-1,
+    'reg': 2e-6,
+    'mode': 'ou',
+}
+"""Default frequency factor GP parameters"""
 
 
 
@@ -28,9 +36,9 @@ class FaSae(BaseModel):
     MODEL_NAME = 'FA SAE'
 
 
-    def __init__(self, reg_strength=1.0, z_dim=32, weight_reg=0.0,
-        nonnegative=True, variational=False, kl_factor=1.0,
-        encoder_type='linear', **kwargs):
+    def __init__(self, reg_strength=1.0, z_dim=32, nonnegative=True,
+        variational=False, kl_factor=1.0, encoder_type='lstsq',
+        gp_params=DEFAULT_GP_PARAMS, **kwargs):
         """
         A supervised autoencoder with nonnegative and variational options.
 
@@ -41,8 +49,6 @@ class FaSae(BaseModel):
             be positive, and larger values indicate more regularization.
         z_dim : int, optional
             Latent dimension/number of networks.
-        weight_reg : float, optional
-            Model L2 weight regularization.
         nonnegative : bool, optional
             Use nonnegative factorization.
         variational : bool, optional
@@ -57,6 +63,18 @@ class FaSae(BaseModel):
             One of ``'linear'`` or ``'lstsq'``. The least squares encoder is
             only supported when ``variational`` is ``False`` and
             ``nonnegative`` is ``True``.
+        gp_params : dict, optional
+            Maps the frequency component GP prior parameter names to values.
+            mean : float, optional
+                Mean value
+            ls : float, optional
+                Lengthscale, in units of frequency bins
+            obs_noise_var : float, optional
+                Observation noise variances
+            reg : float, optional
+                Regularization strength
+            mode : {``'ou'``, ``'se'``}, optional
+                Denotes Ornstein-Uhlenbeck or squared exponential kernels
         """
         super(FaSae, self).__init__(**kwargs)
         assert kl_factor >= 0.0, f"{kl_factor} < 0"
@@ -67,9 +85,6 @@ class FaSae(BaseModel):
         assert isinstance(z_dim, int)
         assert z_dim >= 1
         self.z_dim = z_dim
-        assert isinstance(weight_reg, (int, float))
-        assert weight_reg >= 0.0
-        self.weight_reg = float(weight_reg)
         assert isinstance(nonnegative, bool)
         self.nonnegative = nonnegative
         assert isinstance(variational, bool)
@@ -78,24 +93,36 @@ class FaSae(BaseModel):
         assert kl_factor >= 0.0
         self.kl_factor = float(kl_factor)  
         assert encoder_type in ['linear', 'lstsq']
-        self.encoder_type = encoder_type      
+        self.encoder_type = encoder_type
+        self.gp_params = {**DEFAULT_GP_PARAMS, **gp_params}    
         self.classes_ = None
 
 
     def _initialize(self, feature_shape):
         """Initialize parameters of the networks before training."""
-        _, n_features = feature_shape
+        _, self.n_freqs_, self.n_rois_, _ = feature_shape
+        n_freqs = self.n_freqs_
+        n_features = self.n_freqs_ * self.n_rois_**2
         # Check arguments.
         n_classes = len(self.classes_)
         assert n_classes <= self.z_dim, f"{n_classes} > {self.z_dim}"
-        if self.nonnegative and self.weight_reg > 0.0:
-            self.weight_reg = 0.0
-            warnings.warn(
-                    f"Weight regularization should be 0.0 "
-                    f"for nonnegative factorization"
-            )
         assert not (self.encoder_type == 'solve' and self.variational)
         assert not (self.encoder_type == 'solve' and not self.nonnegative)
+        # Set up the frequency factor GP.
+        kernel = torch.arange(n_freqs).unsqueeze(0)
+        kernel = torch.abs(kernel - torch.arange(n_freqs).unsqueeze(1))
+        if self.gp_params['mode'] == 'se':
+            kernel = 2**(-1/2) * torch.pow(kernel / self.gp_params['ls'], 2)
+        elif self.gp_params['mode'] == 'ou':
+            kernel = torch.abs(kernel / self.gp_params['ls'])
+        else:
+            raise NotImplementedError(self.gp_params['mode'])
+        kernel = torch.exp(-kernel)
+        kernel = kernel + self.gp_params['obs_noise_var'] * torch.eye(n_freqs)
+        self.gp_dist = MultivariateNormal(
+                self.gp_params['mean'] * torch.ones(n_freqs).to(self.device),
+                covariance_matrix=kernel.to(self.device),
+        )
         # Make the networks.
         self.recognition_model = torch.nn.Linear(n_features, self.z_dim)
         self.rec_model_1 = torch.nn.Linear(n_features, self.z_dim)
@@ -104,7 +131,9 @@ class FaSae(BaseModel):
         prior_mean = torch.zeros(self.z_dim).to(self.device)
         prior_std = torch.ones(self.z_dim).to(self.device)
         self.prior = Normal(prior_mean, prior_std)
-        self.model = torch.nn.Linear(self.z_dim, n_features)
+        self.model = torch.nn.Parameter(
+                torch.nn.Linear(self.z_dim, n_features).weight.clone(),
+        ) # [x,z]
         self.factor_reg = torch.nn.Parameter(
             torch.zeros(self.z_dim),
         ) # [z]
@@ -125,7 +154,7 @@ class FaSae(BaseModel):
         Parameters
         ----------
         features : torch.Tensor
-            Shape: [batch,n_features]
+            Shape: [batch,f,r,r]
         labels : torch.Tensor
             Shape: [batch]
         groups : None or torch.Tensor
@@ -141,33 +170,44 @@ class FaSae(BaseModel):
         if labels is not None:
                 unlabeled_mask = torch.isinf(1/(labels - INVALID_LABEL))
                 labels[unlabeled_mask] = 0
-
+        
         # Get latents.
+        features = features.view(len(features),-1) # [b,f,r,r] -> [b,x]
         zs, kld = self.get_latents(features) # [b,z], [b]
+        
         # Reconstruct the features.
         if self.nonnegative:
-            A = F.softplus(self.model.weight)
-            features_rec = A.unsqueeze(0) @ F.softplus(zs).unsqueeze(-1)
-            features_rec = features_rec.squeeze(-1)
+            A = F.softplus(self.model) # [x,z]
         else:
-            A = self.model.weight
-            features_rec = self.model(zs)
+            A = self.model # [x,z]
+        A_norm = torch.sqrt(torch.pow(A,2).sum(dim=0, keepdim=True))
+        A = A / A_norm
+        features_rec = A.unsqueeze(0) @ F.softplus(zs).unsqueeze(-1)
+        features_rec = features_rec.squeeze(-1) # [b,x]
+        
         # Calculate a reconstruction loss.
         rec_loss = torch.mean((features - features_rec).pow(2), dim=1) # [b]
         rec_loss = self.reg_strength * rec_loss
+        
         # Predict the labels.
         logits = zs[:,:self.n_classes] * F.softplus(self.logit_weights)
         logits = logits + self.logit_biases # [b,c]
         log_probs = Categorical(logits=logits).log_prob(labels) # [b]
         log_probs = weights * log_probs # [b]
         log_probs[unlabeled_mask] = 0.0 # disregard the unlabeled data
-        # Regularize the model weights.
-        l2_loss = self.weight_reg * torch.norm(A)
+
+        # Calculate the GP loss.
+        freq_f = A.view(self.n_freqs_, self.n_rois_, self.n_rois_, self.z_dim)
+        freq_norm = torch.sqrt(torch.pow(freq_f,2).sum(dim=0, keepdim=True))
+        freq_f = freq_f / freq_norm
+        gp_loss = -self.gp_dist.log_prob(torch.swapaxes(freq_f,0,-1)).sum()
+        gp_loss = self.gp_params['reg'] * gp_loss
+        
         # Combine all the terms into a composite loss.
         loss = rec_loss - log_probs
         if self.variational:
             loss = loss + self.kl_factor * kld
-        loss = torch.mean(loss) + l2_loss
+        loss = loss.sum() + gp_loss
         return loss
 
 
@@ -188,6 +228,7 @@ class FaSae(BaseModel):
         kld : torch.Tensor
             Shape: [b]
         """
+        assert features.ndim == 2, f"len({features.shape}) != 2"
         if self.variational:
             # Variational autoencoder
             # Feed through the recognition network to get latents.
@@ -211,22 +252,24 @@ class FaSae(BaseModel):
                 latents = self.recognition_model(features) # [b,z]
             elif self.encoder_type == 'lstsq':
                 # Solve the least squares problem and rectify to get latents.
-                factors = F.softplus(self.model.weight) # [x,z]
+                A = F.softplus(self.model) # [x,z]
+                A_norm = torch.sqrt(torch.pow(A,2).sum(dim=0, keepdim=True))
+                A = A / A_norm
                 factor_reg = torch.diag_embed(F.softplus(self.factor_reg))
-                factors = torch.cat([factors, factor_reg], dim=0) # [x+z,z]
+                A = torch.cat([A, factor_reg], dim=0) # [x+z,z]
                 pad = self.factor_reg_target.unsqueeze(0) # [1,z]
                 pad = pad.expand(len(features),-1) # [b,z]
                 target = torch.cat([features, pad], dim=1) # [b,x+z]
-                if False:
+                if True:
                     """https://github.com/pytorch/pytorch/issues/27036"""
                     latents = torch.linalg.lstsq(
-                            factors.unsqueeze(0),
+                            A.unsqueeze(0),
                             target.unsqueeze(-1),
                     ).solution.squeeze(-1) # [b,z]
                 else:
                     ls = LeastSquares()
                     latents = ls.lstq(
-                            factors.unsqueeze(0),
+                            A.unsqueeze(0),
                             target.unsqueeze(-1),
                             1e-2,
                     ).squeeze(-1)
@@ -246,7 +289,7 @@ class FaSae(BaseModel):
         Parameters
         ----------
         features : torch.Tensor
-            Shape: [batch, n_features]
+            Shape: [batch,f,r,r]
         to_numpy : bool, optional
         stochastic : bool, optional
 
@@ -255,8 +298,10 @@ class FaSae(BaseModel):
         probs : numpy.ndarray or torch.Tensor
             Shape: [batch, n_classes]
         """
+        check_is_fitted(self, attributes=FIT_ATTRIBUTES)
         # Get latents.
-        zs, _ = self.get_latents(features, stochastic=stochastic)
+        b = len(features)
+        zs, _ = self.get_latents(features.view(b,-1), stochastic=stochastic)
         # Get class predictions.
         logits = zs[:,:self.n_classes] * F.softplus(self.logit_weights)
         logits = logits + self.logit_biases # [b,c]
@@ -267,7 +312,7 @@ class FaSae(BaseModel):
 
 
     @torch.no_grad()
-    def predict(self, X):
+    def predict(self, X, *args):
         """
         Predict class labels for the features.
 
@@ -282,6 +327,7 @@ class FaSae(BaseModel):
         predictions : numpy.ndarray
             Shape: ``[batch]``
         """
+        check_is_fitted(self, attributes=FIT_ATTRIBUTES)
         # Feed through model.
         if isinstance(X, np.ndarray):
             X = torch.tensor(X, dtype=FLOAT).to(self.device)
@@ -312,6 +358,7 @@ class FaSae(BaseModel):
         weighted_acc : float
             Weighted accuracy
         """
+        check_is_fitted(self, attributes=FIT_ATTRIBUTES)
         weights = get_weights(labels, groups, invalid_label=INVALID_LABEL)
         predictions = self.predict(features)
         scores = np.zeros(len(features))
@@ -329,14 +376,25 @@ class FaSae(BaseModel):
         Parameters
         ----------
         feature_num : int
-            Which factor to return. 0 <= `factor_num` < self.z_dim
+            Which factor to return. ``0 <= factor_num < self.z_dim``
+
+        Returns
+        -------
+        factor : numpy.ndarray
+            Shape: ``[r(r+1)/2,f]``
         """
+        check_is_fitted(self, attributes=FIT_ATTRIBUTES)
         assert isinstance(factor_num, int)
         assert factor_num >= 0 and factor_num < self.z_dim
-        A = self.model.weight[:,factor_num]
+        A = self.model[:,factor_num]
         if self.nonnegative:
             A = F.softplus(A)
-        return A.detach().cpu().numpy()
+        A_norm = torch.sqrt(torch.pow(A,2).sum(dim=0, keepdim=True))
+        A = A / A_norm
+        A = A.detach().cpu().numpy()
+        A = A.reshape(self.n_freqs_, self.n_rois_, self.n_rois_) # [f,r,r]
+        A = squeeze_triangular_array(A, dims=(1,2)) # [f,r(r+1)/2]
+        return A.T # [r(r+1)/2,f]
 
 
     def get_params(self, deep=True):
@@ -345,26 +403,24 @@ class FaSae(BaseModel):
         params = {
             'reg_strength': self.reg_strength,
             'z_dim': self.z_dim,
-            'weight_reg': self.weight_reg,
             'nonnegative': self.nonnegative,
             'variational': self.variational,
             'kl_factor': self.kl_factor,
             'encoder_type': self.encoder_type,
+            'gp_params': self.gp_params,
         }
         params = {**super_params, **params}
         return params
 
 
-    def set_params(self, reg_strength=None, z_dim=None, weight_reg=None,
-        nonnegative=None, variational=None, kl_factor=None,
-        encoder_type=None, **kwargs):
+    def set_params(self, reg_strength=None, z_dim=None, nonnegative=None,
+        variational=None, kl_factor=None, encoder_type=None, gp_params=None,
+        **kwargs):
         """Set the parameters of this estimator."""
         if reg_strength is not None:
             self.reg_strength = reg_strength
         if z_dim is not None:
             self.z_dim = z_dim
-        if weight_reg is not None:
-            self.weight_reg = weight_reg
         if nonnegative is not None:
             self.nonnegative = nonnegative
         if variational is not None:
@@ -373,6 +429,8 @@ class FaSae(BaseModel):
             self.kl_factor = kl_factor
         if encoder_type is not None:
             self.encoder_type = encoder_type
+        if gp_params is not None:
+            self.gp_params = {**DEFAULT_GP_PARAMS, **gp_params}
         super(FaSae, self).set_params(**kwargs)
         return self
 

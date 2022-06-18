@@ -23,7 +23,7 @@ Then see `docs/build/html/index.html` for the docs.
 
 #### Dependencies
 * [Python3](https://www.python.org/)
-* [PyTorch](https://pytorch.org) 1.10+
+* [PyTorch](https://pytorch.org) 1.11+
 * [MoviePy](https://github.com/Zulko/moviepy) (optional)
 * [TensorBoard](https://github.com/tensorflow/tensorboard) (optional)
 
@@ -42,5 +42,4 @@ Then see `docs/build/html/index.html` for the docs.
 32. `from joblib import Parallel, delayed`
 33. PCGM for tensor models
 34. mouse-specific intercepts
-35. GP priors for `FaSae`
 36. SMC for sampling label sequence posterior

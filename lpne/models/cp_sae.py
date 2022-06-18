@@ -18,13 +18,13 @@ from ..utils.utils import get_weights, squeeze_triangular_array
 
 FLOAT = torch.float32
 INT = torch.int64
-EPSILON = 1e-5
 FIT_ATTRIBUTES = ['classes_', 'groups_', 'iter_']
 DEFAULT_GP_PARAMS = {
     'mean': -3,
     'ls': 5.0,
     'obs_noise_var': 1e-1,
     'reg': 2e-6,
+    'mode': 'ou',
 }
 
 
@@ -53,7 +53,7 @@ class CpSae(BaseModel):
         super(CpSae, self).__init__(**kwargs)
         self.reg_strength = float(reg_strength)
         self.z_dim = z_dim
-        self.gp_params = gp_params
+        self.gp_params = {**DEFAULT_GP_PARAMS, **gp_params}
         self.factor_reg = float(factor_reg)
 
     
@@ -71,20 +71,26 @@ class CpSae(BaseModel):
         n_classes = len(self.classes_)
         # Make the recognition model.
         self.rec_model = torch.nn.Linear(n_freqs * n_rois**2, self.z_dim)
-        # Set up the GP kernel and make the frequency factors.
+        # Set up the frequency factor GP.
         kernel = torch.arange(n_freqs).unsqueeze(0)
         kernel = torch.abs(kernel - torch.arange(n_freqs).unsqueeze(1))
-        kernel = 2**(-1/2) * torch.pow(kernel / self.gp_params['ls'], 2)
+        if self.gp_params['mode'] == 'se':
+            kernel = 2**(-1/2) * torch.pow(kernel / self.gp_params['ls'], 2)
+        elif self.gp_params['mode'] == 'ou':
+            kernel = torch.abs(kernel / self.gp_params['ls'])
+        else:
+            raise NotImplementedError(self.gp_params['mode'])
         kernel = torch.exp(-kernel)
         kernel = kernel + self.gp_params['obs_noise_var'] * torch.eye(n_freqs)
         self.gp_dist = MultivariateNormal(
                 self.gp_params['mean'] * torch.ones(n_freqs).to(self.device),
                 covariance_matrix=kernel.to(self.device),
         )
+        # Make the frequency factors.
         freq_factors = self.gp_dist.sample(sample_shape=(self.z_dim,)) # [z,f]
         self.freq_factors = torch.nn.Parameter(
             freq_factors.unsqueeze(0).expand(n_groups,-1,-1).clone(),
-        )
+        ) # [1,z,f]
         # Make the ROI factors.
         roi_1_factors = -5 + torch.randn(1,self.z_dim,n_rois)
         self.roi_1_factors = torch.nn.Parameter(
@@ -115,8 +121,14 @@ class CpSae(BaseModel):
             Shape: ``[g,b,frr]`` if ``flatten``, ``[g,b,f,r,r]`` otherwise
         """
         freq_f = F.softplus(self.freq_factors) # [g,z,f]
+        freq_norm = torch.sqrt(torch.pow(freq_f,2).sum(dim=-1, keepdim=True))
+        freq_f = freq_f / freq_norm
         roi_1_f = F.softplus(self.roi_1_factors) # [g,z,r]
+        roi_1_norm = torch.sqrt(torch.pow(roi_1_f,2).sum(dim=-1, keepdim=True))
+        roi_1_f = roi_1_f / roi_1_norm
         roi_2_f = F.softplus(self.roi_2_factors) # [g,z,r]
+        roi_2_norm = torch.sqrt(torch.pow(roi_2_f,2).sum(dim=-1, keepdim=True))
+        roi_2_f = roi_2_f / roi_2_norm
         volume = torch.einsum(
                 'gzf,gzr,gzs->gzfrs',
                 freq_f,
@@ -191,7 +203,10 @@ class CpSae(BaseModel):
         log_probs[unlabeled_mask] = 0.0 # disregard the unlabeled data
 
         # Calculate the GP loss.
-        gp_loss = self.gp_dist.log_prob(self.freq_factors.mean(dim=0)).mean()
+        freq_f = F.softplus(self.freq_factors) # [g,z,f]
+        freq_norm = torch.sqrt(torch.pow(freq_f,2).sum(dim=-1, keepdim=True))
+        freq_f = freq_f / freq_norm
+        gp_loss = -self.gp_dist.log_prob(freq_f).sum()
         gp_loss = self.gp_params['reg'] * gp_loss
 
         # Combine all the terms into a composite loss.
@@ -243,6 +258,7 @@ class CpSae(BaseModel):
         probs : numpy.ndarray
             Shape: ``[batch, n_classes]``
         """
+        check_is_fitted(self, attributes=FIT_ATTRIBUTES)
         if isinstance(features, np.ndarray):
             features = torch.tensor(features, dtype=FLOAT)
         # Figure out group mapping.
@@ -251,8 +267,20 @@ class CpSae(BaseModel):
                 groups = groups.detach().cpu().numpy()
             # Figure out the group mapping.
             temp_groups = np.unique(groups)
-            setdiff = np.setdiff1d(temp_groups, self.groups_, assume_unique=True)
-            assert len(setdiff) == 0, f"Found unexpected groups: {setdiff}"
+
+
+            # HERE!
+            setdiff = np.setdiff1d(
+                    temp_groups,
+                    self.groups_,
+                    assume_unique=True,
+            )
+            assert len(setdiff) == 0, f"Found unexpected groups: {setdiff}" \
+                    f"Passed to predict: {temp_groups}" \
+                    f"Passed to fit: {self.groups_}" 
+    
+            # setdiff = np.setdiff1d(temp_groups, self.groups_, assume_unique=True)
+            # assert len(setdiff) == 0, f"Found unexpected groups: {setdiff}"
             new_groups = np.zeros_like(groups)
             group_list = self.groups_.tolist()
             for temp_group in temp_groups:
@@ -328,6 +356,7 @@ class CpSae(BaseModel):
         ------
         weighted_accuracy : float
         """
+        check_is_fitted(self, attributes=FIT_ATTRIBUTES)
         weights = get_weights(labels, groups, invalid_label=INVALID_LABEL)
         predictions = self.predict(features, groups)
         scores = np.zeros(len(features))
