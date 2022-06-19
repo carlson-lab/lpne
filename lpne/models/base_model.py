@@ -60,7 +60,7 @@ class BaseModel(torch.nn.Module):
         self.iter_ = 1
 
 
-    def fit(self, features, labels, groups=None, print_freq=100, score_freq=1):
+    def fit(self, features, labels, groups=None, print_freq=5, score_freq=5):
         """
         Train the model on the given dataset.
         
@@ -140,6 +140,7 @@ class BaseModel(torch.nn.Module):
                         np_labels[idx_comp],
                         np_groups[idx_comp],
                 )
+                print(f"iter {self.iter_:04d}, acc: {weighted_acc:3f}")
                 if self.log_dir is not None:
                     self.writer.add_scalar(
                             'weighted accuracy',

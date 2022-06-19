@@ -20,12 +20,13 @@ FLOAT = torch.float32
 INT = torch.int64
 FIT_ATTRIBUTES = ['classes_', 'groups_', 'iter_']
 DEFAULT_GP_PARAMS = {
-    'mean': -3,
-    'ls': 5.0,
-    'obs_noise_var': 1e-1,
-    'reg': 2e-6,
+    'mean': 0.0,
+    'ls': 0.2,
+    'obs_noise_var': 1e-3,
+    'reg': 0.1,
     'mode': 'ou',
 }
+"""Default frequency factor GP parameters"""
 
 
 
@@ -214,7 +215,7 @@ class CpSae(BaseModel):
         rec_loss = self.reg_strength * torch.mean(rec_loss) # []
         factor_loss = self.factor_reg * self._get_factor_loss() # []
         loss = label_loss + rec_loss + factor_loss + gp_loss
-        return loss #, label_loss, rec_loss, factor_loss
+        return loss
 
 
     def _get_factor_loss(self, eps=1e-7):
@@ -267,9 +268,6 @@ class CpSae(BaseModel):
                 groups = groups.detach().cpu().numpy()
             # Figure out the group mapping.
             temp_groups = np.unique(groups)
-
-
-            # HERE!
             setdiff = np.setdiff1d(
                     temp_groups,
                     self.groups_,
@@ -278,9 +276,6 @@ class CpSae(BaseModel):
             assert len(setdiff) == 0, f"Found unexpected groups: {setdiff}" \
                     f"Passed to predict: {temp_groups}" \
                     f"Passed to fit: {self.groups_}" 
-    
-            # setdiff = np.setdiff1d(temp_groups, self.groups_, assume_unique=True)
-            # assert len(setdiff) == 0, f"Found unexpected groups: {setdiff}"
             new_groups = np.zeros_like(groups)
             group_list = self.groups_.tolist()
             for temp_group in temp_groups:

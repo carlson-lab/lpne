@@ -21,10 +21,10 @@ FLOAT = torch.float32
 EPSILON = 1e-6
 FIT_ATTRIBUTES = ['classes_', 'iter_', 'n_freqs_', 'n_rois_']
 DEFAULT_GP_PARAMS = {
-    'mean': -3,
-    'ls': 5.0,
-    'obs_noise_var': 1e-1,
-    'reg': 2e-6,
+    'mean': 0.0,
+    'ls': 0.2,
+    'obs_noise_var': 1e-3,
+    'reg': 0.1,
     'mode': 'ou',
 }
 """Default frequency factor GP parameters"""
@@ -147,7 +147,8 @@ class FaSae(BaseModel):
         super(FaSae, self)._initialize()
 
 
-    def forward(self, features, labels, groups, weights):
+    def forward(self, features, labels, groups, weights, return_logits=False,
+        stochastic=True):
         """
         Calculate a loss for the features and labels.
 
@@ -161,11 +162,19 @@ class FaSae(BaseModel):
             Ignored
         weights : torch.Tensor
             Shape: [batch]
+        return_logits : bool, optional
+            Return only the logits.
+        stochastic : bool, optional
+            Whether to sample from the approximate posterior
 
         Returns
         -------
         loss : torch.Tensor
+            Returned if ``return_logits`` is ``False``.
             Shape: []
+        logits : torch.Tensor
+            Returned only if ``return_logits``.
+            Shape: [b,c]
         """
         if labels is not None:
                 unlabeled_mask = torch.isinf(1/(labels - INVALID_LABEL))
@@ -173,7 +182,16 @@ class FaSae(BaseModel):
         
         # Get latents.
         features = features.view(len(features),-1) # [b,f,r,r] -> [b,x]
-        zs, kld = self.get_latents(features) # [b,z], [b]
+        zs, kld = self.get_latents(features, stochastic=stochastic) # [b,z],[b]
+
+        # Predict the labels.
+        logits = zs[:,:self.n_classes] * F.softplus(self.logit_weights)
+        logits = logits + self.logit_biases # [b,c]
+        if return_logits:
+            return logits
+        log_probs = Categorical(logits=logits).log_prob(labels) # [b]
+        log_probs = weights * log_probs # [b]
+        log_probs[unlabeled_mask] = 0.0 # disregard the unlabeled data
         
         # Reconstruct the features.
         if self.nonnegative:
@@ -188,13 +206,6 @@ class FaSae(BaseModel):
         # Calculate a reconstruction loss.
         rec_loss = torch.mean((features - features_rec).pow(2), dim=1) # [b]
         rec_loss = self.reg_strength * rec_loss
-        
-        # Predict the labels.
-        logits = zs[:,:self.n_classes] * F.softplus(self.logit_weights)
-        logits = logits + self.logit_biases # [b,c]
-        log_probs = Categorical(logits=logits).log_prob(labels) # [b]
-        log_probs = weights * log_probs # [b]
-        log_probs[unlabeled_mask] = 0.0 # disregard the unlabeled data
 
         # Calculate the GP loss.
         freq_f = A.view(self.n_freqs_, self.n_rois_, self.n_rois_, self.z_dim)
@@ -289,22 +300,31 @@ class FaSae(BaseModel):
         Parameters
         ----------
         features : torch.Tensor
-            Shape: [batch,f,r,r]
+            Shape: [n,f,r,r]
         to_numpy : bool, optional
         stochastic : bool, optional
 
         Returns
         -------
         probs : numpy.ndarray or torch.Tensor
-            Shape: [batch, n_classes]
+            Shape: [n, n_classes]
         """
         check_is_fitted(self, attributes=FIT_ATTRIBUTES)
-        # Get latents.
-        b = len(features)
-        zs, _ = self.get_latents(features.view(b,-1), stochastic=stochastic)
-        # Get class predictions.
-        logits = zs[:,:self.n_classes] * F.softplus(self.logit_weights)
-        logits = logits + self.logit_biases # [b,c]
+        logits = []
+        i = 0
+        while i <= len(features):
+            batch_f = features[i:i+self.batch_size].to(self.device)
+            batch_logit = self(
+                batch_f,
+                None,
+                None,
+                None,
+                return_logits=True,
+                stochastic=stochastic,
+            )
+            logits.append(batch_logit)
+            i += self.batch_size
+        logits = torch.cat(logits, dim=0)
         probs = F.softmax(logits, dim=1) # [b,c]
         if to_numpy:
             return probs.cpu().numpy()

@@ -87,7 +87,13 @@ if __name__ == '__main__':
 
     # Fit the model.
     print("Training model...")
-    model.fit(features[train_idx], labels[train_idx], groups[train_idx], print_freq=5)
+    model.fit(
+            features[train_idx],
+            labels[train_idx],
+            groups[train_idx],
+            print_freq=5,
+            score_freq=5,
+    )
     print("Done training.\n")
 
     # Plot factor.
