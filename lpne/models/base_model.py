@@ -72,8 +72,10 @@ class BaseModel(torch.nn.Module):
             Shape: [b]
         groups : None or numpy.ndarray
             Shape: [b]
-        print_freq : None or int, optional
-        score_freq : None or int, optional
+        print_freq : int, optional
+            Print loss every ``print_freq`` epochs.
+        score_freq : int, optional
+            Print weighted accuracy every ``score_freq`` epochs.
 
         Returns
         -------

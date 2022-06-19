@@ -29,7 +29,6 @@ Then see `docs/build/html/index.html` for the docs.
 
 
 ### TO DO
-7. add docstrings for channel maps
 9. Add a Tucker decomposition model
 10. PoE?
 12. Manually remove regions from LFPs

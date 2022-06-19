@@ -410,7 +410,7 @@ class CpSae(BaseModel):
         if factor_reg is not None:
             self.factor_reg = factor_reg
         if gp_params is not None:
-            self.gp_params = gp_params
+            self.gp_params = {**DEFAULT_GP_PARAMS, **gp_params}
         super(CpSae, self).set_params(**kwargs)
         return self
 

@@ -37,7 +37,7 @@ class FaSae(BaseModel):
 
 
     def __init__(self, reg_strength=1.0, z_dim=32, nonnegative=True,
-        variational=False, kl_factor=1.0, encoder_type='lstsq',
+        variational=False, kl_factor=1.0, encoder_type='pinv',
         gp_params=DEFAULT_GP_PARAMS, **kwargs):
         """
         A supervised autoencoder with nonnegative and variational options.
@@ -60,9 +60,11 @@ class FaSae(BaseModel):
             independently set. This parameter is only used if `variational` is
             `True`.
         encoder_type : str, optional
-            One of ``'linear'`` or ``'lstsq'``. The least squares encoder is
-            only supported when ``variational`` is ``False`` and
-            ``nonnegative`` is ``True``.
+            One of ``'linear'``, ``'lstsq'``, or ``'pinv'``. The least squares
+            or pseudoinverse encoders are only supported when ``variational``
+            is ``False`` and ``nonnegative`` is ``True``. Depending on which
+            device you are using and the model dimensions, one of ``'lstsq'``
+            ans ``'pinv'`` may be substantially faster than the other.
         gp_params : dict, optional
             Maps the frequency component GP prior parameter names to values.
             mean : float, optional
@@ -92,7 +94,7 @@ class FaSae(BaseModel):
         assert isinstance(kl_factor, (int, float))
         assert kl_factor >= 0.0
         self.kl_factor = float(kl_factor)  
-        assert encoder_type in ['linear', 'lstsq']
+        assert encoder_type in ['linear', 'lstsq', 'pinv']
         self.encoder_type = encoder_type
         self.gp_params = {**DEFAULT_GP_PARAMS, **gp_params}    
         self.classes_ = None
@@ -261,7 +263,7 @@ class FaSae(BaseModel):
             if self.encoder_type == 'linear':
                 # Feed through the recognition network to get latents.
                 latents = self.recognition_model(features) # [b,z]
-            elif self.encoder_type == 'lstsq':
+            elif self.encoder_type in ['lstsq', 'pinv']:
                 # Solve the least squares problem and rectify to get latents.
                 A = F.softplus(self.model) # [x,z]
                 A_norm = torch.sqrt(torch.pow(A,2).sum(dim=0, keepdim=True))
@@ -271,19 +273,18 @@ class FaSae(BaseModel):
                 pad = self.factor_reg_target.unsqueeze(0) # [1,z]
                 pad = pad.expand(len(features),-1) # [b,z]
                 target = torch.cat([features, pad], dim=1) # [b,x+z]
-                if True:
-                    """https://github.com/pytorch/pytorch/issues/27036"""
+                if self.encoder_type == 'lstsq':
+                    # https://github.com/pytorch/pytorch/issues/27036
                     latents = torch.linalg.lstsq(
                             A.unsqueeze(0),
                             target.unsqueeze(-1),
                     ).solution.squeeze(-1) # [b,z]
                 else:
-                    ls = LeastSquares()
-                    latents = ls.lstq(
-                            A.unsqueeze(0),
-                            target.unsqueeze(-1),
-                            1e-2,
-                    ).squeeze(-1)
+                    # https://github.com/pytorch/pytorch/issues/41306
+                    # This may be much faster on GPU than linalg.lstsq.
+                    # Hopefully this will change in future releases.
+                    latents = (torch.linalg.pinv(A.unsqueeze(0)) \
+                               @ target.unsqueeze(-1)).squeeze(-1)
                 latents = torch.clamp(latents, min=0.0)
         return latents, kld
 
@@ -453,32 +454,6 @@ class FaSae(BaseModel):
             self.gp_params = {**DEFAULT_GP_PARAMS, **gp_params}
         super(FaSae, self).set_params(**kwargs)
         return self
-
-
-
-class LeastSquares:
-    """https://github.com/pytorch/pytorch/issues/27036"""
-
-    def __init__(self):
-        pass
-    
-    def lstq(self, A, Y, lamb=1e-2):
-        """
-        Differentiable least square
-        :param A: m x n
-        :param Y: n x 1
-        """
-        # Assuming A to be full column rank
-        cols = A.shape[-1]
-        if cols == torch.linalg.matrix_rank(A):
-            q, r = torch.linalg.qr(A)
-            x = torch.inverse(r) @ q.transpose(-1,-2) @ Y
-        else:
-            reg = lamb * torch.eye(cols).to(A.device).unsqueeze(0)
-            A_dash = A.permute(0,2,1) @ A + reg
-            Y_dash = A.permute(0,2,1) @ Y
-            x = self.lstq(A_dash, Y_dash)
-        return x
 
 
 

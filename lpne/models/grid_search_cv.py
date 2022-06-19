@@ -1,15 +1,18 @@
 """
 A simple grid search cross validation model.
 
-TO DO
------
-* make compatible with BaseModel
 """
-__date__ = "December 2021 - March 2022"
+__date__ = "December 2021 - June 2022"
 
 
+from itertools import product
 import numpy as np
 from sklearn.model_selection import StratifiedKFold
+from sklearn.utils.validation import check_is_fitted
+import torch
+
+
+FIT_ATTRIBUTES = ['best_estimator_', 'best_params_', 'best_score_']
 
 
 
@@ -21,7 +24,7 @@ class GridSearchCV:
 
         Parameters
         ----------
-        model : CpSae or FaSae
+        model : ``BaseModel``
             Model
         param_grid : dict
             Maps names of model parameters (strings) to lists of values. These
@@ -34,7 +37,7 @@ class GridSearchCV:
         self.cv = cv
 
 
-    def fit(self, features, labels, groups, print_freq=5):
+    def fit(self, features, labels, groups, print_freq=5, score_freq=5):
         """
         Fit the model to data.
 
@@ -46,14 +49,20 @@ class GridSearchCV:
             Shape: ``[b,f,r,r]``
         labels : numpy.ndarray
             Shape: ``[b]``
-        groups : numpy.ndarray
+        groups : None or numpy.ndarray
             Shape: ``[b]``
         print_freq : int, optional
             Print loss every ``print_freq`` epochs.
+        score_freq : int, optional
+            Print weighted accuracy every ``score_freq`` epochs.
         """
         # Split data into folds.
         skf = StratifiedKFold(n_splits=self.cv, shuffle=True)
-        skf_groups = 1000*groups + labels
+        if groups is None:
+            groups = np.zeros(len(features))
+        
+        skf_labels = labels - np.min(labels)
+        skf_groups = (np.max(skf_labels) + 1) * groups + skf_labels
 
         best_score = -np.inf
         best_params = None
@@ -74,22 +83,32 @@ class GridSearchCV:
                         labels[train_idx],
                         groups[train_idx],
                         print_freq=print_freq,
+                        score_freq=score_freq,
                 )
                 model_score = self.model.score(
                         features[test_idx],
                         labels[test_idx],
                         groups[test_idx],
                 )
-                print(f"Param {param_num} cv {cv_num} score {model_score}")
+                print(
+                    f"Param {param_num} cv {cv_num} score {model_score}",
+                    flush=True,
+                )
                 scores.append(model_score)
             model_score = np.mean(scores)
-            print(f"Param {param_num} score {model_score}")
+            print(f"Param {param_num} score {model_score}", flush=True)
             if model_score > best_score:
                 best_score = model_score
                 best_params = params
         # Retrain using the best found parameters.
         self.model.set_params(**best_params)
-        self.model.fit(features, labels, groups, print_freq=print_freq)
+        self.model.fit(
+                features,
+                labels,
+                groups,
+                print_freq=print_freq,
+                score_freq=score_freq,
+        )
         self.best_estimator_ = self.model
         self.best_params_ = best_params
         self.best_score_ = best_score
@@ -111,6 +130,7 @@ class GridSearchCV:
         predicted_labels : numpy.ndarray
             Shape: ``[b]``
         """
+        check_is_fitted(self, attributes=FIT_ATTRIBUTES)
         return self.best_estimator_.predict(features, groups)
 
 
@@ -132,7 +152,16 @@ class GridSearchCV:
         score : float
             Weighted accuracy
         """
+        check_is_fitted(self, attributes=FIT_ATTRIBUTES)
         return self.best_estimator_.score(features, labels, groups)
+
+
+    @torch.no_grad()
+    def save_state(self, fn):
+        """Save parameters for the best estimator."""
+        check_is_fitted(self, attributes=FIT_ATTRIBUTES)
+        params = self.best_estimator_.get_params(deep=True)
+        np.save(fn, params)
 
 
 

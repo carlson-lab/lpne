@@ -1,5 +1,5 @@
 """
-Channel maps are used to determine which channels to average together
+Channel maps are used to determine which channels to average together.
 
 """
 __date__ = "July 2021 - May 2022"
