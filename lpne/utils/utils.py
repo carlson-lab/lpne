@@ -7,9 +7,11 @@ __date__ = "July 2021 - June 2022"
 
 import numpy as np
 import os
+from sklearn.metrics import confusion_matrix as sk_confusion_matrix
 import torch
 import warnings
 
+from .. import INVALID_LABEL
 from .data import load_features, save_labels
 
 
@@ -17,7 +19,6 @@ LFP_FN_SUFFIX = '_LFP.mat'
 CHANS_FN_SUFFIX = '_CHANS.mat'
 FEATURE_FN_SUFFIX = '.npy'
 LABEL_FN_SUFFIX = '.npy'
-DEFAULT_INVALID_LABEL = -1
 
 
 
@@ -215,7 +216,7 @@ def get_feature_label_filenames(feature_dir, label_dir):
     return feature_fns, label_fns
 
 
-def get_weights(labels, groups, invalid_label=DEFAULT_INVALID_LABEL):
+def get_weights(labels, groups, invalid_label=INVALID_LABEL):
     """
     Get weights inversely proportional to the label and group frequency.
 
@@ -380,6 +381,33 @@ def get_outlier_summary(lfps, fs, window_duration, top_n=6):
         percent = 100 * numerator / n_windows
         msg += f"  {i+1}) {roi}: {numerator}/{n_windows} ({percent:.2f}%)\n"
     return msg
+
+
+def confusion_matrix(true_labels, pred_labels):
+    """
+    Return a confusion matrix with true labels on the rows.
+
+    This is a wrapper around ``sklearn.metrics.confusion_matrix`` that
+    disregards ``lpne.INVALID_LABEL``.
+    
+    Parameters
+    ----------
+    true_labels : numpy.ndarray
+        True labels
+        Shape: [n]
+    pred_labels : numpy.ndarray
+        Predicted labels
+        Shape: [n]
+
+    Returns
+    -------
+    confusion_matrix : numpy.ndarray
+        Shape: [c,c]
+    """
+    idx1 = np.argwhere(true_labels != INVALID_LABEL).flatten()
+    idx2 = np.argwhere(pred_labels != INVALID_LABEL).flatten()
+    idx = np.intersect1d(idx1, idx2)
+    return sk_confusion_matrix(true_labels[idx], pred_labels[idx])
 
 
 

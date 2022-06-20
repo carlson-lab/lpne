@@ -114,7 +114,7 @@ class GridSearchCV:
         self.best_score_ = best_score
 
 
-    def predict(self, features, groups):
+    def predict(self, features, groups, *args, **kwargs):
         """
         Predict labels using the best found estimator.
 
@@ -131,10 +131,10 @@ class GridSearchCV:
             Shape: ``[b]``
         """
         check_is_fitted(self, attributes=FIT_ATTRIBUTES)
-        return self.best_estimator_.predict(features, groups)
+        return self.best_estimator_.predict(features, groups, *args, **kwargs)
 
 
-    def score(self, features, labels, groups):
+    def score(self, features, labels, groups, *args, **kwargs):
         """
         Score the predictions using the best found estimator.
 
@@ -153,7 +153,13 @@ class GridSearchCV:
             Weighted accuracy
         """
         check_is_fitted(self, attributes=FIT_ATTRIBUTES)
-        return self.best_estimator_.score(features, labels, groups)
+        return self.best_estimator_.score(
+                features,
+                labels,
+                groups,
+                *args,
+                **kwargs,
+        )
 
 
     @torch.no_grad()

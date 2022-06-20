@@ -61,10 +61,13 @@ class FaSae(BaseModel):
             `True`.
         encoder_type : str, optional
             One of ``'linear'``, ``'lstsq'``, or ``'pinv'``. The least squares
-            or pseudoinverse encoders are only supported when ``variational``
-            is ``False`` and ``nonnegative`` is ``True``. Depending on which
-            device you are using and the model dimensions, one of ``'lstsq'``
-            ans ``'pinv'`` may be substantially faster than the other.
+            or pseudoinverse encoders are "encoderless" in the sense that they
+            only rely on the decoder parameters and Gaussian priors on the
+            latents to map data to latents. These options are only supported
+            when ``variational`` is ``False`` and ``nonnegative`` is ``True``.
+            Depending on which device you are using and the model dimensions,
+            one of ``'lstsq'`` and ``'pinv'`` may be substantially faster than
+            the other. However, ``'lstsq'`` will be more numerically stable.
         gp_params : dict, optional
             Maps the frequency component GP prior parameter names to values.
             mean : float, optional
@@ -290,7 +293,8 @@ class FaSae(BaseModel):
 
 
     @torch.no_grad()
-    def predict_proba(self, features, to_numpy=True, stochastic=False):
+    def predict_proba(self, features, to_numpy=True, stochastic=False,
+        **kwargs):
         """
         Probability estimates.
 
@@ -303,6 +307,7 @@ class FaSae(BaseModel):
         features : torch.Tensor
             Shape: [n,f,r,r]
         to_numpy : bool, optional
+            Whether to return a NumPy array or a Pytorch tensor
         stochastic : bool, optional
 
         Returns
@@ -333,7 +338,7 @@ class FaSae(BaseModel):
 
 
     @torch.no_grad()
-    def predict(self, X, *args):
+    def predict(self, X, *args, **kwargs):
         """
         Predict class labels for the features.
 
@@ -358,7 +363,7 @@ class FaSae(BaseModel):
 
 
     @torch.no_grad()
-    def score(self, features, labels, groups):
+    def score(self, features, labels, groups, *args, **kwargs):
         """
         Get a class-weighted accuracy.
 
@@ -385,7 +390,7 @@ class FaSae(BaseModel):
         scores = np.zeros(len(features))
         scores[predictions == labels] = 1.0
         scores = scores * weights
-        weighted_acc = np.mean(scores)
+        weighted_acc = np.mean(scores[labels != INVALID_LABEL])
         return weighted_acc
 
 

@@ -10,9 +10,10 @@ from sklearn.utils.validation import check_is_fitted
 import torch
 from torch.distributions import Categorical, MultivariateNormal
 import torch.nn.functional as F
+import warnings
 
 from .base_model import BaseModel
-from .. import INVALID_LABEL
+from .. import INVALID_LABEL, INVALID_GROUP
 from ..utils.utils import get_weights, squeeze_triangular_array
 
 
@@ -186,7 +187,9 @@ class CpSae(BaseModel):
         zs = zs.unsqueeze(1) # [b,1,z]
         flat_features = flat_features.unsqueeze(1) # [b,1,fr^2]
         H = self._get_H(flatten=True) # [g,z,fr^2]
-        group_oh = F.one_hot(groups, len(self.groups_)) # [b,g]
+        group_oh = F.one_hot(groups.clamp(0,None), len(self.groups_)) # [b,g]
+        group_oh = group_oh.to(FLOAT)
+        group_oh[groups == INVALID_GROUP] = 1 / len(self.groups_)
         group_oh = group_oh.unsqueeze(-1).unsqueeze(-1) # [b,g,1,1]
         H = (group_oh * H.unsqueeze(0)).sum(dim=1) # [b,g,z,fr^2] -> [b,z,fr^2]
         rec_features = (zs @ H).squeeze(1) # [b,1,z][b,z,fr^2] -> [b,fr^2]
@@ -236,7 +239,7 @@ class CpSae(BaseModel):
 
     @torch.no_grad()
     def predict_proba(self, features, groups=None, to_numpy=True,
-        return_logits=False):
+        return_logits=False, warn=True):
         """
         Get prediction probabilities for the given features.
 
@@ -251,8 +254,11 @@ class CpSae(BaseModel):
         groups : ``None`` or numpy.ndarray
             Shape: ``[b]``
         to_numpy : bool, optional
+            Whether to return a NumPy array or a Pytorch tensor
         return_logits : bool, optional
             Return unnormalized logits instead of probabilities.
+        warn : bool, optional
+            Whether to warn the user when there are unrecognized groups
 
         Returns
         -------
@@ -273,13 +279,21 @@ class CpSae(BaseModel):
                     self.groups_,
                     assume_unique=True,
             )
-            assert len(setdiff) == 0, f"Found unexpected groups: {setdiff}" \
-                    f"Passed to predict: {temp_groups}" \
-                    f"Passed to fit: {self.groups_}" 
+            # Warn the user if there are groups we didn't see in training.
+            if len(setdiff) != 0 and warn:
+                warnings.warn(
+                    f"Found unexpected groups: {setdiff}\n" \
+                    f"Passed to predict: {temp_groups}\n" \
+                    f"Passed to fit: {self.groups_}",
+                )
             new_groups = np.zeros_like(groups)
             group_list = self.groups_.tolist()
             for temp_group in temp_groups:
-                new_groups[groups == temp_group] = group_list.index(temp_group)
+                idx = groups == temp_group
+                if temp_group in group_list:
+                    new_groups[idx] = group_list.index(temp_group)
+                else:
+                    new_groups[idx] = INVALID_GROUP
             groups = new_groups
             # To PyTorch Tensors.
             if not isinstance(features, torch.Tensor):
@@ -304,7 +318,7 @@ class CpSae(BaseModel):
 
 
     @torch.no_grad()
-    def predict(self, features, groups=None):
+    def predict(self, features, groups=None, warn=True):
         """
         Predict class labels for the features.
 
@@ -314,6 +328,8 @@ class CpSae(BaseModel):
             Shape: ``[b,f,r,r]``
         groups : None or numpy.ndarray, optional
             Shape: ``[b]``
+        warn : bool, optional
+            Whether to warn the user when there are unrecognized groups.
 
         Returns
         -------
@@ -325,13 +341,13 @@ class CpSae(BaseModel):
         assert features.shape[2] == features.shape[3]
         check_is_fitted(self, attributes=FIT_ATTRIBUTES)
         # Feed through model.
-        probs = self.predict_proba(features, groups, to_numpy=True)
+        probs = self.predict_proba(features, groups, to_numpy=True, warn=warn)
         predictions = np.argmax(probs, axis=1)
         return self.classes_[predictions]
 
 
     @torch.no_grad()
-    def score(self, features, labels, groups=None):
+    def score(self, features, labels, groups=None, warn=True):
         """
         Get a class weighted accuracy.
 
@@ -346,6 +362,8 @@ class CpSae(BaseModel):
             Shape: ``[b]``
         groups : ``None`` or numpy.ndarray, optional
             Shape: ``[b]``
+        warn : bool, optional
+            Whether to warn the user when there are unrecognized groups.
 
         Return
         ------
@@ -353,11 +371,11 @@ class CpSae(BaseModel):
         """
         check_is_fitted(self, attributes=FIT_ATTRIBUTES)
         weights = get_weights(labels, groups, invalid_label=INVALID_LABEL)
-        predictions = self.predict(features, groups)
+        predictions = self.predict(features, groups, warn=warn)
         scores = np.zeros(len(features))
         scores[predictions == labels] = 1.0
         scores = scores * weights
-        weighted_accuracy = np.mean(scores)
+        weighted_accuracy = np.mean(scores[labels != INVALID_LABEL])
         return weighted_accuracy
 
 

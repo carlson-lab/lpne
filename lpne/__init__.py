@@ -13,6 +13,7 @@ except:
 	__commit__ = "unknown commit"
 
 INVALID_LABEL = -1
+INVALID_GROUP = -1
 
 from .models import FaSae, CpSae, GridSearchCV
 
