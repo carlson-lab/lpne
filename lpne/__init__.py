@@ -60,7 +60,8 @@ from .utils.utils import \
         get_weights, \
         unsqueeze_triangular_array, \
         squeeze_triangular_array, \
-        get_outlier_summary
+        get_outlier_summary, \
+        confusion_matrix
 
 from .utils.viterbi import top_k_viterbi, get_label_stats
 

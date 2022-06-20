@@ -25,7 +25,6 @@ Then see `docs/build/html/index.html` for the docs.
 * [Python3](https://www.python.org/)
 * [PyTorch](https://pytorch.org) 1.11+
 * [MoviePy](https://github.com/Zulko/moviepy) (optional)
-* [TensorBoard](https://github.com/tensorflow/tensorboard) (optional)
 
 
 ### TO DO
@@ -42,4 +41,3 @@ Then see `docs/build/html/index.html` for the docs.
 33. PCGM for tensor models
 34. mouse-specific intercepts
 36. SMC for sampling label sequence posterior
-37. Remove Tensorboard?

@@ -8,10 +8,6 @@ __date__ = "June 2022"
 import numpy as np
 import torch
 from torch.utils.data import TensorDataset, DataLoader
-try:
-    from torch.utils.tensorboard import SummaryWriter
-except:
-    pass
 
 from .. import __commit__ as LPNE_COMMIT
 from .. import __version__ as LPNE_VERSION
@@ -26,18 +22,19 @@ INT = torch.int64
 
 class BaseModel(torch.nn.Module):
 
-    def __init__(self, n_iter=50000, batch_size=256, lr=1e-3, device='auto',
-        log_dir=None):
+    def __init__(self, n_iter=50000, batch_size=256, lr=1e-3, device='auto'):
         """
         
         Parameters
         ----------
         n_iter : int, optional
+            Number of epochs to train
         batch_size : int, optional
+            DataLoader batch size
         lr : float, optional
+            Learning rate
         device : str, optional
-        log_dir : None or str, optional
-        
+            Pytorch device
         """
         super(BaseModel, self).__init__()
         self.n_iter = n_iter
@@ -46,14 +43,11 @@ class BaseModel(torch.nn.Module):
         self.device = device
         if self.device == 'auto':
             self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.log_dir = log_dir
         self.classes_ = None
         self.groups_ = None
 
 
     def _initialize(self):
-        if self.log_dir is not None:
-            self.writer = SummaryWriter(log_dir=self.log_dir)
         self.n_groups = len(self.groups_)
         self.n_classes = len(self.classes_)
         self.to(self.device)
@@ -132,8 +126,6 @@ class BaseModel(torch.nn.Module):
                 i_loss += loss.item()
                 loss.backward()
                 optimizer.step()
-            if self.log_dir is not None:
-                self.writer.add_scalar('train loss', i_loss, self.iter_)
             if print_freq is not None and self.iter_ % print_freq == 0:
                 print(f"iter {self.iter_:04d}, loss: {i_loss:3f}")
             if score_freq is not None and self.iter_ % score_freq == 0:
@@ -143,12 +135,6 @@ class BaseModel(torch.nn.Module):
                         np_groups[idx_comp],
                 )
                 print(f"iter {self.iter_:04d}, acc: {weighted_acc:3f}")
-                if self.log_dir is not None:
-                    self.writer.add_scalar(
-                            'weighted accuracy',
-                            weighted_acc,
-                            self.iter_,
-                    )
             self.iter_ += 1
         return self
 
@@ -159,7 +145,6 @@ class BaseModel(torch.nn.Module):
             batch_size=self.batch_size,
             lr=self.lr,
             device=self.device,
-            log_dir=self.log_dir,
             model_name=self.MODEL_NAME,
             __commit__=LPNE_COMMIT,
             __version__=LPNE_VERSION,
@@ -184,7 +169,7 @@ class BaseModel(torch.nn.Module):
 
 
     def set_params(self, batch_size=None, lr=None, n_iter=None, device=None,
-        log_dir=None, classes_=None, groups_=None, iter_=None, state_dict=None,
+        classes_=None, groups_=None, iter_=None, state_dict=None,
         optimizer_state_dict=None, **kwargs):
         """Set the parameters of this estimator."""
         if batch_size is not None:
@@ -195,8 +180,6 @@ class BaseModel(torch.nn.Module):
             self.n_iter = n_iter
         if device is not None:
             self.device = device
-        if log_dir is not None:
-            self.log_dir = log_dir
         if state_dict is not None or optimizer_state_dict is not None:
             self._initialize()
             if state_dict is not None:
