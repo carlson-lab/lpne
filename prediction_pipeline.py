@@ -24,7 +24,6 @@ __date__ = "July 2021 - June 2022"
 
 import numpy as np
 import os
-from sklearn.metrics import confusion_matrix
 import sys
 
 import lpne
@@ -35,7 +34,6 @@ USAGE = "Usage:\n$ python prediction_pipeline.py <experiment_directory>"
 FEATURE_SUBDIR = 'features'
 LABEL_SUBDIR = 'labels'
 CP_SAE = True
-TENSORBOARD = False
 
 
 
@@ -76,11 +74,7 @@ if __name__ == '__main__':
     features = np.transpose(features, [0,3,1,2])
 
     # Make the model.
-    if CP_SAE:
-        log_dir = 'logs/' if TENSORBOARD else None
-        model = CpSae(n_iter=50, log_dir=log_dir)
-    else:
-        model = FaSae(n_iter=50, encoder_type='linear')
+    model = CpSae(n_iter=50) if CP_SAE else FaSae(n_iter=50)
 
     # Make fake groups.
     groups = np.random.randint(0,2,len(labels))
@@ -109,10 +103,7 @@ if __name__ == '__main__':
 
     # Make some predictions.
     print("Making predictions...")
-    if CP_SAE:
-        predictions = model.predict(features[test_idx], groups[test_idx])
-    else:
-        predictions = model.predict(features[test_idx])
+    predictions = model.predict(features[test_idx], groups[test_idx])
     true_labels = labels[test_idx]
     print("Test labels:")
     print(true_labels)
@@ -120,23 +111,16 @@ if __name__ == '__main__':
     print(predictions)
 
     # Confusion matrix
-    confusion = confusion_matrix(true_labels, predictions)
+    confusion = lpne.confusion_matrix(true_labels, predictions)
     print("Confusion matrix:")
     print(confusion)
 
     # Calculate a weighted accuracy.
-    if CP_SAE:
-        weighted_acc = model.score(
-                features[test_idx],
-                labels[test_idx],
-                groups[test_idx],
-        )
-    else:
-        weighted_acc = model.score(
-                features[test_idx],
-                labels[test_idx],
-                None,
-        )
+    weighted_acc = model.score(
+            features[test_idx],
+            labels[test_idx],
+            groups[test_idx],
+    )
     print("Weighted accuracy on test set:", weighted_acc)
 
 

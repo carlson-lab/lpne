@@ -214,8 +214,8 @@ class CpSae(BaseModel):
         gp_loss = self.gp_params['reg'] * gp_loss
 
         # Combine all the terms into a composite loss.
-        label_loss = -torch.mean(log_probs) # []
-        rec_loss = self.reg_strength * torch.mean(rec_loss) # []
+        label_loss = -torch.sum(log_probs) # []
+        rec_loss = self.reg_strength * torch.sum(rec_loss) # []
         factor_loss = self.factor_reg * self._get_factor_loss() # []
         loss = label_loss + rec_loss + factor_loss + gp_loss
         return loss
