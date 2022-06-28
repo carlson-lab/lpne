@@ -12,6 +12,12 @@ from torch.distributions import Categorical, MultivariateNormal
 import torch.nn.functional as F
 import warnings
 
+try:
+    from qpth.qp import QPFunction
+    QPTH_INSTALLED = True
+except ModuleNotFoundError:
+    QPTH_INSTALLED = False
+
 from .base_model import BaseModel
 from .. import INVALID_LABEL, INVALID_GROUP
 from ..utils.utils import get_weights, squeeze_triangular_array
@@ -37,7 +43,7 @@ class CpSae(BaseModel):
 
 
     def __init__(self, reg_strength=1.0, z_dim=32, gp_params=DEFAULT_GP_PARAMS,
-        factor_reg=1e-1, **kwargs):
+        factor_reg=1e-1, encoder_type='nnlstsq', **kwargs):
         """
         A supervised autoencoder with a CP-style generative model
 
@@ -51,12 +57,16 @@ class CpSae(BaseModel):
         gp_params : dict, optional
             Maps 'mean', 'ls', 'obs_noise_var', and 'reg' to values.
         factor_reg : float, optional
+        encoder_type : str, optional
+            One of ``'linear'`` or ``'nnlstsq'``.
         """
         super(CpSae, self).__init__(**kwargs)
         self.reg_strength = float(reg_strength)
         self.z_dim = z_dim
         self.gp_params = {**DEFAULT_GP_PARAMS, **gp_params}
         self.factor_reg = float(factor_reg)
+        assert encoder_type in ['linear', 'nnlstsq']
+        self.encoder_type = encoder_type
 
     
     @torch.no_grad()
@@ -109,45 +119,6 @@ class CpSae(BaseModel):
         super(CpSae, self)._initialize()
 
 
-    def _get_H(self, flatten=True):
-        """
-        Get the factors.
-
-        Parameters
-        ----------
-        flatten : bool, optional
-
-        Returns
-        -------
-        H: torch.Tensor
-            Shape: ``[g,b,frr]`` if ``flatten``, ``[g,b,f,r,r]`` otherwise
-        """
-        freq_f = F.softplus(self.freq_factors) # [g,z,f]
-        freq_norm = torch.sqrt(torch.pow(freq_f,2).sum(dim=-1, keepdim=True))
-        freq_f = freq_f / freq_norm
-        roi_1_f = F.softplus(self.roi_1_factors) # [g,z,r]
-        roi_1_norm = torch.sqrt(torch.pow(roi_1_f,2).sum(dim=-1, keepdim=True))
-        roi_1_f = roi_1_f / roi_1_norm
-        roi_2_f = F.softplus(self.roi_2_factors) # [g,z,r]
-        roi_2_norm = torch.sqrt(torch.pow(roi_2_f,2).sum(dim=-1, keepdim=True))
-        roi_2_f = roi_2_f / roi_2_norm
-        volume = torch.einsum(
-                'gzf,gzr,gzs->gzfrs',
-                freq_f,
-                roi_1_f,
-                roi_2_f,
-        ) # [g,z,f,r,r]
-        if flatten:
-            volume = volume.view(volume.shape[0], volume.shape[1], -1)
-        return volume
-
-
-    @torch.no_grad()
-    def _get_mean_projection(self):
-        volume = self._get_H(flatten=False) # [g,z,f,r,r]
-        return torch.mean(volume, dim=0) # [z,f,r,r]
-
-
     def forward(self, features, labels, groups, weights, return_logits=False):
         """
         Calculate a loss.
@@ -173,9 +144,7 @@ class CpSae(BaseModel):
             labels[unlabeled_mask] = 0
 
         # Get latents.
-        flat_features = features.view(features.shape[0], -1) # [b,fr^2]
-        rec_features = torch.zeros_like(flat_features)
-        zs = F.softplus(self.rec_model(flat_features)) # [b,z]
+        zs = self.get_latents(features) # [b,z]
 
         if groups is None:
             assert return_logits
@@ -185,6 +154,7 @@ class CpSae(BaseModel):
 
         # Get the reconstruction loss.
         zs = zs.unsqueeze(1) # [b,1,z]
+        flat_features = features.view(features.shape[0], -1) # [b,fr^2]
         flat_features = flat_features.unsqueeze(1) # [b,1,fr^2]
         H = self._get_H(flatten=True) # [g,z,fr^2]
         group_oh = F.one_hot(groups.clamp(0,None), len(self.groups_)) # [b,g]
@@ -219,6 +189,96 @@ class CpSae(BaseModel):
         factor_loss = self.factor_reg * self._get_factor_loss() # []
         loss = label_loss + rec_loss + factor_loss + gp_loss
         return loss
+
+
+    def get_latents(self, features):
+        """
+        Get the latents corresponding to the given features.
+
+        Parameters
+        ----------
+        features : torch.Tensor
+            Shape: ``[b,f,r,r]``
+
+        Returns
+        -------
+        latents : torch.Tensor
+            Shape: ``[b,z]``
+        """
+        if self.encoder_type == 'linear':
+            flat_features = features.view(features.shape[0], -1) # [b,fr^2]
+            latents = F.softplus(self.rec_model(flat_features)) # [b,z]
+        elif self.encoder_type == 'nnlstsq':
+            assert QPTH_INSTALLED, "qpth needs to be installed!"
+            # NOTE: HERE!
+            H, f1, f2, f3 = self._get_H(flatten=False, return_factors=True)
+            f1, f2, f3 = f1.mean(dim=0), f2.mean(dim=0), f3.mean(dim=0)
+            H = H.mean(dim=0).unsqueeze(0) # [1,z,f,r,r]
+            prod = (features.unsqueeze(1) * H).sum(dim=(2,3,4)) # [b,z]
+            inner = (f1 @ f1.t()) * (f2 @ f2.t()) * (f3 @ f3.t()) # [z,z]
+            e = torch.autograd.Variable(torch.Tensor()).to(self.device)
+            latents = QPFunction(check_Q_spd=False)(
+                    inner,
+                    prod,
+                    -torch.eye(self.z_dim).to(self.device),
+                    torch.zeros(self.z_dim).to(self.device),
+                    e,
+                    e,
+            ) # [b,z]
+        else:
+            raise NotImplementedError(self.encoder_type)
+        return latents
+
+
+    def _get_H(self, flatten=True, return_factors=False):
+        """
+        Get the factors.
+
+        Parameters
+        ----------
+        flatten : bool, optional
+        return_factors : bool, optional
+
+        Returns
+        -------
+        H: torch.Tensor
+            Shape: ``[g,z,frr]`` if ``flatten``, ``[g,z,f,r,r]`` otherwise
+        freq_factor : torch.Tensor
+            Returned if ``return_factors``
+            Shape : [g,z,f]
+        roi_1_factor : torch.Tensor
+            Returned if ``return_factors``
+            Shape : [g,z,r]
+        roi_2_factor : torch.Tensor
+            Returned if ``return_factors``
+            Shape : [g,z,r]
+        """
+        freq_f = F.softplus(self.freq_factors) # [g,z,f]
+        freq_norm = torch.sqrt(torch.pow(freq_f,2).sum(dim=-1, keepdim=True))
+        freq_f = freq_f / freq_norm
+        roi_1_f = F.softplus(self.roi_1_factors) # [g,z,r]
+        roi_1_norm = torch.sqrt(torch.pow(roi_1_f,2).sum(dim=-1, keepdim=True))
+        roi_1_f = roi_1_f / roi_1_norm
+        roi_2_f = F.softplus(self.roi_2_factors) # [g,z,r]
+        roi_2_norm = torch.sqrt(torch.pow(roi_2_f,2).sum(dim=-1, keepdim=True))
+        roi_2_f = roi_2_f / roi_2_norm
+        volume = torch.einsum(
+                'gzf,gzr,gzs->gzfrs',
+                freq_f,
+                roi_1_f,
+                roi_2_f,
+        ) # [g,z,f,r,r]
+        if flatten:
+            volume = volume.view(volume.shape[0], volume.shape[1], -1)
+        if return_factors:
+            return volume, freq_f, roi_1_f, roi_2_f
+        return volume
+
+
+    @torch.no_grad()
+    def _get_mean_projection(self):
+        volume = self._get_H(flatten=False) # [g,z,f,r,r]
+        return torch.mean(volume, dim=0) # [z,f,r,r]
 
 
     def _get_factor_loss(self, eps=1e-7):
@@ -412,6 +472,7 @@ class CpSae(BaseModel):
             'z_dim': self.z_dim,
             'factor_reg': self.factor_reg,
             'gp_params': self.gp_params,
+            'encoder_type': self.encoder_type,
         }
         params = {**super_params, **params}
         return params
@@ -419,7 +480,7 @@ class CpSae(BaseModel):
 
     @torch.no_grad()
     def set_params(self, reg_strength=None, z_dim=None, factor_reg=None,
-        gp_params=None, **kwargs):
+        gp_params=None, encoder_type=None, **kwargs):
         """Set the parameters of this estimator."""
         if reg_strength is not None:
             self.reg_strength = reg_strength
@@ -429,6 +490,8 @@ class CpSae(BaseModel):
             self.factor_reg = factor_reg
         if gp_params is not None:
             self.gp_params = {**DEFAULT_GP_PARAMS, **gp_params}
+        if encoder_type is not None:
+            self.encoder_type = encoder_type
         super(CpSae, self).set_params(**kwargs)
         return self
 

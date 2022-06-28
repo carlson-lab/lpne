@@ -25,6 +25,7 @@ Then see `docs/build/html/index.html` for the docs.
 * [Python3](https://www.python.org/)
 * [PyTorch](https://pytorch.org) 1.11+
 * [MoviePy](https://github.com/Zulko/moviepy) (optional)
+* [qpth](https://github.com/locuslab/qpth) (optional)
 
 
 ### TO DO
@@ -38,8 +39,7 @@ Then see `docs/build/html/index.html` for the docs.
 29. Plot multiple factors
 31. Movie app
 32. `from joblib import Parallel, delayed`
-33. PCGM for tensor models
 34. mouse-specific intercepts
 36. SMC for sampling label sequence posterior
 37. Mouse-specific normalization options
-38. Tensor model lstsq encoder
+39. Mouse-specific nnlstsq

@@ -12,8 +12,11 @@ from torch.distributions import Categorical, Normal, MultivariateNormal, \
     kl_divergence
 import torch.nn.functional as F
 
-
-from qpth.qp import QPFunction
+try:
+    from qpth.qp import QPFunction
+    QPTH_INSTALLED = True
+except ModuleNotFoundError:
+    QPTH_INSTALLED = False
 
 
 
@@ -42,7 +45,7 @@ class FaSae(BaseModel):
 
 
     def __init__(self, reg_strength=1.0, z_dim=32, nonnegative=True,
-        variational=False, kl_factor=1.0, encoder_type='pinv',
+        variational=False, kl_factor=1.0, encoder_type='nnlstsq',
         gp_params=DEFAULT_GP_PARAMS, **kwargs):
         """
         A supervised autoencoder with nonnegative and variational options.
@@ -65,14 +68,15 @@ class FaSae(BaseModel):
             independently set. This parameter is only used if `variational` is
             `True`.
         encoder_type : str, optional
-            One of ``'linear'``, ``'lstsq'``, or ``'pinv'``. The least squares
-            or pseudoinverse encoders are "encoderless" in the sense that they
-            only rely on the decoder parameters and Gaussian priors on the
-            latents to map data to latents. These options are only supported
-            when ``variational`` is ``False`` and ``nonnegative`` is ``True``.
-            Depending on which device you are using and the model dimensions,
-            one of ``'lstsq'`` and ``'pinv'`` may be substantially faster than
-            the other. However, ``'lstsq'`` will be more numerically stable.
+            One of ``'linear'``, ``'lstsq'``, ``'pinv'``, or ``'nnlstsq'``. The
+            least squares or pseudoinverse encoders are "encoderless" in the
+            sense that they only rely on the decoder parameters and Gaussian
+            priors on the latents to map data to latents. These options are
+            only supported when ``variational`` is ``False`` and
+            ``nonnegative`` is ``True``. Depending on which device you are
+            using and the model dimensions, one of ``'lstsq'`` and ``'pinv'``
+            may be substantially faster than the other. However, ``'lstsq'``
+            will be more numerically stable.
         gp_params : dict, optional
             Maps the frequency component GP prior parameter names to values.
             mean : float, optional
@@ -297,6 +301,7 @@ class FaSae(BaseModel):
                                @ target.unsqueeze(-1)).squeeze(-1)
                     latents = torch.clamp(latents, min=0.0)
                 elif self.encoder_type == 'nnlstsq':
+                    assert QPTH_INSTALLED, "qpth needs to be installed!"
                     Q = A.t() @ A
                     p = - A.t().unsqueeze(0) @ target.unsqueeze(-1)
                     p = p.squeeze(-1)
