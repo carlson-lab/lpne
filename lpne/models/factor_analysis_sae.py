@@ -12,6 +12,11 @@ from torch.distributions import Categorical, Normal, MultivariateNormal, \
     kl_divergence
 import torch.nn.functional as F
 
+
+from qpth.qp import QPFunction
+
+
+
 from .base_model import BaseModel
 from .. import INVALID_LABEL
 from ..utils.utils import get_weights, squeeze_triangular_array
@@ -97,7 +102,7 @@ class FaSae(BaseModel):
         assert isinstance(kl_factor, (int, float))
         assert kl_factor >= 0.0
         self.kl_factor = float(kl_factor)  
-        assert encoder_type in ['linear', 'lstsq', 'pinv']
+        assert encoder_type in ['linear', 'lstsq', 'pinv', 'nnlstsq']
         self.encoder_type = encoder_type
         self.gp_params = {**DEFAULT_GP_PARAMS, **gp_params}    
         self.classes_ = None
@@ -266,7 +271,8 @@ class FaSae(BaseModel):
             if self.encoder_type == 'linear':
                 # Feed through the recognition network to get latents.
                 latents = self.recognition_model(features) # [b,z]
-            elif self.encoder_type in ['lstsq', 'pinv']:
+                latents = F.softplus(latents)
+            elif self.encoder_type in ['lstsq', 'pinv', 'nnlstsq']:
                 # Solve the least squares problem and rectify to get latents.
                 A = F.softplus(self.model) # [x,z]
                 A_norm = torch.sqrt(torch.pow(A,2).sum(dim=0, keepdim=True))
@@ -282,13 +288,29 @@ class FaSae(BaseModel):
                             A.unsqueeze(0),
                             target.unsqueeze(-1),
                     ).solution.squeeze(-1) # [b,z]
-                else:
+                    latents = torch.clamp(latents, min=0.0)
+                elif self.encoder_type == 'pinv':
                     # https://github.com/pytorch/pytorch/issues/41306
                     # This may be much faster on GPU than linalg.lstsq.
                     # Hopefully this will change in future releases.
                     latents = (torch.linalg.pinv(A.unsqueeze(0)) \
                                @ target.unsqueeze(-1)).squeeze(-1)
-                latents = torch.clamp(latents, min=0.0)
+                    latents = torch.clamp(latents, min=0.0)
+                elif self.encoder_type == 'nnlstsq':
+                    Q = A.t() @ A
+                    p = - A.t().unsqueeze(0) @ target.unsqueeze(-1)
+                    p = p.squeeze(-1)
+                    e = torch.autograd.Variable(torch.Tensor()).to(self.device)
+                    latents = QPFunction(check_Q_spd=False)(
+                            Q,
+                            p,
+                            -torch.eye(self.z_dim).to(self.device),
+                            torch.zeros(self.z_dim).to(self.device),
+                            e,
+                            e,
+                    )
+                else:
+                    raise NotImplementedError(self.encoder_type)
         return latents, kld
 
 
