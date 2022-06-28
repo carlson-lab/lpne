@@ -41,3 +41,5 @@ Then see `docs/build/html/index.html` for the docs.
 33. PCGM for tensor models
 34. mouse-specific intercepts
 36. SMC for sampling label sequence posterior
+37. Mouse-specific normalization options
+38. Tensor model lstsq encoder
