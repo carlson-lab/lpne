@@ -33,7 +33,7 @@ from lpne.models import FaSae, CpSae
 USAGE = "Usage:\n$ python prediction_pipeline.py <experiment_directory>"
 FEATURE_SUBDIR = 'features'
 LABEL_SUBDIR = 'labels'
-CP_SAE = True
+CP_SAE = False
 
 
 
@@ -49,15 +49,19 @@ if __name__ == '__main__':
     assert os.path.exists(label_dir), f"{label_dir}"
 
     # Get the filenames.
-    feature_fns, label_fns = \
-            lpne.get_feature_label_filenames(feature_dir, label_dir)
+    feature_fns, label_fns = lpne.get_feature_label_filenames(
+            feature_dir,
+            label_dir,
+    )
 
     # Write fake labels.
     lpne.write_fake_labels(feature_dir, label_dir, n_classes=3)
 
     # Collect all the features and labels.
-    features, labels, rois = \
-            lpne.load_features_and_labels(feature_fns, label_fns)
+    features, labels, rois = lpne.load_features_and_labels(
+            feature_fns,
+            label_fns,
+    )
 
     # Define a test/train split.
     idx = int(round(0.7 * len(features)))
@@ -74,7 +78,10 @@ if __name__ == '__main__':
     features = np.transpose(features, [0,3,1,2])
 
     # Make the model.
-    model = CpSae(n_iter=50) if CP_SAE else FaSae(n_iter=50, encoder_type='nnlstsq')
+    if CP_SAE:
+        model = CpSae(n_iter=10)
+    else:
+        model =  FaSae(n_iter=10, encoder_type='nnlstsq')
 
     # Make fake groups.
     groups = np.random.randint(0,2,len(labels))

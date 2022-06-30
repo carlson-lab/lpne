@@ -13,10 +13,20 @@ from torch.distributions import Categorical, Normal, MultivariateNormal, \
 import torch.nn.functional as F
 
 try:
-    from qpth.qp import QPFunction
+    from qpth.qp import QPFunction, QPSolvers
     QPTH_INSTALLED = True
 except ModuleNotFoundError:
     QPTH_INSTALLED = False
+
+# QPSolvers.PDIPM_BATCHED
+QP_PARAMS = {
+    'check_Q_spd': True,
+    'eps': 1e-4,
+    'solver': QPSolvers.CVXPY,
+    'maxIter': 20,
+    'verbose': 1,
+}
+"""Default qpth parameters"""
 
 
 
@@ -306,7 +316,7 @@ class FaSae(BaseModel):
                     p = - A.t().unsqueeze(0) @ target.unsqueeze(-1)
                     p = p.squeeze(-1)
                     e = torch.autograd.Variable(torch.Tensor()).to(self.device)
-                    latents = QPFunction(check_Q_spd=False)(
+                    latents = QPFunction(**QP_PARAMS)(
                             Q,
                             p,
                             -torch.eye(self.z_dim).to(self.device),
