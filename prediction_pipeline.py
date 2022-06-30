@@ -33,7 +33,7 @@ from lpne.models import FaSae, CpSae
 USAGE = "Usage:\n$ python prediction_pipeline.py <experiment_directory>"
 FEATURE_SUBDIR = 'features'
 LABEL_SUBDIR = 'labels'
-CP_SAE = False
+CP_SAE = True
 
 
 
@@ -78,10 +78,7 @@ if __name__ == '__main__':
     features = np.transpose(features, [0,3,1,2])
 
     # Make the model.
-    if CP_SAE:
-        model = CpSae(n_iter=10)
-    else:
-        model =  FaSae(n_iter=10, encoder_type='nnlstsq')
+    model = CpSae(n_iter=50) if CP_SAE else FaSae(n_iter=50)
 
     # Make fake groups.
     groups = np.random.randint(0,2,len(labels))

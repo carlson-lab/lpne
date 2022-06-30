@@ -25,7 +25,6 @@ Then see `docs/build/html/index.html` for the docs.
 * [Python3](https://www.python.org/)
 * [PyTorch](https://pytorch.org) 1.11+
 * [MoviePy](https://github.com/Zulko/moviepy) (optional)
-* [qpth](https://github.com/locuslab/qpth) and [CVXPY](https://github.com/cvxpy/cvxpy) (optional)
 
 
 ### TO DO
@@ -42,6 +41,5 @@ Then see `docs/build/html/index.html` for the docs.
 34. mouse-specific intercepts
 36. SMC for sampling label sequence posterior
 37. Mouse-specific normalization options
-39. Mouse-specific nnlstsq
 40. Get reconstructed volumes
 41. Group Lasso?
