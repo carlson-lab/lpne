@@ -12,23 +12,6 @@ from torch.distributions import Categorical, Normal, MultivariateNormal, \
     kl_divergence
 import torch.nn.functional as F
 
-try:
-    from qpth.qp import QPFunction, QPSolvers
-    QPTH_INSTALLED = True
-except ModuleNotFoundError:
-    QPTH_INSTALLED = False
-
-# QPSolvers.PDIPM_BATCHED
-QP_PARAMS = {
-    'check_Q_spd': True,
-    'eps': 1e-4,
-    'solver': QPSolvers.CVXPY,
-    'maxIter': 20,
-    'verbose': 1,
-}
-"""Default qpth parameters"""
-
-
 
 from .base_model import BaseModel
 from .. import INVALID_LABEL
@@ -43,63 +26,70 @@ DEFAULT_GP_PARAMS = {
     'ls': 0.2,
     'obs_noise_var': 1e-3,
     'reg': 0.1,
-    'mode': 'ou',
+    'kernel': 'ou',
 }
 """Default frequency factor GP parameters"""
 
 
 
 class FaSae(BaseModel):
+    """
+    A supervised autoencoder with nonnegative and variational options.
+
+    Parameters
+    ----------
+    reg_strength : float, optional
+        This controls how much the classifier is regularized. This should
+        be positive, and larger values indicate more regularization.
+    z_dim : int, optional
+        Latent dimension/number of networks.
+    nonnegative : bool, optional
+        Use nonnegative factorization.
+    variational : bool, optional
+        Whether a variational autoencoder is used.
+    kl_factor : float, optional
+        How much to weight the KL divergence term in the variational
+        autoencoder (VAE). The standard setting is `1.0`. This is a
+        distinct regularization parameter from `reg_strength` that can be
+        independently set. This parameter is only used if `variational` is
+        `True`.
+    encoder_type : str, optional
+        One of ``'linear'``, ``'lstsq'``, ``'pinv'``, or ``'nnlstsq'``. The
+        least squares or pseudoinverse encoders are "encoderless" in the
+        sense that they only rely on the decoder parameters and Gaussian
+        priors on the latents to map data to latents. These options are
+        only supported when ``variational`` is ``False`` and
+        ``nonnegative`` is ``True``. Depending on which device you are
+        using and the model dimensions, one of ``'lstsq'`` and ``'pinv'``
+        may be substantially faster than the other. However, ``'lstsq'``
+        will be more numerically stable.
+    gp_params : dict, optional
+        Maps the frequency component GP prior parameter names to values.
+        ``'mean'`` : float, optional
+            Mean value
+        ``'ls'`` : float, optional
+            Lengthscale, in units of frequency bins
+        ``'obs_noise_var'`` : float, optional
+            Observation noise variances
+        ``'reg'`` : float, optional
+            Regularization strength
+        ``'kernel'`` : {``'ou'``, ``'se'``}, optional
+            Denotes Ornstein-Uhlenbeck or squared exponential kernels
+    rec_loss_type : str, optional
+        One of ``'lad'`` for least absolute deviations or ``'ls'`` for
+        least squares. Defaults to ``'lad'``.
+    irls_iter : int, opional
+        Number of iterations to run iteratively reweighted least squares.
+        Defaults to ``2``.
+    """
 
     MODEL_NAME = 'FA SAE'
 
 
     def __init__(self, reg_strength=1.0, z_dim=32, nonnegative=True,
-        variational=False, kl_factor=1.0, encoder_type='nnlstsq',
-        gp_params=DEFAULT_GP_PARAMS, **kwargs):
-        """
-        A supervised autoencoder with nonnegative and variational options.
-
-        Parameters
-        ----------
-        reg_strength : float, optional
-            This controls how much the classifier is regularized. This should
-            be positive, and larger values indicate more regularization.
-        z_dim : int, optional
-            Latent dimension/number of networks.
-        nonnegative : bool, optional
-            Use nonnegative factorization.
-        variational : bool, optional
-            Whether a variational autoencoder is used.
-        kl_factor : float, optional
-            How much to weight the KL divergence term in the variational
-            autoencoder (VAE). The standard setting is `1.0`. This is a distinct
-            regularization parameter from `reg_strength` that can be
-            independently set. This parameter is only used if `variational` is
-            `True`.
-        encoder_type : str, optional
-            One of ``'linear'``, ``'lstsq'``, ``'pinv'``, or ``'nnlstsq'``. The
-            least squares or pseudoinverse encoders are "encoderless" in the
-            sense that they only rely on the decoder parameters and Gaussian
-            priors on the latents to map data to latents. These options are
-            only supported when ``variational`` is ``False`` and
-            ``nonnegative`` is ``True``. Depending on which device you are
-            using and the model dimensions, one of ``'lstsq'`` and ``'pinv'``
-            may be substantially faster than the other. However, ``'lstsq'``
-            will be more numerically stable.
-        gp_params : dict, optional
-            Maps the frequency component GP prior parameter names to values.
-            mean : float, optional
-                Mean value
-            ls : float, optional
-                Lengthscale, in units of frequency bins
-            obs_noise_var : float, optional
-                Observation noise variances
-            reg : float, optional
-                Regularization strength
-            mode : {``'ou'``, ``'se'``}, optional
-                Denotes Ornstein-Uhlenbeck or squared exponential kernels
-        """
+        variational=False, kl_factor=1.0, encoder_type='irls',
+        gp_params=DEFAULT_GP_PARAMS, rec_loss_type='lad', irls_iter=2,
+        **kwargs):
         super(FaSae, self).__init__(**kwargs)
         assert kl_factor >= 0.0, f"{kl_factor} < 0"
         # Set parameters.
@@ -116,9 +106,13 @@ class FaSae(BaseModel):
         assert isinstance(kl_factor, (int, float))
         assert kl_factor >= 0.0
         self.kl_factor = float(kl_factor)  
-        assert encoder_type in ['linear', 'lstsq', 'pinv', 'nnlstsq']
+        assert encoder_type in ['linear', 'lstsq', 'pinv', 'irls']
         self.encoder_type = encoder_type
-        self.gp_params = {**DEFAULT_GP_PARAMS, **gp_params}    
+        self.gp_params = {**DEFAULT_GP_PARAMS, **gp_params} 
+        assert rec_loss_type in ['lad', 'ls']
+        self.rec_loss_type = rec_loss_type
+        assert isinstance(irls_iter, int)
+        self.irls_iter = irls_iter
         self.classes_ = None
 
 
@@ -135,12 +129,12 @@ class FaSae(BaseModel):
         # Set up the frequency factor GP.
         kernel = torch.arange(n_freqs).unsqueeze(0)
         kernel = torch.abs(kernel - torch.arange(n_freqs).unsqueeze(1))
-        if self.gp_params['mode'] == 'se':
+        if self.gp_params['kernel'] == 'se':
             kernel = 2**(-1/2) * torch.pow(kernel / self.gp_params['ls'], 2)
-        elif self.gp_params['mode'] == 'ou':
+        elif self.gp_params['kernel'] == 'ou':
             kernel = torch.abs(kernel / self.gp_params['ls'])
         else:
-            raise NotImplementedError(self.gp_params['mode'])
+            raise NotImplementedError(self.gp_params['kernel'])
         kernel = torch.exp(-kernel)
         kernel = kernel + self.gp_params['obs_noise_var'] * torch.eye(n_freqs)
         self.gp_dist = MultivariateNormal(
@@ -228,8 +222,12 @@ class FaSae(BaseModel):
         features_rec = features_rec.squeeze(-1) # [b,x]
         
         # Calculate a reconstruction loss.
-        rec_loss = torch.mean((features - features_rec).pow(2), dim=1) # [b]
-        rec_loss = self.reg_strength * rec_loss
+        diff = features - features_rec # [b,x]
+        if self.rec_loss_type == 'lad':
+            rec_loss = torch.abs(diff).mean(dim=1) # [b]
+        elif self.rec_loss_type == 'ls':
+            rec_loss = 0.5 * torch.pow(diff,2).mean(dim=1) # [b]
+        rec_loss = self.reg_strength * rec_loss # [b]
 
         # Calculate the GP loss.
         freq_f = A.view(self.n_freqs_, self.n_rois_, self.n_rois_, self.z_dim)
@@ -246,7 +244,7 @@ class FaSae(BaseModel):
         return loss
 
 
-    def get_latents(self, features, stochastic=True):
+    def get_latents(self, features, stochastic=True, reg=1e-3):
         """
         Get the latents corresponding to the given features.
 
@@ -255,6 +253,8 @@ class FaSae(BaseModel):
         features : torch.Tensor
             Shape: [b,x]
         stochastic : bool, optional
+        reg : float, optional
+            Regularization for IRLS
 
         Returns
         -------
@@ -286,7 +286,7 @@ class FaSae(BaseModel):
                 # Feed through the recognition network to get latents.
                 latents = self.recognition_model(features) # [b,z]
                 latents = F.softplus(latents)
-            elif self.encoder_type in ['lstsq', 'pinv', 'nnlstsq']:
+            elif self.encoder_type in ['lstsq', 'pinv', 'irls']:
                 # Solve the least squares problem and rectify to get latents.
                 A = F.softplus(self.model) # [x,z]
                 A_norm = torch.sqrt(torch.pow(A,2).sum(dim=0, keepdim=True))
@@ -307,25 +307,37 @@ class FaSae(BaseModel):
                     # https://github.com/pytorch/pytorch/issues/41306
                     # This may be much faster on GPU than linalg.lstsq.
                     # Hopefully this will change in future releases.
-                    latents = (torch.linalg.pinv(A.unsqueeze(0)) \
-                               @ target.unsqueeze(-1)).squeeze(-1)
-                    latents = torch.clamp(latents, min=0.0)
-                elif self.encoder_type == 'nnlstsq':
-                    assert QPTH_INSTALLED, "qpth needs to be installed!"
-                    Q = A.t() @ A
-                    p = - A.t().unsqueeze(0) @ target.unsqueeze(-1)
-                    p = p.squeeze(-1)
-                    e = torch.autograd.Variable(torch.Tensor()).to(self.device)
-                    latents = QPFunction(**QP_PARAMS)(
-                            Q,
-                            p,
-                            -torch.eye(self.z_dim).to(self.device),
-                            torch.zeros(self.z_dim).to(self.device),
-                            e,
-                            e,
-                    )
-                else:
-                    raise NotImplementedError(self.encoder_type)
+                    latents = torch.linalg.pinv(A.unsqueeze(0)) \
+                               @ target.unsqueeze(-1)
+                    latents = torch.clamp(latents.squeeze(-1), min=0.0) # [b,z]
+                elif self.encoder_type == 'irls':
+                    # features: [b,x]
+                    # A : [x,z]
+                    latents = torch.linalg.solve(
+                        A.t() @ A,
+                        A.t() @ target.unsqueeze(-1),
+                    ) # [b,z,1]
+                    for _ in range(self.irls_iter):
+                        diffs = target - latents.squeeze(-1) @ A.t()
+                        weights = 1.0/torch.clamp(torch.abs(diffs), reg, None)
+                        inner = torch.einsum(
+                            'zx,bx,xw->bzw',
+                            A.t(),
+                            weights,
+                            A,
+                        ) # [b,z,z]
+                        prod = torch.einsum(
+                            'zx,bx->bz',
+                            A.t(),
+                            weights * target,
+                        ) # [b,z]
+                        latents = torch.linalg.solve(
+                            inner,
+                            prod.unsqueeze(-1),
+                        ) # [b,z,1]
+                    latents = torch.clamp(latents.squeeze(-1), min=0.0) # [b,z]
+            else:
+                raise NotImplementedError(self.encoder_type)
         return latents, kld
 
 
@@ -342,15 +354,20 @@ class FaSae(BaseModel):
         Parameters
         ----------
         features : torch.Tensor
-            Shape: [n,f,r,r]
+            The features to make predictions for
+            Shape: ``[n,f,r,r]``
         to_numpy : bool, optional
-            Whether to return a NumPy array or a Pytorch tensor
+            Whether to return a NumPy array instead of a Pytorch tensor.
+            Defaults to ``True``.
         stochastic : bool, optional
+            Use stochastic encoding if the model is a VAE. Defaults to
+            ``False``.
 
         Returns
         -------
         probs : numpy.ndarray or torch.Tensor
-            Shape: [n, n_classes]
+            The predicted class probabilities
+            Shape: ``[n,c]``
         """
         check_is_fitted(self, attributes=FIT_ATTRIBUTES)
         logits = []
@@ -382,13 +399,14 @@ class FaSae(BaseModel):
         Parameters
         ----------
         X : numpy.ndarray
-            Features
-            Shape: ``[batch, n_features]``
+            The features to make predictions for
+            Shape: ``[b,x]``
 
         Returns
         -------
         predictions : numpy.ndarray
-            Shape: ``[batch]``
+            The predicted classes
+            Shape: ``[b]``
         """
         check_is_fitted(self, attributes=FIT_ATTRIBUTES)
         # Feed through model.
@@ -410,16 +428,16 @@ class FaSae(BaseModel):
         Parameters
         ----------
         features : numpy.ndarray
-            Shape: [n_datapoints, n_features]
+            Shape: ``[b,x]``
         labels : numpy.ndarray
-            Shape: [n_datapoints]
+            Shape: ``[b]``
         groups : None or numpy.ndarray
             Ignored
 
         Return
         ------
         weighted_acc : float
-            Weighted accuracy
+            Class-weighted accuracy
         """
         check_is_fitted(self, attributes=FIT_ATTRIBUTES)
         weights = get_weights(labels, groups, invalid_label=INVALID_LABEL)
@@ -471,6 +489,8 @@ class FaSae(BaseModel):
             'kl_factor': self.kl_factor,
             'encoder_type': self.encoder_type,
             'gp_params': self.gp_params,
+            'rec_loss_type': self.rec_loss_type,
+            'irls_iter': self.irls_iter,
         }
         params = {**super_params, **params}
         return params
@@ -478,7 +498,7 @@ class FaSae(BaseModel):
 
     def set_params(self, reg_strength=None, z_dim=None, nonnegative=None,
         variational=None, kl_factor=None, encoder_type=None, gp_params=None,
-        **kwargs):
+        rec_loss_type=None, irls_iter=None, **kwargs):
         """Set the parameters of this estimator."""
         if reg_strength is not None:
             self.reg_strength = reg_strength
@@ -494,6 +514,10 @@ class FaSae(BaseModel):
             self.encoder_type = encoder_type
         if gp_params is not None:
             self.gp_params = {**DEFAULT_GP_PARAMS, **gp_params}
+        if rec_loss_type is not None:
+            self.rec_loss_type = rec_loss_type
+        if self.irls_iter is not None:
+            self.irls_iter = irls_iter
         super(FaSae, self).set_params(**kwargs)
         return self
 

@@ -25,54 +25,64 @@ DEFAULT_GP_PARAMS = {
     'ls': 0.2,
     'obs_noise_var': 1e-3,
     'reg': 0.1,
-    'mode': 'ou',
+    'kernel': 'ou',
 }
 """Default frequency factor GP parameters"""
 
 
 
 class CpSae(BaseModel):
+    """
+    A supervised autoencoder with a CP-style generative model
+
+    Parameters
+    ----------
+    reg_strength : float, optional
+        This controls how much we weight the reconstruction loss. This
+        should be positive, and larger values indicate more regularization.
+    z_dim : int, optional
+        Latent dimension/number of networks.
+    gp_params : dict, optional
+        Maps the frequency component GP prior parameter names to values.
+        ``'mean'`` : float, optional
+            Mean value
+        ``'ls'`` : float, optional
+            Lengthscale, in units of frequency bins
+        ``'obs_noise_var'`` : float, optional
+            Observation noise variances
+        ``'reg'`` : float, optional
+            Regularization strength
+        ``'kernel'`` : {``'ou'``, ``'se'``}, optional
+            Denotes Ornstein-Uhlenbeck or squared exponential kernels
+    encoder_type : str, optional
+        One of ``'linear'``, ``'pinv'``, or ``'irls'``. If
+        ``rec_loss_type`` is ``'lad'``, the encoder should be ``'linear'``
+        or ``'pinv'``. If ``rec_loss_type`` is ``'ls'``, the encoder should
+        be ``'linear'`` or ``'irls'``.
+    rec_loss_type : str, optional
+        One of ``'lad'`` for least absolute deviations or ``'ls'`` for
+        least squares. Defaults to ``'lad'``.
+    irls_iter : int, opional
+        Number of iterations to run iteratively reweighted least squares.
+        Defaults to ``2``.
+    """
 
     MODEL_NAME = 'CP SAE'
 
 
     def __init__(self, reg_strength=1.0, z_dim=32, gp_params=DEFAULT_GP_PARAMS,
-        factor_reg=1e-1, encoder_type='irls', rec_loss_type='lad', irls_iter=2,
-        **kwargs):
-        """
-        A supervised autoencoder with a CP-style generative model
-
-        Parameters
-        ----------
-        reg_strength : float, optional
-            This controls how much we weight the reconstruction loss. This
-            should be positive, and larger values indicate more regularization.
-        z_dim : int, optional
-            Latent dimension/number of networks.
-        gp_params : dict, optional
-            Maps 'mean', 'ls', 'obs_noise_var', and 'reg' to values.
-        factor_reg : float, optional
-        encoder_type : str, optional
-            One of ``'linear'``, ``'pinv'``, or ``'irls'``. If
-            ``rec_loss_type`` is ``'lad'``, the encoder should be ``'linear'``
-            or ``'pinv'``. If ``rec_loss_type`` is ``'ls'``, the encoder should
-            be ``'linear'`` or ``'irls'``.
-        rec_loss_type : str, optional
-            One of ``'lad'`` for least absolute deviations or ``'ls'`` for
-            least squares. Defaults to ``'lad'``.
-        irls_iter : int, opional
-            Number of iterations to run iteratively reweighted least squares.
-            Defaults to ``2``.
-        """
+        encoder_type='irls', rec_loss_type='lad', irls_iter=2, **kwargs):
         super(CpSae, self).__init__(**kwargs)
+        assert isinstance(reg_strength, (int, float))
         self.reg_strength = float(reg_strength)
+        assert isinstance(z_dim, int)
         self.z_dim = z_dim
         self.gp_params = {**DEFAULT_GP_PARAMS, **gp_params}
-        self.factor_reg = float(factor_reg)
         assert encoder_type in ['linear', 'pinv', 'irls']
         self.encoder_type = encoder_type
         assert rec_loss_type in ['lad', 'ls']
         self.rec_loss_type = rec_loss_type
+        assert isinstance(irls_iter, int)
         self.irls_iter = irls_iter
 
     
@@ -92,12 +102,12 @@ class CpSae(BaseModel):
         # Set up the frequency factor GP.
         kernel = torch.arange(n_freqs).unsqueeze(0)
         kernel = torch.abs(kernel - torch.arange(n_freqs).unsqueeze(1))
-        if self.gp_params['mode'] == 'se':
+        if self.gp_params['kernel'] == 'se':
             kernel = 2**(-1/2) * torch.pow(kernel / self.gp_params['ls'], 2)
-        elif self.gp_params['mode'] == 'ou':
+        elif self.gp_params['kernel'] == 'ou':
             kernel = torch.abs(kernel / self.gp_params['ls'])
         else:
-            raise NotImplementedError(self.gp_params['mode'])
+            raise NotImplementedError(self.gp_params['kernel'])
         kernel = torch.exp(-kernel)
         kernel = kernel + self.gp_params['obs_noise_var'] * torch.eye(n_freqs)
         self.gp_dist = MultivariateNormal(
@@ -111,13 +121,13 @@ class CpSae(BaseModel):
         # Make the ROI factors.
         self.roi_1_factors = torch.nn.Parameter(
            -5 + torch.randn(self.z_dim,n_rois),
-        )
+        ) # [z,r]
         self.roi_2_factors = torch.nn.Parameter(
             -5 + torch.randn(self.z_dim,n_rois),
-        )
+        ) # [z,r]
         self.logit_weights = torch.nn.Parameter(
                 -5 * torch.ones(1,n_classes),
-        )
+        ) # [1,c]
         self.logit_biases = torch.nn.Parameter(torch.zeros(1,n_classes))
         super(CpSae, self)._initialize()
 
@@ -164,7 +174,8 @@ class CpSae(BaseModel):
         if self.rec_loss_type == 'lad':
             rec_loss = torch.abs(diff).mean(dim=1) # [b]
         elif self.rec_loss_type == 'ls':
-            rec_loss = 0.5 * torch.pow(diff,2).mean(dim=1)
+            rec_loss = 0.5 * torch.pow(diff,2).mean(dim=1) # [b]
+        rec_loss = self.reg_strength * rec_loss # [b]
 
         # Predict the labels and get weighted label log probabilities.
         zs = zs.squeeze(1) # [b,1,z] -> [b,z]
@@ -185,7 +196,7 @@ class CpSae(BaseModel):
 
         # Combine all the terms into a composite loss.
         label_loss = -torch.sum(log_probs) # []
-        rec_loss = self.reg_strength * torch.sum(rec_loss) # []
+        rec_loss = torch.sum(rec_loss) # []
         loss = label_loss + rec_loss + gp_loss
         return loss
 
@@ -222,12 +233,13 @@ class CpSae(BaseModel):
             if self.encoder_type == 'pinv':
                 latents = torch.clamp(latents.squeeze(-1), min=0.0)
             else:
-                # Do a one-step iteratively re-weighted least squares.
+                # Do iteratively re-weighted least squares.
                 flat_features = features.view(features.shape[0], -1) # [b,fr^2]
                 flat_H = H.view(self.z_dim,-1) # [z,fr^2]
                 for _ in range(self.irls_iter):
-                    diffs = flat_features - latents.squeeze(-1) @ flat_H #[b,x]
-                    weights = torch.clamp(torch.abs(diffs), reg, None)#[b,fr^2]
+                    # diffs: [b,x], weights: [b,fr^2]
+                    diffs = flat_features - latents.squeeze(-1) @ flat_H
+                    weights = 1.0 / torch.clamp(torch.abs(diffs), reg, None)
                     inner = torch.einsum(
                         'zx,bx,xw->bzw',
                         flat_H,
@@ -472,7 +484,6 @@ class CpSae(BaseModel):
         params = {
             'reg_strength': self.reg_strength,
             'z_dim': self.z_dim,
-            'factor_reg': self.factor_reg,
             'gp_params': self.gp_params,
             'encoder_type': self.encoder_type,
             'rec_loss_type': self.rec_loss_type,
@@ -483,16 +494,13 @@ class CpSae(BaseModel):
 
 
     @torch.no_grad()
-    def set_params(self, reg_strength=None, z_dim=None, factor_reg=None,
-        gp_params=None, encoder_type=None, rec_loss_type=None, irls_iter=None,
-        **kwargs):
+    def set_params(self, reg_strength=None, z_dim=None, gp_params=None,
+        encoder_type=None, rec_loss_type=None, irls_iter=None, **kwargs):
         """Set the parameters of this estimator."""
         if reg_strength is not None:
             self.reg_strength = reg_strength
         if z_dim is not None:
             self.z_dim = z_dim
-        if factor_reg is not None:
-            self.factor_reg = factor_reg
         if gp_params is not None:
             self.gp_params = {**DEFAULT_GP_PARAMS, **gp_params}
         if encoder_type is not None:
