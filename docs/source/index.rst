@@ -13,6 +13,9 @@ Welcome to lpne's documentation!
    $ git clone https://github.com/carlson-lab/lpne.git
    $ cd lpne
    $ pip install .
+   $ pytest test # run tests
+   $ cd docs
+   $ make html # build docs
 
 .. toctree::
    :maxdepth: 2

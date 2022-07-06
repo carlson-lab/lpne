@@ -2,7 +2,7 @@
 Factor Analysis-regularized logistic regression.
 
 """
-__date__ = "June 2021 - June 2022"
+__date__ = "June 2021 - July 2022"
 
 
 import numpy as np
@@ -62,7 +62,7 @@ class FaSae(BaseModel):
         ``nonnegative`` is ``True``. Depending on which device you are
         using and the model dimensions, one of ``'lstsq'`` and ``'pinv'``
         may be substantially faster than the other. However, ``'lstsq'``
-        will be more numerically stable.
+        will be more numerically stable. Defaults to ``'linear'``.
     gp_params : dict, optional
         Maps the frequency component GP prior parameter names to values.
         ``'mean'`` : float, optional
@@ -80,15 +80,15 @@ class FaSae(BaseModel):
         least squares. Defaults to ``'lad'``.
     irls_iter : int, opional
         Number of iterations to run iteratively reweighted least squares.
-        Defaults to ``2``.
+        Defaults to ``1``.
     """
 
     MODEL_NAME = 'FA SAE'
 
 
     def __init__(self, reg_strength=1.0, z_dim=32, nonnegative=True,
-        variational=False, kl_factor=1.0, encoder_type='irls',
-        gp_params=DEFAULT_GP_PARAMS, rec_loss_type='lad', irls_iter=2,
+        variational=False, kl_factor=1.0, encoder_type='linear',
+        gp_params=DEFAULT_GP_PARAMS, rec_loss_type='lad', irls_iter=1,
         **kwargs):
         super(FaSae, self).__init__(**kwargs)
         assert kl_factor >= 0.0, f"{kl_factor} < 0"
@@ -116,9 +116,9 @@ class FaSae(BaseModel):
         self.classes_ = None
 
 
-    def _initialize(self, feature_shape):
+    def _initialize(self):
         """Initialize parameters of the networks before training."""
-        _, self.n_freqs_, self.n_rois_, _ = feature_shape
+        _, self.n_freqs_, self.n_rois_, _ = self.features_shape_
         n_freqs = self.n_freqs_
         n_features = self.n_freqs_ * self.n_rois_**2
         # Check arguments.

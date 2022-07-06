@@ -58,20 +58,20 @@ class CpSae(BaseModel):
         One of ``'linear'``, ``'pinv'``, or ``'irls'``. If
         ``rec_loss_type`` is ``'lad'``, the encoder should be ``'linear'``
         or ``'pinv'``. If ``rec_loss_type`` is ``'ls'``, the encoder should
-        be ``'linear'`` or ``'irls'``.
+        be ``'linear'`` or ``'irls'``. Defaults to ``'linear'``.
     rec_loss_type : str, optional
         One of ``'lad'`` for least absolute deviations or ``'ls'`` for
         least squares. Defaults to ``'lad'``.
     irls_iter : int, opional
         Number of iterations to run iteratively reweighted least squares.
-        Defaults to ``2``.
+        Defaults to ``1``.
     """
 
     MODEL_NAME = 'CP SAE'
 
 
     def __init__(self, reg_strength=1.0, z_dim=32, gp_params=DEFAULT_GP_PARAMS,
-        encoder_type='irls', rec_loss_type='lad', irls_iter=2, **kwargs):
+        encoder_type='linear', rec_loss_type='lad', irls_iter=1, **kwargs):
         super(CpSae, self).__init__(**kwargs)
         assert isinstance(reg_strength, (int, float))
         self.reg_strength = float(reg_strength)
@@ -87,15 +87,12 @@ class CpSae(BaseModel):
 
     
     @torch.no_grad()
-    def _initialize(self, feature_shape):
+    def _initialize(self):
         """
         Initialize the network parameters.
 
-        Parameters
-        ----------
-        feature_shape : tuple
         """
-        _, n_freqs, n_rois, _ = feature_shape
+        _, n_freqs, n_rois, _ = self.features_shape_
         n_classes = len(self.classes_)
         # Make the recognition model.
         self.rec_model = torch.nn.Linear(n_freqs * n_rois**2, self.z_dim)
@@ -285,14 +282,14 @@ class CpSae(BaseModel):
             Shape : [z,r]
         """
         freq_f = F.softplus(self.freq_factors) # [z,f]
-        freq_norm = torch.sqrt(torch.pow(freq_f,2).sum(dim=-1, keepdim=True))
-        freq_f = freq_f / freq_norm
+        # freq_norm = torch.sqrt(torch.pow(freq_f,2).sum(dim=-1, keepdim=True))
+        # freq_f = freq_f / freq_norm
         roi_1_f = F.softplus(self.roi_1_factors) # [z,r]
-        roi_1_norm = torch.sqrt(torch.pow(roi_1_f,2).sum(dim=-1, keepdim=True))
-        roi_1_f = roi_1_f / roi_1_norm
+        # roi_1_norm = torch.sqrt(torch.pow(roi_1_f,2).sum(dim=-1, keepdim=True))
+        # roi_1_f = roi_1_f / roi_1_norm
         roi_2_f = F.softplus(self.roi_2_factors) # [z,r]
-        roi_2_norm = torch.sqrt(torch.pow(roi_2_f,2).sum(dim=-1, keepdim=True))
-        roi_2_f = roi_2_f / roi_2_norm
+        # roi_2_norm = torch.sqrt(torch.pow(roi_2_f,2).sum(dim=-1, keepdim=True))
+        # roi_2_f = roi_2_f / roi_2_norm
         volume = torch.einsum(
                 'zf,zr,zs->zfrs',
                 freq_f,
