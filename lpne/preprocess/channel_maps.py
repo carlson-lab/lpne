@@ -71,7 +71,7 @@ def get_default_channel_map(channels, combine_hemispheres=True):
     Raises
     ------
     * UserWarning if a channel doesn't have an underscore or a hemisphere
-      indication in its name.
+      indication in its name. The channel is ignored in this case.
 
     Parameters
     ----------
@@ -90,29 +90,32 @@ def get_default_channel_map(channels, combine_hemispheres=True):
         if channel in IGNORED_KEYS:
             continue
         if '_' not in channel:
-            warnings.warn(f"Expected an underscore in channel name: {channel}")
-        else:
-            split_str = channel.split('_')
-            try:
-                temp = int(split_str[-1])
-            except ValueError:
+            warnings.warn(
+                f"Expected an underscore in channel name: {channel}"
+                f", ignoring."
+            )
+            continue
+        split_str = channel.split('_')
+        try:
+            temp = int(split_str[-1])
+        except ValueError:
+            warnings.warn(
+                f"Unexpected channel name: {channel}"
+                f", channel should end in a number. Ignoring."
+            )
+            continue
+        if combine_hemispheres:
+            if len(split_str) < 3 or split_str[-2] not in ['L', 'R']:
                 warnings.warn(
                     f"Unexpected channel name: {channel}"
-                    f", ignoring."
+                    f", no hemisphere indication. Ignoring."
                 )
                 continue
-            if combine_hemispheres:
-                if len(split_str) < 3 or split_str[-2] not in ['L', 'R']:
-                    warnings.warn(
-                        f"Unexpected channel name: {channel}"
-                        f", no hemisphere indication. Ignoring."
-                    )
-                    continue
-                else:
-                    grouped_roi = '_'.join(split_str[:-2])
             else:
-                grouped_roi = '_'.join(split_str[:-1])
-            channel_map[channel] = grouped_roi
+                grouped_roi = '_'.join(split_str[:-2])
+        else:
+            grouped_roi = '_'.join(split_str[:-1])
+        channel_map[channel] = grouped_roi
     return channel_map
 
 
