@@ -210,8 +210,11 @@ def project_app(doc):
         if 0 in label_checkbox.active:
             # Confusion matrix
             confusion = lpne.confusion_matrix(labels, hard_predictions)
+            # Filter out ignored classes.
+            idx = [i for i in range(len(labels)) if labels[i] in model.classes_]
+            idx = np.array(idx)
             # Calculate a weighted accuracy.
-            acc = model.score(features, labels)
+            acc = model.score(features[idx], labels[idx])
             message = f"Confusion matrix (rows are true labels, columns are " \
                       f"predicted labels):\n{confusion}\n\n" \
                       f"Weighted accuracy: {acc}"
