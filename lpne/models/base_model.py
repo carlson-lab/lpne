@@ -8,6 +8,7 @@ __date__ = "June 2022"
 import numpy as np
 import torch
 from torch.utils.data import TensorDataset, DataLoader
+import warnings
 
 from .. import __commit__ as LPNE_COMMIT
 from .. import __version__ as LPNE_VERSION
@@ -181,7 +182,11 @@ class BaseModel(torch.nn.Module):
         if n_iter is not None:
             self.n_iter = n_iter
         if device is not None:
-            self.device = device
+            if (not torch.cuda.is_available()) and device != 'cpu':
+                warnings.warn('Loading GPU-trained model as a CPU model.')
+                self.device = 'cpu'
+            else:
+                self.device = device
         if features_shape_ is not None:
             self.features_shape_ = features_shape_
         if classes_ is not None:

@@ -14,3 +14,4 @@ build
 *.pyc
 *.gif
 !example_cpsd.gif
+*.npy
