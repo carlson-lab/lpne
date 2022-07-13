@@ -2,7 +2,7 @@
 Normalize LFPs and features.
 
 """
-__date__ = "July 2021 - February 2022"
+__date__ = "July 2021 - July 2022"
 
 
 import numpy as np
@@ -11,7 +11,7 @@ EPSILON = 1e-6
 
 
 
-def normalize_features(power_features, partition=None, mode='std'):
+def normalize_features(power_features, partition=None, mode='median'):
     """
     Normalize the features.
 
@@ -29,8 +29,8 @@ def normalize_features(power_features, partition=None, mode='std'):
             Train indices.
         ``'test'``: numpy.ndarray
             Test indices.
-    mode : {'std'}, optional
-        Normalization method.
+    mode : {'median', 'max', 'std'}, optional
+        Normalization method. Defaults to ``'median'``.
         ``'std'``: normalize by the standard deviation of the training set.
         ``'max'``: normalize by the maximum value of the training set, scaling
                    to [0,1].

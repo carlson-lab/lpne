@@ -22,10 +22,10 @@ INT = torch.int64
 FIT_ATTRIBUTES = ['classes_', 'groups_', 'iter_']
 DEFAULT_GP_PARAMS = {
     'mean': 0.0,
-    'ls': 0.2,
+    'ls': 0.3,
     'obs_noise_var': 1e-3,
     'reg': 0.1,
-    'kernel': 'ou',
+    'kernel': 'se',
 }
 """Default frequency factor GP parameters"""
 
