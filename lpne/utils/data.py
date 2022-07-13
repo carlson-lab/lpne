@@ -2,7 +2,7 @@
 Data utilities
 
 """
-__date__ = "July 2021 - June 2022"
+__date__ = "July 2021 - July 2022"
 
 
 import h5py
@@ -228,11 +228,16 @@ def load_features_and_labels(feature_fns, label_fns, group_func=None,
     for feature_fn, label_fn in zip(feature_fns, label_fns):
         power, rois = load_features(feature_fn)
         if prev_rois is not None:
-            assert prev_rois == rois, f"Inconsitent ROIs: {rois} != {prev_rois}"
+            assert prev_rois == rois, \
+                    f"Inconsitent ROIs: {rois} != {prev_rois}"
         prev_rois = rois
         features.append(power)
         counts.append(len(power))
         labels.append(load_labels(label_fn))
+        assert len(power) == len(labels[-1]), \
+            f"Number of windows doesn't match for feature and label file!" \
+            f"\n\tFeatures: {feature_fn} (len({power.shape}))" \
+            f"\n\tLabels: {label_fn} ({len(labels[-1])})"
         if group_func is not None:
             groups.append([group_func(feature_fn)]*len(labels[-1]))
     # Concatenate and return.
