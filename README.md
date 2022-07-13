@@ -40,6 +40,5 @@ Then see `docs/build/html/index.html` for the docs.
 34. mouse-specific intercepts
 36. SMC for sampling label sequence posterior
 37. Mouse-specific normalization options
-40. Get reconstructed volumes
 41. Group Lasso?
 42. Early stoppning in `GridSearchCV`

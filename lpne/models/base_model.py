@@ -6,6 +6,7 @@ __date__ = "June 2022"
 
 
 import numpy as np
+from sklearn.utils.validation import check_is_fitted
 import torch
 from torch.utils.data import TensorDataset, DataLoader
 import warnings
@@ -93,11 +94,13 @@ class BaseModel(torch.nn.Module):
         weights = get_weights(labels, groups, invalid_label=INVALID_LABEL)
         idx = np.argwhere(labels == INVALID_LABEL).flatten()
         idx_comp = np.argwhere(labels != INVALID_LABEL).flatten()
+        # Mask the labels temporarily, get the classes, and unmask.
         temp_label = np.unique(labels[labels != INVALID_LABEL])[0]
-        labels[idx] = temp_label # Mask the labels temporarily.
+        labels[idx] = temp_label
         self.classes_, labels = np.unique(labels, return_inverse=True)
-        labels[idx] = INVALID_LABEL # Unmask the labels.
+        labels[idx] = INVALID_LABEL
         assert len(self.classes_) > 1
+        # Figure out the groups.
         if groups is None:
             groups = np.zeros(len(features))
         np_groups = np.copy(groups)
@@ -139,6 +142,35 @@ class BaseModel(torch.nn.Module):
                 print(f"iter {self.iter_:04d}, acc: {weighted_acc:3f}")
             self.iter_ += 1
         return self
+
+
+    @torch.no_grad()
+    def reconstruct(self, features):
+        """
+        Reconstruct the features by sending them round trip through the model.
+        
+        Parameters
+        ----------
+        features : numpy.ndarray
+            Shape: [b,x]
+
+        Returns
+        -------
+        rec_features : numpy.ndarray
+            Shape: [b,x]
+        """
+        check_is_fitted(self, attributes=self.FIT_ATTRIBUTES)
+        rec_features = []
+        i = 0
+        while i <= len(features):
+            batch_f = features[i:i+self.batch_size]
+            batch_f = torch.tensor(batch_f).to(self.device, FLOAT)
+            batch_zs = self.get_latents(batch_f)
+            batch_rec = self.project_latents(batch_zs)
+            rec_features.append(batch_rec.cpu())
+            i += self.batch_size
+        rec_features = torch.cat(rec_features, dim=0)
+        return rec_features.numpy()
 
 
     def get_params(self, deep=True):

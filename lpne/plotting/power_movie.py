@@ -30,7 +30,7 @@ def make_power_movie(lfps, duration, window_duration, fs=1000, feature='power',
     Parameters
     ----------
     lfps : dict
-        Maps channel names to LFP waveforms (NumPy arrays)
+        Maps channel names (``str``) to LFP waveforms (``np.ndarray``)
     duration : float
         Duration of LFPs
     window_duration : float
@@ -60,7 +60,7 @@ def make_power_movie(lfps, duration, window_duration, fs=1000, feature='power',
     )
     # Set up the plot.
     if feature == 'power':
-        power = lpne.unsqueeze_triangular_array(res['power'], dim=1) # [w,r,r,f]
+        power = lpne.unsqueeze_triangular_array(res['power'], dim=1) #[w,r,r,f]
     else:
         power = res['dir_spec'] # [w,r,r,f]
     n_freqs = power.shape[3]

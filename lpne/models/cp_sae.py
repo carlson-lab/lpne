@@ -2,7 +2,7 @@
 CANDECOMP/PARAFAC supervised autoencoder with deterministic factors
 
 """
-__date__ = "November 2021 - June 2022"
+__date__ = "November 2021 - July 2022"
 
 
 import numpy as np
@@ -19,7 +19,6 @@ from ..utils.utils import get_weights, squeeze_triangular_array
 
 FLOAT = torch.float32
 INT = torch.int64
-FIT_ATTRIBUTES = ['classes_', 'groups_', 'iter_']
 DEFAULT_GP_PARAMS = {
     'mean': 0.0,
     'ls': 0.3,
@@ -68,6 +67,7 @@ class CpSae(BaseModel):
     """
 
     MODEL_NAME = 'CP SAE'
+    FIT_ATTRIBUTES = ['classes_', 'groups_', 'iter_']
 
 
     def __init__(self, reg_strength=1.0, z_dim=32, gp_params=DEFAULT_GP_PARAMS,
@@ -163,10 +163,8 @@ class CpSae(BaseModel):
             return logits
 
         # Get the reconstruction loss.
-        zs = zs.unsqueeze(1) # [b,1,z]
+        rec_features = self.project_latents(zs) # [b,fr^2]
         flat_features = features.view(features.shape[0], -1) # [b,fr^2]
-        H = self._get_H(flatten=True) # [z,fr^2]
-        rec_features = (zs @ H.unsqueeze(0)).squeeze(1) # [b,fr^2]
         diff = flat_features-rec_features # [b,fr^2]
         if self.rec_loss_type == 'lad':
             rec_loss = torch.abs(diff).mean(dim=1) # [b]
@@ -175,7 +173,6 @@ class CpSae(BaseModel):
         rec_loss = self.reg_strength * rec_loss # [b]
 
         # Predict the labels and get weighted label log probabilities.
-        zs = zs.squeeze(1) # [b,1,z] -> [b,z]
         logits = zs[:,:self.n_classes] * F.softplus(self.logit_weights)
         logits = logits + self.logit_biases # [b,c]
         if return_logits:
@@ -258,6 +255,26 @@ class CpSae(BaseModel):
         return latents
 
 
+    def project_latents(self, latents):
+        """
+        Feed latents through the model to get observations.
+        
+        Parameters
+        ----------
+        latents : torch.Tensor
+            Shape: [b,z]
+
+        Returns
+        -------
+        x_pred : torch.Tensor
+            Shape: [b,x]
+        """
+        H = self._get_H(flatten=True) # [z,x]
+        rec_features = latents.unsqueeze(1) @ H.unsqueeze(0) # [b,1,x]
+        rec_features = rec_features.squeeze(1) # [b,x]
+        return rec_features
+
+
     def _get_H(self, flatten=True, return_factors=False):
         """
         Get the factors.
@@ -282,14 +299,8 @@ class CpSae(BaseModel):
             Shape : [z,r]
         """
         freq_f = F.softplus(self.freq_factors) # [z,f]
-        # freq_norm = torch.sqrt(torch.pow(freq_f,2).sum(dim=-1, keepdim=True))
-        # freq_f = freq_f / freq_norm
         roi_1_f = F.softplus(self.roi_1_factors) # [z,r]
-        # roi_1_norm = torch.sqrt(torch.pow(roi_1_f,2).sum(dim=-1, keepdim=True))
-        # roi_1_f = roi_1_f / roi_1_norm
         roi_2_f = F.softplus(self.roi_2_factors) # [z,r]
-        # roi_2_norm = torch.sqrt(torch.pow(roi_2_f,2).sum(dim=-1, keepdim=True))
-        # roi_2_f = roi_2_f / roi_2_norm
         volume = torch.einsum(
                 'zf,zr,zs->zfrs',
                 freq_f,
@@ -336,7 +347,7 @@ class CpSae(BaseModel):
         probs : numpy.ndarray
             Shape: ``[batch, n_classes]``
         """
-        check_is_fitted(self, attributes=FIT_ATTRIBUTES)
+        check_is_fitted(self, attributes=self.FIT_ATTRIBUTES)
         if isinstance(features, np.ndarray):
             features = torch.tensor(features, dtype=FLOAT)
         # Figure out group mapping.
@@ -410,7 +421,7 @@ class CpSae(BaseModel):
         # Checks
         assert features.ndim == 4
         assert features.shape[2] == features.shape[3]
-        check_is_fitted(self, attributes=FIT_ATTRIBUTES)
+        check_is_fitted(self, attributes=self.FIT_ATTRIBUTES)
         # Feed through model.
         probs = self.predict_proba(features, groups, to_numpy=True, warn=warn)
         predictions = np.argmax(probs, axis=1)
@@ -440,7 +451,7 @@ class CpSae(BaseModel):
         ------
         weighted_accuracy : float
         """
-        check_is_fitted(self, attributes=FIT_ATTRIBUTES)
+        check_is_fitted(self, attributes=self.FIT_ATTRIBUTES)
         weights = get_weights(labels, groups, invalid_label=INVALID_LABEL)
         predictions = self.predict(features, groups, warn=warn)
         scores = np.zeros(len(features))
@@ -465,7 +476,7 @@ class CpSae(BaseModel):
         factor : numpy.ndarray
             Shape: ``[r(r+1)/2,f]``
         """
-        check_is_fitted(self, attributes=FIT_ATTRIBUTES)
+        check_is_fitted(self, attributes=self.FIT_ATTRIBUTES)
         assert isinstance(factor_num, int)
         assert factor_num >= 0 and factor_num < self.z_dim
         volume = self._get_mean_projection()[factor_num]  # [f,r,r]

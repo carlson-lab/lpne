@@ -20,7 +20,6 @@ from ..utils.utils import get_weights, squeeze_triangular_array
 
 FLOAT = torch.float32
 EPSILON = 1e-6
-FIT_ATTRIBUTES = ['classes_', 'iter_', 'n_freqs_', 'n_rois_']
 DEFAULT_GP_PARAMS = {
     'mean': 0.0,
     'ls': 0.3,
@@ -84,6 +83,7 @@ class FaSae(BaseModel):
     """
 
     MODEL_NAME = 'FA SAE'
+    FIT_ATTRIBUTES = ['classes_', 'iter_', 'n_freqs_', 'n_rois_']
 
 
     def __init__(self, reg_strength=1.0, z_dim=32, nonnegative=True,
@@ -200,7 +200,11 @@ class FaSae(BaseModel):
         
         # Get latents.
         features = features.view(len(features),-1) # [b,f,r,r] -> [b,x]
-        zs, kld = self.get_latents(features, stochastic=stochastic) # [b,z],[b]
+        zs, kld = self.get_latents(
+                features,
+                stochastic=stochastic,
+                return_kld=True,
+        ) # [b,z],[b]
 
         # Predict the labels.
         logits = zs[:,:self.n_classes] * F.softplus(self.logit_weights)
@@ -212,17 +216,10 @@ class FaSae(BaseModel):
         log_probs[unlabeled_mask] = 0.0 # disregard the unlabeled data
         
         # Reconstruct the features.
-        if self.nonnegative:
-            A = F.softplus(self.model) # [x,z]
-        else:
-            A = self.model # [x,z]
-        A_norm = torch.sqrt(torch.pow(A,2).sum(dim=0, keepdim=True))
-        A = A / A_norm
-        features_rec = A.unsqueeze(0) @ F.softplus(zs).unsqueeze(-1)
-        features_rec = features_rec.squeeze(-1) # [b,x]
+        rec_features, A = self.project_latents(zs, return_factor=True) # [b,x]
         
         # Calculate a reconstruction loss.
-        diff = features - features_rec # [b,x]
+        diff = features - rec_features # [b,x]
         if self.rec_loss_type == 'lad':
             rec_loss = torch.abs(diff).mean(dim=1) # [b]
         elif self.rec_loss_type == 'ls':
@@ -244,7 +241,8 @@ class FaSae(BaseModel):
         return loss
 
 
-    def get_latents(self, features, stochastic=True, reg=1e-3):
+    def get_latents(self, features, stochastic=True, return_kld=False,
+        reg=1e-3):
         """
         Get the latents corresponding to the given features.
 
@@ -253,6 +251,7 @@ class FaSae(BaseModel):
         features : torch.Tensor
             Shape: [b,x]
         stochastic : bool, optional
+        return_kld : bool, optional
         reg : float, optional
             Regularization for IRLS
 
@@ -261,6 +260,7 @@ class FaSae(BaseModel):
         latents : torch.Tensor
             Shape: [b,z]
         kld : torch.Tensor
+            KL divergence. Returned if ``return_kld``.
             Shape: [b]
         """
         assert features.ndim == 2, f"len({features.shape}) != 2"
@@ -338,7 +338,41 @@ class FaSae(BaseModel):
                     latents = torch.clamp(latents.squeeze(-1), min=0.0) # [b,z]
             else:
                 raise NotImplementedError(self.encoder_type)
-        return latents, kld
+        if return_kld:
+            return latents, kld
+        return latents
+
+
+    def project_latents(self, latents, return_factor=False):
+        """
+        Feed latents through the model to get observations.
+        
+        Parameters
+        ----------
+        latents : torch.Tensor
+            Shape: [b,z]
+        return_factor : bool, optional
+            Whether to return the linear model factor
+
+        Returns
+        -------
+        x_pred : torch.Tensor
+            Shape: [b,x]
+        A : torch.Tensor
+            Linear factor. Returned if ``return_factor``.
+            Shape: [x,z]
+        """
+        if self.nonnegative:
+            A = F.softplus(self.model) # [x,z]
+        else:
+            A = self.model # [x,z]
+        A_norm = torch.sqrt(torch.pow(A,2).sum(dim=0, keepdim=True))
+        A = A / A_norm
+        x_pred = A.unsqueeze(0) @ F.softplus(latents).unsqueeze(-1)
+        x_pred = x_pred.squeeze(-1) # [b,x]
+        if return_factor:
+            return x_pred, A
+        return x_pred
 
 
     @torch.no_grad()
@@ -369,7 +403,7 @@ class FaSae(BaseModel):
             The predicted class probabilities
             Shape: ``[n,c]``
         """
-        check_is_fitted(self, attributes=FIT_ATTRIBUTES)
+        check_is_fitted(self, attributes=self.FIT_ATTRIBUTES)
         logits = []
         i = 0
         while i <= len(features):
@@ -408,7 +442,7 @@ class FaSae(BaseModel):
             The predicted classes
             Shape: ``[b]``
         """
-        check_is_fitted(self, attributes=FIT_ATTRIBUTES)
+        check_is_fitted(self, attributes=self.FIT_ATTRIBUTES)
         # Feed through model.
         if isinstance(X, np.ndarray):
             X = torch.tensor(X, dtype=FLOAT).to(self.device)
@@ -439,7 +473,7 @@ class FaSae(BaseModel):
         weighted_acc : float
             Class-weighted accuracy
         """
-        check_is_fitted(self, attributes=FIT_ATTRIBUTES)
+        check_is_fitted(self, attributes=self.FIT_ATTRIBUTES)
         weights = get_weights(labels, groups, invalid_label=INVALID_LABEL)
         predictions = self.predict(features)
         scores = np.zeros(len(features))
@@ -464,7 +498,7 @@ class FaSae(BaseModel):
         factor : numpy.ndarray
             Shape: ``[r(r+1)/2,f]``
         """
-        check_is_fitted(self, attributes=FIT_ATTRIBUTES)
+        check_is_fitted(self, attributes=self.FIT_ATTRIBUTES)
         assert isinstance(factor_num, int)
         assert factor_num >= 0 and factor_num < self.z_dim
         A = self.model[:,factor_num]

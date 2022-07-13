@@ -19,7 +19,7 @@ Required directory structure:
 
 
 """
-__date__ = "July 2021 - June 2022"
+__date__ = "July 2021 - July 2022"
 
 
 import numpy as np
@@ -33,7 +33,7 @@ from lpne.models import FaSae, CpSae
 USAGE = "Usage:\n$ python prediction_pipeline.py <experiment_directory>"
 FEATURE_SUBDIR = 'features'
 LABEL_SUBDIR = 'labels'
-CP_SAE = True
+CP_SAE = False
 
 
 
@@ -75,7 +75,7 @@ if __name__ == '__main__':
     # Normalize and reshape the power features.
     features = lpne.normalize_features(features, partition)
     features = lpne.unsqueeze_triangular_array(features, 1)
-    features = np.transpose(features, [0,3,1,2])
+    features = np.transpose(features, [0,3,1,2]) # [b,f,r,r]
 
     # Make the model.
     model = CpSae(n_iter=50) if CP_SAE else FaSae(n_iter=50)
@@ -94,16 +94,30 @@ if __name__ == '__main__':
     )
     print("Done training.\n")
 
-    # Plot factor.
+    # Save the model.
+    print("Saving model...")
+    model.save_state(os.path.join(exp_dir, 'model_state.npy'))
+
+    # Plot a couple factors.
     print("Plotting factors...")
     factor = model.get_factor(0)
     lpne.plot_factor(factor, rois, fn='factor_1.pdf')
     factor = model.get_factor(1)
     lpne.plot_factor(factor, rois, fn='factor_2.pdf')
 
-    # Save the model.
-    print("Saving model...")
-    model.save_state(os.path.join(exp_dir, 'model_state.npy'))
+    # Plot a random window and its reconstruction.
+    idx = np.random.randint(len(features))
+    feature = features[idx:idx+1] # [1,f,r,r]
+    rec_feature = model.reconstruct(feature.reshape(1,-1)) # [1,x]
+    rec_feature = rec_feature.reshape(feature.shape) # [1,f,r,r]
+    both_features = np.concatenate([feature, rec_feature], axis=0) # [1,f,r,r]
+    both_features = lpne.squeeze_triangular_array(both_features, dims=(2,3))
+    both_features = np.transpose(both_features, [0,2,1]) # [2,r*(r+1)//2,f]
+    lpne.plot_factors(
+        both_features,
+        rois=rois,
+        fn='reconstruction.pdf',
+    )
 
     # Make some predictions.
     print("Making predictions...")
