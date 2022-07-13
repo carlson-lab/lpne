@@ -22,66 +22,89 @@ INT = torch.int64
 FIT_ATTRIBUTES = ['classes_', 'groups_', 'iter_']
 DEFAULT_GP_PARAMS = {
     'mean': 0.0,
-    'ls': 0.2,
+    'ls': 0.3,
     'obs_noise_var': 1e-3,
     'reg': 0.1,
-    'mode': 'ou',
+    'kernel': 'se',
 }
 """Default frequency factor GP parameters"""
 
 
 
 class CpSae(BaseModel):
+    """
+    A supervised autoencoder with a CP-style generative model
+
+    Parameters
+    ----------
+    reg_strength : float, optional
+        This controls how much we weight the reconstruction loss. This
+        should be positive, and larger values indicate more regularization.
+    z_dim : int, optional
+        Latent dimension/number of networks.
+    gp_params : dict, optional
+        Maps the frequency component GP prior parameter names to values.
+        ``'mean'`` : float, optional
+            Mean value
+        ``'ls'`` : float, optional
+            Lengthscale, in units of frequency bins
+        ``'obs_noise_var'`` : float, optional
+            Observation noise variances
+        ``'reg'`` : float, optional
+            Regularization strength
+        ``'kernel'`` : {``'ou'``, ``'se'``}, optional
+            Denotes Ornstein-Uhlenbeck or squared exponential kernels
+    encoder_type : str, optional
+        One of ``'linear'``, ``'pinv'``, or ``'irls'``. If
+        ``rec_loss_type`` is ``'lad'``, the encoder should be ``'linear'``
+        or ``'pinv'``. If ``rec_loss_type`` is ``'ls'``, the encoder should
+        be ``'linear'`` or ``'irls'``. Defaults to ``'linear'``.
+    rec_loss_type : str, optional
+        One of ``'lad'`` for least absolute deviations or ``'ls'`` for
+        least squares. Defaults to ``'lad'``.
+    irls_iter : int, opional
+        Number of iterations to run iteratively reweighted least squares.
+        Defaults to ``1``.
+    """
 
     MODEL_NAME = 'CP SAE'
 
 
     def __init__(self, reg_strength=1.0, z_dim=32, gp_params=DEFAULT_GP_PARAMS,
-        factor_reg=1e-1, **kwargs):
-        """
-        A supervised autoencoder with a CP-style generative model
-
-        Parameters
-        ----------
-        reg_strength : float, optional
-            This controls how much we weight the reconstruction loss. This
-            should be positive, and larger values indicate more regularization.
-        z_dim : int, optional
-            Latent dimension/number of networks.
-        gp_params : dict, optional
-            Maps 'mean', 'ls', 'obs_noise_var', and 'reg' to values.
-        factor_reg : float, optional
-        """
+        encoder_type='linear', rec_loss_type='lad', irls_iter=1, **kwargs):
         super(CpSae, self).__init__(**kwargs)
+        assert isinstance(reg_strength, (int, float))
         self.reg_strength = float(reg_strength)
+        assert isinstance(z_dim, int)
         self.z_dim = z_dim
         self.gp_params = {**DEFAULT_GP_PARAMS, **gp_params}
-        self.factor_reg = float(factor_reg)
+        assert encoder_type in ['linear', 'pinv', 'irls']
+        self.encoder_type = encoder_type
+        assert rec_loss_type in ['lad', 'ls']
+        self.rec_loss_type = rec_loss_type
+        assert isinstance(irls_iter, int)
+        self.irls_iter = irls_iter
 
     
     @torch.no_grad()
-    def _initialize(self, feature_shape):
+    def _initialize(self):
         """
         Initialize the network parameters.
 
-        Parameters
-        ----------
-        feature_shape : tuple
         """
-        _, n_freqs, n_rois, _ = feature_shape
-        n_groups = len(self.groups_)
+        _, n_freqs, n_rois, _ = self.features_shape_
         n_classes = len(self.classes_)
         # Make the recognition model.
         self.rec_model = torch.nn.Linear(n_freqs * n_rois**2, self.z_dim)
         # Set up the frequency factor GP.
         kernel = torch.arange(n_freqs).unsqueeze(0)
         kernel = torch.abs(kernel - torch.arange(n_freqs).unsqueeze(1))
-        if self.gp_params['mode'] == 'se':
+        if self.gp_params['kernel'] == 'se':
             kernel = 2**(-1/2) * torch.pow(kernel / self.gp_params['ls'], 2)
-        elif self.gp_params['mode'] == 'ou':
+        elif self.gp_params['kernel'] == 'ou':
             kernel = torch.abs(kernel / self.gp_params['ls'])
         else:
-            raise NotImplementedError(self.gp_params['mode'])
+            raise NotImplementedError(self.gp_params['kernel'])
         kernel = torch.exp(-kernel)
         kernel = kernel + self.gp_params['obs_noise_var'] * torch.eye(n_freqs)
         self.gp_dist = MultivariateNormal(
@@ -89,63 +112,21 @@ class CpSae(BaseModel):
                 covariance_matrix=kernel.to(self.device),
         )
         # Make the frequency factors.
-        freq_factors = self.gp_dist.sample(sample_shape=(self.z_dim,)) # [z,f]
         self.freq_factors = torch.nn.Parameter(
-            freq_factors.unsqueeze(0).expand(n_groups,-1,-1).clone(),
-        ) # [1,z,f]
+            self.gp_dist.sample(sample_shape=(self.z_dim,)),
+        ) # [z,f]
         # Make the ROI factors.
-        roi_1_factors = -5 + torch.randn(1,self.z_dim,n_rois)
         self.roi_1_factors = torch.nn.Parameter(
-           roi_1_factors.expand(n_groups,-1,-1).clone(),
-        )
-        roi_2_factors = -5 + torch.randn(1,self.z_dim,n_rois)
+           -5 + torch.randn(self.z_dim,n_rois),
+        ) # [z,r]
         self.roi_2_factors = torch.nn.Parameter(
-            roi_2_factors.expand(n_groups,-1,-1).clone(),
-        )
+            -5 + torch.randn(self.z_dim,n_rois),
+        ) # [z,r]
         self.logit_weights = torch.nn.Parameter(
                 -5 * torch.ones(1,n_classes),
-        )
+        ) # [1,c]
         self.logit_biases = torch.nn.Parameter(torch.zeros(1,n_classes))
         super(CpSae, self)._initialize()
-
-
-    def _get_H(self, flatten=True):
-        """
-        Get the factors.
-
-        Parameters
-        ----------
-        flatten : bool, optional
-
-        Returns
-        -------
-        H: torch.Tensor
-            Shape: ``[g,b,frr]`` if ``flatten``, ``[g,b,f,r,r]`` otherwise
-        """
-        freq_f = F.softplus(self.freq_factors) # [g,z,f]
-        freq_norm = torch.sqrt(torch.pow(freq_f,2).sum(dim=-1, keepdim=True))
-        freq_f = freq_f / freq_norm
-        roi_1_f = F.softplus(self.roi_1_factors) # [g,z,r]
-        roi_1_norm = torch.sqrt(torch.pow(roi_1_f,2).sum(dim=-1, keepdim=True))
-        roi_1_f = roi_1_f / roi_1_norm
-        roi_2_f = F.softplus(self.roi_2_factors) # [g,z,r]
-        roi_2_norm = torch.sqrt(torch.pow(roi_2_f,2).sum(dim=-1, keepdim=True))
-        roi_2_f = roi_2_f / roi_2_norm
-        volume = torch.einsum(
-                'gzf,gzr,gzs->gzfrs',
-                freq_f,
-                roi_1_f,
-                roi_2_f,
-        ) # [g,z,f,r,r]
-        if flatten:
-            volume = volume.view(volume.shape[0], volume.shape[1], -1)
-        return volume
-
-
-    @torch.no_grad()
-    def _get_mean_projection(self):
-        volume = self._get_H(flatten=False) # [g,z,f,r,r]
-        return torch.mean(volume, dim=0) # [z,f,r,r]
 
 
     def forward(self, features, labels, groups, weights, return_logits=False):
@@ -173,9 +154,7 @@ class CpSae(BaseModel):
             labels[unlabeled_mask] = 0
 
         # Get latents.
-        flat_features = features.view(features.shape[0], -1) # [b,fr^2]
-        rec_features = torch.zeros_like(flat_features)
-        zs = F.softplus(self.rec_model(flat_features)) # [b,z]
+        zs = self.get_latents(features) # [b,z]
 
         if groups is None:
             assert return_logits
@@ -185,16 +164,15 @@ class CpSae(BaseModel):
 
         # Get the reconstruction loss.
         zs = zs.unsqueeze(1) # [b,1,z]
-        flat_features = flat_features.unsqueeze(1) # [b,1,fr^2]
-        H = self._get_H(flatten=True) # [g,z,fr^2]
-        group_oh = F.one_hot(groups.clamp(0,None), len(self.groups_)) # [b,g]
-        group_oh = group_oh.to(FLOAT)
-        group_oh[groups == INVALID_GROUP] = 1 / len(self.groups_)
-        group_oh = group_oh.unsqueeze(-1).unsqueeze(-1) # [b,g,1,1]
-        H = (group_oh * H.unsqueeze(0)).sum(dim=1) # [b,g,z,fr^2] -> [b,z,fr^2]
-        rec_features = (zs @ H).squeeze(1) # [b,1,z][b,z,fr^2] -> [b,fr^2]
-        flat_features = flat_features.squeeze(1) # [b,fr^2]
-        rec_loss = (flat_features-rec_features).abs().mean(dim=1) #[b]
+        flat_features = features.view(features.shape[0], -1) # [b,fr^2]
+        H = self._get_H(flatten=True) # [z,fr^2]
+        rec_features = (zs @ H.unsqueeze(0)).squeeze(1) # [b,fr^2]
+        diff = flat_features-rec_features # [b,fr^2]
+        if self.rec_loss_type == 'lad':
+            rec_loss = torch.abs(diff).mean(dim=1) # [b]
+        elif self.rec_loss_type == 'ls':
+            rec_loss = 0.5 * torch.pow(diff,2).mean(dim=1) # [b]
+        rec_loss = self.reg_strength * rec_loss # [b]
 
         # Predict the labels and get weighted label log probabilities.
         zs = zs.squeeze(1) # [b,1,z] -> [b,z]
@@ -215,26 +193,119 @@ class CpSae(BaseModel):
 
         # Combine all the terms into a composite loss.
         label_loss = -torch.sum(log_probs) # []
-        rec_loss = self.reg_strength * torch.sum(rec_loss) # []
-        factor_loss = self.factor_reg * self._get_factor_loss() # []
-        loss = label_loss + rec_loss + factor_loss + gp_loss
+        rec_loss = torch.sum(rec_loss) # []
+        loss = label_loss + rec_loss + gp_loss
         return loss
 
 
-    def _get_factor_loss(self, eps=1e-7):
-        f_mean = torch.mean(self.freq_factors, dim=0, keepdim=True)
-        f_norm = torch.linalg.norm(f_mean, dim=2, keepdim=True)
-        f_loss = (self.freq_factors - f_mean) / (f_norm + eps)
-        f_loss = torch.pow(f_loss, 2).sum()
-        roi_1_mean = torch.mean(self.roi_1_factors, dim=0, keepdim=True)
-        roi_1_norm = torch.linalg.norm(roi_1_mean, dim=2, keepdim=True)
-        roi_1_loss = (self.roi_1_factors - roi_1_mean) / (roi_1_norm + eps)
-        roi_1_loss = torch.pow(roi_1_loss, 2).sum()
-        roi_2_mean = torch.mean(self.roi_2_factors, dim=0, keepdim=True)
-        roi_2_norm = torch.linalg.norm(roi_2_mean, dim=2, keepdim=True)
-        roi_2_loss = (self.roi_2_factors - roi_2_mean) / (roi_2_norm + eps)
-        roi_2_loss = torch.pow(roi_2_loss, 2).sum()
-        return f_loss + roi_1_loss + roi_2_loss
+    def get_latents(self, features, reg=1e-3):
+        """
+        Get the latents corresponding to the given features.
+
+        Parameters
+        ----------
+        features : torch.Tensor
+            Shape: ``[b,f,r,r]``
+        reg : float, optional
+            Regularization for IRLS
+
+        Returns
+        -------
+        latents : torch.Tensor
+            Shape: ``[b,z]``
+        """
+        if self.encoder_type == 'linear':
+            flat_features = features.view(features.shape[0], -1) # [b,fr^2]
+            latents = F.softplus(self.rec_model(flat_features)) # [b,z]
+        elif self.encoder_type in ['pinv', 'irls']:
+            # [z,f,r,r], [z,f], [z,r], [z,r]
+            H, f1, f2, f3 = self._get_H(flatten=False, return_factors=True)
+            H = H.unsqueeze(0) # [1,z,f,r,r]
+            prod = (features.unsqueeze(1) * H).sum(dim=(2,3,4)) # [b,z]
+            inner = (f1 @ f1.t()) * (f2 @ f2.t()) * (f3 @ f3.t()) # [z,z]
+            latents = torch.linalg.solve(
+                inner.unsqueeze(0),
+                prod.unsqueeze(-1),
+            ) # [b,z,1]
+            if self.encoder_type == 'pinv':
+                latents = torch.clamp(latents.squeeze(-1), min=0.0)
+            else:
+                # Do iteratively re-weighted least squares.
+                flat_features = features.view(features.shape[0], -1) # [b,fr^2]
+                flat_H = H.view(self.z_dim,-1) # [z,fr^2]
+                for _ in range(self.irls_iter):
+                    # diffs: [b,x], weights: [b,fr^2]
+                    diffs = flat_features - latents.squeeze(-1) @ flat_H
+                    weights = 1.0 / torch.clamp(torch.abs(diffs), reg, None)
+                    inner = torch.einsum(
+                        'zx,bx,xw->bzw',
+                        flat_H,
+                        weights,
+                        flat_H.t(),
+                    ) # [b,z,z]
+                    prod = torch.einsum(
+                        'zx,bx->bz',
+                        flat_H,
+                        weights * flat_features,
+                    ) # [b,z]
+                    latents = torch.linalg.solve(
+                        inner,
+                        prod.unsqueeze(-1),
+                    ) # [b,z,1]
+                latents = torch.clamp(latents.squeeze(-1), min=0.0)
+        else:
+            raise NotImplementedError(self.encoder_type)
+        return latents
+
+
+    def _get_H(self, flatten=True, return_factors=False):
+        """
+        Get the factors.
+
+        Parameters
+        ----------
+        flatten : bool, optional
+        return_factors : bool, optional
+
+        Returns
+        -------
+        H: torch.Tensor
+            Shape: ``[z,frr]`` if ``flatten``, ``[z,f,r,r]`` otherwise
+        freq_factor : torch.Tensor
+            Returned if ``return_factors``
+            Shape : [z,f]
+        roi_1_factor : torch.Tensor
+            Returned if ``return_factors``
+            Shape : [z,r]
+        roi_2_factor : torch.Tensor
+            Returned if ``return_factors``
+            Shape : [z,r]
+        """
+        freq_f = F.softplus(self.freq_factors) # [z,f]
+        # freq_norm = torch.sqrt(torch.pow(freq_f,2).sum(dim=-1, keepdim=True))
+        # freq_f = freq_f / freq_norm
+        roi_1_f = F.softplus(self.roi_1_factors) # [z,r]
+        # roi_1_norm = torch.sqrt(torch.pow(roi_1_f,2).sum(dim=-1, keepdim=True))
+        # roi_1_f = roi_1_f / roi_1_norm
+        roi_2_f = F.softplus(self.roi_2_factors) # [z,r]
+        # roi_2_norm = torch.sqrt(torch.pow(roi_2_f,2).sum(dim=-1, keepdim=True))
+        # roi_2_f = roi_2_f / roi_2_norm
+        volume = torch.einsum(
+                'zf,zr,zs->zfrs',
+                freq_f,
+                roi_1_f,
+                roi_2_f,
+        ) # [z,f,r,r]
+        if flatten:
+            volume = volume.view(volume.shape[0], -1)
+        if return_factors:
+            return volume, freq_f, roi_1_f, roi_2_f
+        return volume
+
+
+    @torch.no_grad()
+    def _get_mean_projection(self):
+        return self._get_H(flatten=False) # [z,f,r,r]
 
 
     @torch.no_grad()
@@ -410,25 +481,31 @@ class CpSae(BaseModel):
         params = {
             'reg_strength': self.reg_strength,
             'z_dim': self.z_dim,
-            'factor_reg': self.factor_reg,
             'gp_params': self.gp_params,
+            'encoder_type': self.encoder_type,
+            'rec_loss_type': self.rec_loss_type,
+            'irls_iter': self.irls_iter,
         }
         params = {**super_params, **params}
         return params
 
 
     @torch.no_grad()
-    def set_params(self, reg_strength=None, z_dim=None, factor_reg=None,
-        gp_params=None, **kwargs):
+    def set_params(self, reg_strength=None, z_dim=None, gp_params=None,
+        encoder_type=None, rec_loss_type=None, irls_iter=None, **kwargs):
         """Set the parameters of this estimator."""
         if reg_strength is not None:
             self.reg_strength = reg_strength
         if z_dim is not None:
             self.z_dim = z_dim
-        if factor_reg is not None:
-            self.factor_reg = factor_reg
         if gp_params is not None:
             self.gp_params = {**DEFAULT_GP_PARAMS, **gp_params}
+        if encoder_type is not None:
+            self.encoder_type = encoder_type
+        if rec_loss_type is not None:
+            self.rec_loss_type = rec_loss_type
+        if irls_iter is not None:
+            self.irls_iter = irls_iter
         super(CpSae, self).set_params(**kwargs)
         return self
 

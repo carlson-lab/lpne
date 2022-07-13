@@ -4,8 +4,8 @@ LPNE feature pipeline
 Code for preprocessing and building factor models with local field potentials.
 
 """
-__date__ = "July 2021 - June 2022"
-__version__ = "0.0.23"
+__date__ = "July 2021 - July 2022"
+__version__ = "0.1.1"
 try:
 	with open(".git/logs/HEAD", "r") as fh:
 		__commit__ = fh.read().split('\n')[-2]
@@ -20,6 +20,7 @@ from .models import FaSae, CpSae, GridSearchCV
 from .plotting import \
         plot_lfps, \
         plot_factor, \
+        plot_factors, \
         plot_power, \
         plot_spec, \
         make_power_movie

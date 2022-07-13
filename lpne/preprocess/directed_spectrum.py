@@ -34,7 +34,7 @@ __date__ = "January 2022"
 from warnings import warn
 import numpy as np
 from scipy.signal import csd
-from scipy.fft import fft, ifft
+from numpy.fft import fft, ifft
 
 
 TOL = 1e-6

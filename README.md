@@ -35,11 +35,11 @@ Then see `docs/build/html/index.html` for the docs.
 23. Model factor movie
 26. Add random seeds?
 28. Save label names with labels?
-29. Plot multiple factors
 31. Movie app
 32. `from joblib import Parallel, delayed`
-33. PCGM for tensor models
 34. mouse-specific intercepts
 36. SMC for sampling label sequence posterior
 37. Mouse-specific normalization options
-38. Tensor model lstsq encoder
+40. Get reconstructed volumes
+41. Group Lasso?
+42. Early stoppning in `GridSearchCV`

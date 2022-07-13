@@ -11,7 +11,6 @@ from bokeh.models import Button, PreText, TextInput, MultiSelect, \
         RadioButtonGroup, CheckboxGroup, Tabs, Panel
 import numpy as np
 import os
-from sklearn.metrics import confusion_matrix
 
 import lpne
 
@@ -24,7 +23,8 @@ DEFAULT_MAT_FN = '/Users/jack/Desktop/lpne/test_data/transition_mat.npy'
 
 MULTISELECT_HEIGHT = 350
 MULTISELECT_WIDTH = 400
-LABELS = ["CP SAE", "FA SAE"]
+MODEL_TYPES = ["CP SAE", "FA SAE"]
+NORM_METHODS = ['Median', 'Std. Dev.', 'Maximum']
 
 COUNTS = None
 FNS = None
@@ -34,7 +34,17 @@ PREDICTIONS = None
 
 def project_app(doc):
 
-    radio_button_group = RadioButtonGroup(labels=LABELS, active=0)
+    rbg_title = PreText(text="Select model type:")
+    radio_button_group = RadioButtonGroup(
+            labels=MODEL_TYPES,
+            active=0,
+    )
+
+    rbg2_title = PreText(text="Select normalization method:")
+    radio_button_group_2 = RadioButtonGroup(
+            labels=NORM_METHODS,
+            active=0,
+    )
 
     if os.path.exists(DEFAULT_FEATURE_DIR):
         initial_options = _my_listdir(DEFAULT_FEATURE_DIR)
@@ -166,24 +176,29 @@ def project_app(doc):
                     return_counts=True,
             )
         # Normalize the power features.
-        features = lpne.normalize_features(features, mode='std')
+        if radio_button_group_2.active == 0:
+            mode = 'median'
+        elif radio_button_group_2.active == 1:
+            mode = 'std'
+        elif radio_button_group_2.active == 2:
+            mode = 'max'
+        features = lpne.normalize_features(features, mode=mode)
+        features = lpne.unsqueeze_triangular_array(features, 1)
+        features = np.transpose(features, [0,3,1,2])
         # Load the model.
         if not os.path.exists(model_in.value):
             project_button.button_type = "warning"
             alert_box.text = "Model file doesn't exist!"
             return
         if radio_button_group.active == 0:
-            features = lpne.unsqueeze_triangular_array(features, 1)
-            features = np.transpose(features, [0,3,1,2])
             model = lpne.CpSae()
         else:
-            features = features.reshape(len(features), -1)
             model = lpne.FaSae()
         try:
             model.load_state(model_in.value)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as err_msg:
             project_button.button_type = "warning"
-            alert_box.text = "Incorrect model type!"
+            alert_box.text = f"Incorrect model type!\n{err_msg}"
             return
 
         # Make predictions and print message.
@@ -194,12 +209,9 @@ def project_app(doc):
         PREDICTIONS = predictions
         if 0 in label_checkbox.active:
             # Confusion matrix
-            confusion = confusion_matrix(labels, hard_predictions)
-            # Filter out ignored classes.
-            idx = [i for i in range(len(labels)) if labels[i] in model.classes_]
-            idx = np.array(idx)
+            confusion = lpne.confusion_matrix(labels, hard_predictions)
             # Calculate a weighted accuracy.
-            acc = model.score(features[idx], labels[idx])
+            acc = model.score(features, labels)
             message = f"Confusion matrix (rows are true labels, columns are " \
                       f"predicted labels):\n{confusion}\n\n" \
                       f"Weighted accuracy: {acc}"
@@ -288,7 +300,10 @@ def project_app(doc):
 
     column_1 = column(
             model_in,
+            rbg_title,
             radio_button_group,
+            rbg2_title,
+            radio_button_group_2,
             label_checkbox,
             label_dir_in,
             feature_dir_in,

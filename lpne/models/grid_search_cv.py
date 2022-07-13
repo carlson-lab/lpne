@@ -2,12 +2,12 @@
 A simple grid search cross validation model.
 
 """
-__date__ = "December 2021 - June 2022"
+__date__ = "December 2021 - July 2022"
 
 
 from itertools import product
 import numpy as np
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedKFold, GroupShuffleSplit
 from sklearn.utils.validation import check_is_fitted
 import torch
 
@@ -17,24 +17,27 @@ FIT_ATTRIBUTES = ['best_estimator_', 'best_params_', 'best_score_']
 
 
 class GridSearchCV:
+    """
+    A simple grid search cross validation model.
 
-    def __init__(self, model, param_grid, cv=3):
-        """
-        A simple grid search cross validation model.
+    Parameters
+    ----------
+    model : ``BaseModel``
+        Model
+    param_grid : dict
+        Maps names of model parameters (strings) to lists of values. These
+        are passed to the ``model.set_params`` method.
+    cv : int, optional
+        Number of folds to estimate the performance of each parameter set.
+    test_size : int, optional
+        Passed to ``GroupShuffleSplit``. Defaults to ``2``.
+    """
 
-        Parameters
-        ----------
-        model : ``BaseModel``
-            Model
-        param_grid : dict
-            Maps names of model parameters (strings) to lists of values. These
-            are passed to the ``model.set_params`` method.
-        cv : int, optional
-            Number of folds to estimate the performance of each parameter set.
-        """
+    def __init__(self, model, param_grid, cv=3, test_size=2):
         self.model = model
         self.param_grid = param_grid
         self.cv = cv
+        self.test_size = test_size
 
 
     def fit(self, features, labels, groups, print_freq=5, score_freq=5):
@@ -42,6 +45,9 @@ class GridSearchCV:
         Fit the model to data.
 
         These parameters are passed to ``BaseModel.fit``.
+        
+        If ``groups`` is ``None``, a label-stratified K-fold is use for model
+        selection. Otherwise, a group shuffle used.
 
         Parameters
         ----------
@@ -57,16 +63,18 @@ class GridSearchCV:
             Print weighted accuracy every ``score_freq`` epochs.
         """
         # Split data into folds.
-        skf = StratifiedKFold(n_splits=self.cv, shuffle=True)
         if groups is None:
+            # Balance folds by class.
             groups = np.zeros(len(features))
+            skf = StratifiedKFold(n_splits=self.cv)
+            cv_gen = enumerate(skf.split(features, labels))
+        else:
+            # Make sure groups aren't in multiple folds.
+            skf = GroupShuffleSplit(test_size=self.test_size, n_splits=self.cv)
+            cv_gen = enumerate(skf.split(features, labels, groups))
         
-        skf_labels = labels - np.min(labels)
-        skf_groups = (np.max(skf_labels) + 1) * groups + skf_labels
-
         best_score = -np.inf
         best_params = None
-
         # For each parameter setting...
         param_names = list(self.param_grid.keys())
         gen = list(product(*[self.param_grid[param] for param in param_names]))
@@ -74,7 +82,6 @@ class GridSearchCV:
             params = dict(zip(param_names, param_setting))
             scores = []
             # For each fold...
-            cv_gen = enumerate(skf.split(features, skf_groups))
             for cv_num, (train_idx, test_idx) in cv_gen:
                 # Set the parameters, fit the model, and score the model.
                 self.model.set_params(**params)

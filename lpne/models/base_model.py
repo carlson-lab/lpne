@@ -103,7 +103,8 @@ class BaseModel(torch.nn.Module):
         self.groups_, groups = np.unique(groups, return_inverse=True)
         np_labels = np.copy(labels)
         # Initialize the parameters.
-        self._initialize(features.shape)
+        self.features_shape_ = features.shape
+        self._initialize()
         # NumPy arrays to PyTorch tensors.
         features = torch.tensor(features, dtype=FLOAT).to(self.device)
         labels = torch.tensor(labels, dtype=INT).to(self.device)
@@ -153,6 +154,7 @@ class BaseModel(torch.nn.Module):
             params['classes_'] = self.classes_
             params['groups_'] = self.groups_
             params['iter_'] = self.iter_
+            params['features_shape_'] = self.features_shape_
         except:
             pass
         if deep:
@@ -169,8 +171,8 @@ class BaseModel(torch.nn.Module):
 
 
     def set_params(self, batch_size=None, lr=None, n_iter=None, device=None,
-        classes_=None, groups_=None, iter_=None, state_dict=None,
-        optimizer_state_dict=None, **kwargs):
+        classes_=None, groups_=None, iter_=None, features_shape_=None,
+        state_dict=None, optimizer_state_dict=None, **kwargs):
         """Set the parameters of this estimator."""
         if batch_size is not None:
             self.batch_size = batch_size
@@ -180,18 +182,20 @@ class BaseModel(torch.nn.Module):
             self.n_iter = n_iter
         if device is not None:
             self.device = device
-        if state_dict is not None or optimizer_state_dict is not None:
-            self._initialize()
-            if state_dict is not None:
-                self.load_state_dict(state_dict)
-            if optimizer_state_dict is not None:
-                self.optimizer_.load_state_dict(optimizer_state_dict)
+        if features_shape_ is not None:
+            self.features_shape_ = features_shape_
         if classes_ is not None:
             self.classes_ = classes_
         if groups_ is not None:
             self.groups_ = groups_
         if iter_ is not None:
             self.iter_ = iter_
+        if state_dict is not None or optimizer_state_dict is not None:
+            self._initialize()
+            if state_dict is not None:
+                self.load_state_dict(state_dict)
+            if optimizer_state_dict is not None:
+                self.optimizer_.load_state_dict(optimizer_state_dict)
         return self
 
 

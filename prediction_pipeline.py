@@ -49,15 +49,19 @@ if __name__ == '__main__':
     assert os.path.exists(label_dir), f"{label_dir}"
 
     # Get the filenames.
-    feature_fns, label_fns = \
-            lpne.get_feature_label_filenames(feature_dir, label_dir)
+    feature_fns, label_fns = lpne.get_feature_label_filenames(
+            feature_dir,
+            label_dir,
+    )
 
     # Write fake labels.
     lpne.write_fake_labels(feature_dir, label_dir, n_classes=3)
 
     # Collect all the features and labels.
-    features, labels, rois = \
-            lpne.load_features_and_labels(feature_fns, label_fns)
+    features, labels, rois = lpne.load_features_and_labels(
+            feature_fns,
+            label_fns,
+    )
 
     # Define a test/train split.
     idx = int(round(0.7 * len(features)))
