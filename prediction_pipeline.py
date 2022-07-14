@@ -34,6 +34,10 @@ USAGE = "Usage:\n$ python prediction_pipeline.py <experiment_directory>"
 FEATURE_SUBDIR = 'features'
 LABEL_SUBDIR = 'labels'
 CP_SAE = False
+MODEL_KWARGS = dict(
+    n_iter=1000,
+    reg_strength=10.0,
+)
 
 
 
@@ -78,7 +82,7 @@ if __name__ == '__main__':
     features = np.transpose(features, [0,3,1,2]) # [b,f,r,r]
 
     # Make the model.
-    model = CpSae(n_iter=50) if CP_SAE else FaSae(n_iter=50)
+    model = (CpSae if CP_SAE else FaSae)(**MODEL_KWARGS)
 
     # Make fake groups.
     groups = np.random.randint(0,2,len(labels))
@@ -89,8 +93,8 @@ if __name__ == '__main__':
             features[train_idx],
             labels[train_idx],
             groups[train_idx],
-            print_freq=5,
-            score_freq=5,
+            print_freq=50,
+            score_freq=50,
     )
     print("Done training.\n")
 

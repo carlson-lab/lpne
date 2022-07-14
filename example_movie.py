@@ -2,7 +2,7 @@
 Make a movie of LFP power features.
 
 """
-__date__ = "August 2021 - June 2022"
+__date__ = "August 2021 - July 2022"
 
 
 import os
@@ -12,9 +12,11 @@ import lpne
 
 
 FN = os.path.join('test_data', 'data', 'example_LFP.mat')
+MODEL_FN = os.path.join('test_data', 'model_state.npy')
 FEATURE = ['power', 'dir_spec'][0]
 DURATION = 25.0
 WINDOW_DURATION = 5.0
+CP_SAE = False
 
 
 if __name__ == '__main__':
@@ -27,6 +29,10 @@ if __name__ == '__main__':
     # Average channels in the same region together.
     lfps = lpne.average_channels(lfps, channel_map)
 
+    # Make the model.
+    model = lpne.CpSae() if CP_SAE else lpne.FaSae()
+    model.load_state(MODEL_FN)
+
     # Make the movie.
     lpne.make_power_movie(
             lfps,
@@ -35,6 +41,7 @@ if __name__ == '__main__':
             fps=10,
             speed_factor=3,
             feature=FEATURE,
+            model=model,
             fn='out.gif',
     )
 

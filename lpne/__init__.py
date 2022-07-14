@@ -5,7 +5,7 @@ Code for preprocessing and building factor models with local field potentials.
 
 """
 __date__ = "July 2021 - July 2022"
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 try:
 	with open(".git/logs/HEAD", "r") as fh:
 		__commit__ = fh.read().split('\n')[-2]

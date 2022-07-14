@@ -32,9 +32,7 @@ Then see `docs/build/html/index.html` for the docs.
 10. PoE?
 12. Manually remove regions from LFPs
 21. Make some pre-zipped features and labels
-23. Model factor movie
 26. Add random seeds?
-28. Save label names with labels?
 31. Movie app
 32. `from joblib import Parallel, delayed`
 34. mouse-specific intercepts
@@ -42,3 +40,4 @@ Then see `docs/build/html/index.html` for the docs.
 37. Mouse-specific normalization options
 41. Group Lasso?
 42. Early stoppning in `GridSearchCV`
+43. ``[b,f,r,r]`` vs ``[b,r,r,f]`` shapes

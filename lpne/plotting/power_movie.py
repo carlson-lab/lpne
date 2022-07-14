@@ -2,7 +2,7 @@
 Plot power in a movie.
 
 """
-__date__ = "August 2021 - June 2022"
+__date__ = "August 2021 - July 2022"
 
 
 import numpy as np
@@ -17,13 +17,14 @@ from tqdm import tqdm
 
 import lpne
 
-COLOR = 'tab:blue'
+COLOR_1 = 'tab:blue'
+COLOR_2 = 'tab:orange'
 FONTSIZE = 12
 
 
 
 def make_power_movie(lfps, duration, window_duration, fs=1000, feature='power',
-    speed_factor=5, fps=10, fn='out.mp4'):
+    speed_factor=5, fps=10, model=None, fn='out.mp4'):
     """
     Make a movie of LFP power features.
 
@@ -42,6 +43,8 @@ def make_power_movie(lfps, duration, window_duration, fs=1000, feature='power',
     speed_factor : float, optional
     fps : int, optional
         Frames per second
+    model : None or lpne.BaseModel
+        If a model is passed, reconstructed powers will also be plotted.
     fn : str, optional
         Movie filename
     """
@@ -63,27 +66,44 @@ def make_power_movie(lfps, duration, window_duration, fs=1000, feature='power',
         power = lpne.unsqueeze_triangular_array(res['power'], dim=1) #[w,r,r,f]
     else:
         power = res['dir_spec'] # [w,r,r,f]
-    n_freqs = power.shape[3]
+    # Get reconstructed volumes.
+    flag = (model is not None)
+    if flag:
+        rec_power = model.reconstruct(np.transpose(power, [0,3,1,2]))
+        rec_power = np.transpose(rec_power, [0,2,3,1]) # [w,r,r,f]
+        alpha = 0.6
+    else:
+        alpha = 1.0
+    freqs = np.arange(power.shape[3])
     rois = list(lfps.keys())
     fig, axarr = _set_up_plot(power, rois)
     # Iterate over frames.
     frames = []
     title = fig.suptitle("", fontsize=FONTSIZE, y=0.93)
     for k in tqdm(range(power.shape[0])):
-        to_remove = []
         t = k * window_step
         time_str = str(int(np.floor(t / 3600))).zfill(2)
         time_str += ":" + str(int(np.floor(t / 60))).zfill(2)
         time_str += ":" + str(int(np.floor(t % 60))).zfill(2)
         title.set_text(time_str)
+        to_remove = []
         for i in range(len(rois)):
             for j in range(len(rois)):
-                to_remove_part = axarr[i,j].fill_between(
-                        np.arange(n_freqs),
+                handle = axarr[i,j].fill_between(
+                        freqs,
                         power[k,i,j],
-                        fc=COLOR,
+                        fc=COLOR_1,
+                        alpha=alpha,
                 )
-                to_remove.append(to_remove_part)
+                to_remove.append(handle)
+                if flag:
+                    handle = axarr[i,j].fill_between(
+                            freqs,
+                            rec_power[k,i,j],
+                            fc=COLOR_2,
+                            alpha=alpha,
+                    )
+                    to_remove.append(handle)
         frames.append(mplfig_to_npimage(fig))
         for obj in to_remove:
             obj.remove()

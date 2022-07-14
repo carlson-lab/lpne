@@ -2,7 +2,7 @@
 Base model defining the training procedure
 
 """
-__date__ = "June 2022"
+__date__ = "June - July 2022"
 
 
 import numpy as np
@@ -152,14 +152,20 @@ class BaseModel(torch.nn.Module):
         Parameters
         ----------
         features : numpy.ndarray
-            Shape: [b,x]
+            Shape: ``[b,x]`` or ``[b,f,r,r]``
 
         Returns
         -------
         rec_features : numpy.ndarray
-            Shape: [b,x]
+            Shape: same as ``features``
         """
         check_is_fitted(self, attributes=self.FIT_ATTRIBUTES)
+        assert features.ndim in [2,4]
+        flag = (features.ndim == 4)
+        if flag:
+            assert features.shape[2] == features.shape[3]
+            orig_shape = features.shape
+            features = features.reshape(len(features), -1)
         rec_features = []
         i = 0
         while i <= len(features):
@@ -169,8 +175,10 @@ class BaseModel(torch.nn.Module):
             batch_rec = self.project_latents(batch_zs)
             rec_features.append(batch_rec.cpu())
             i += self.batch_size
-        rec_features = torch.cat(rec_features, dim=0)
-        return rec_features.numpy()
+        rec_features = torch.cat(rec_features, dim=0).numpy()
+        if flag:
+            return rec_features.reshape(orig_shape)
+        return rec_features
 
 
     def get_params(self, deep=True):
@@ -246,7 +254,13 @@ class BaseModel(torch.nn.Module):
     @torch.no_grad()
     def load_state(self, fn):
         """Load and set the parameters for this estimator."""
-        self.set_params(**np.load(fn, allow_pickle=True).item())
+        d = np.load(fn, allow_pickle=True).item()
+        if 'model_name' in d:
+            assert d['model_name'] == self.MODEL_NAME, \
+                f"Expected {self.MODEL_NAME}, found {d['model_name']}"
+        else:
+            warnings.warn("Didn't find field model_name when loading model.")
+        self.set_params(**d)
 
 
 
