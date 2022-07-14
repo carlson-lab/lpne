@@ -9,6 +9,15 @@ lpne.plotting package
 Submodules
 ----------
 
+lpne.plotting.plot_db module
+----------------------------
+
+.. automodule:: lpne.plotting.plot_db
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
 lpne.plotting.plot_lfps module
 ------------------------------
 

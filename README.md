@@ -41,3 +41,5 @@ Then see `docs/build/html/index.html` for the docs.
 41. Group Lasso?
 42. Early stoppning in `GridSearchCV`
 43. ``[b,f,r,r]`` vs ``[b,r,r,f]`` shapes
+44. dB plots
+45. automatic groups?

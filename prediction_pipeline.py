@@ -87,6 +87,10 @@ if __name__ == '__main__':
     # Make fake groups.
     groups = np.random.randint(0,2,len(labels))
 
+    # Plot cross power in decibels for the labels, averaged over groups.
+    freqs = np.arange(features.shape[1]) # NOTE: HERE
+    lpne.plot_db(features, freqs, labels, groups, rois=rois)
+
     # Fit the model.
     print("Training model...")
     model.fit(
