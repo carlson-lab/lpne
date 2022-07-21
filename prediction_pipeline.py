@@ -33,7 +33,7 @@ from lpne.models import FaSae, CpSae
 USAGE = "Usage:\n$ python prediction_pipeline.py <experiment_directory>"
 FEATURE_SUBDIR = 'features'
 LABEL_SUBDIR = 'labels'
-CP_SAE = False
+CP_SAE = True
 MODEL_KWARGS = dict(
     n_iter=1000,
     reg_strength=10.0,

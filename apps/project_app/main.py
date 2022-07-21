@@ -3,7 +3,7 @@ Project data onto a network.
 
 Add a plot of predictions?
 """
-__date__ = "January - February 2022"
+__date__ = "January - July 2022"
 
 from bokeh.plotting import curdoc
 from bokeh.layouts import column
@@ -214,7 +214,7 @@ def project_app(doc):
             idx = [i for i in range(len(labels)) if labels[i] in model.classes_]
             idx = np.array(idx)
             # Calculate a weighted accuracy.
-            acc = model.score(features[idx], labels[idx])
+            acc = model.score(features[idx], labels[idx], None)
             message = f"Confusion matrix (rows are true labels, columns are " \
                       f"predicted labels):\n{confusion}\n\n" \
                       f"Weighted accuracy: {acc}"

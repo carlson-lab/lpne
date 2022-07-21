@@ -404,6 +404,8 @@ class FaSae(BaseModel):
             Shape: ``[n,c]``
         """
         check_is_fitted(self, attributes=self.FIT_ATTRIBUTES)
+        if isinstance(features, np.ndarray):
+            features = torch.tensor(features, dtype=FLOAT)
         logits = []
         i = 0
         while i <= len(features):

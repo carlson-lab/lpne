@@ -39,7 +39,8 @@ Then see `docs/build/html/index.html` for the docs.
 36. SMC for sampling label sequence posterior
 37. Mouse-specific normalization options
 41. Group Lasso?
-42. Early stoppning in `GridSearchCV`
+42. Early stopping in `GridSearchCV`
 43. ``[b,f,r,r]`` vs ``[b,r,r,f]`` shapes
-44. dB plots
+44. test dB plots
 45. automatic groups?
+46. Save smoothed labels
