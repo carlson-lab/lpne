@@ -1,8 +1,11 @@
 """
 Viterbi algorithm
 
+Adapted from:
+https://gist.github.com/PetrochukM/afaa3613a99a8e7213d2efdd02ae4762
+
 """
-__date__ = "February 2021"
+__date__ = "February - July 2022"
 
 import numpy as np
 import torch
@@ -15,9 +18,6 @@ MIN_LOG_EMISSION = -50.0
 def top_k_viterbi(emissions, transition_mat, top_k=10):
     """
     A top-K Viterbi decoder.
-
-    Adapted from:
-    https://gist.github.com/PetrochukM/afaa3613a99a8e7213d2efdd02ae4762
 
     Parameters
     ----------
@@ -37,8 +37,10 @@ def top_k_viterbi(emissions, transition_mat, top_k=10):
     viterbi_scores : numpy.ndarray
         Shape: ``[k]``
     """
+    # Handle NaNs in the emissions.
+    emissions[np.isnan(emissions)] = 1 / emissions.shape[1]
     # Convert to logspace and torch Tensors.
-    tag_sequence = torch.tensor(np.maximum(np.log(emissions), MIN_LOG_EMISSION))
+    tag_sequence = torch.tensor(np.maximum(np.log(emissions),MIN_LOG_EMISSION))
     transition_matrix = torch.tensor(np.log(transition_mat))
     sequence_length, num_tags = list(tag_sequence.size())
     path_scores = []
