@@ -1,5 +1,5 @@
 """
-Plot 
+Make decibel plots
 
 """
 __date__ = "July 2022"
@@ -15,7 +15,8 @@ EPS = 1e-7
 
 
 def plot_db(features, freqs, labels, groups, rois=None, colors=None,
-    quantile=0.05, fn='temp.pdf'):
+    mode='abs', n_sem=2, min_quantile=0.05, sem_alpha=0.5, lw=1.0,
+    figsize=(8,8), fn='temp.pdf'):
     """
     Plot cross power in decibels for the labels, averaged over groups.
     
@@ -30,10 +31,24 @@ def plot_db(features, freqs, labels, groups, rois=None, colors=None,
     groups : numpy.ndarray
         Shape: [b]
     rois : None or list of str
-        ROI names
+        ROI names. Defaults to ``None``.
     colors : None or list of str
+        Defaults to ``None``.
+    mode : {``'abs'``, ``'diff'``}, optional
+        Whether to plot absolute dB values or differences from the mean.
+        Defaults to ``'abs'``.
+    n_sem : int or float, optional
+        Number of standard errors of the mean to plot. Defaults to ``2``.
+    min_quantile : float, optional
+        Used to define y range. Defaults to ``0.05``.
+    sem_alpha : float, optional
+        Tranparency of uncertainty ranges. Defaults to ``0.5``.
+    lw : float, optional
+        Line width. Defaults to ``1``.
+    figsize : tuple of float, optional
+        Passed to ``plt.subplots``. Defaults to ``(8,8)``.
     fn : str, optional
-        Image filename
+        Image filename. Defaults to ``temp.pdf``.
     """
     assert len(features) == len(labels) and len(labels) == len(groups)
     assert features.shape[1] == len(freqs)
@@ -52,6 +67,8 @@ def plot_db(features, freqs, labels, groups, rois=None, colors=None,
         colors = list(TABLEAU_COLORS)
     # Convert to decibels.
     db_features = _to_db(features, freqs)
+    if mode == 'diff':
+        db_features -= np.mean(db_features, axis=0, keepdims=True)
     group_avgs = np.zeros(
             (len(unique_labels),len(unique_groups)) + features.shape[1:]
     )
@@ -63,27 +80,31 @@ def plot_db(features, freqs, labels, groups, rois=None, colors=None,
             if len(idx) == 0:
                 continue
             group_avgs[j,i] = np.mean(db_features[idx], axis=0)
-    ymin = np.quantile(group_avgs, quantile)
+    if mode == 'diff':
+        ymin = None
+    else:
+        ymin = np.quantile(group_avgs, min_quantile)
     n_roi = features.shape[2]
     if rois is not None:
         pretty_rois = [roi.replace('_', ' ') for roi in rois]
-    _, axarr = plt.subplots(nrows=n_roi, ncols=n_roi)
+    _, axarr = plt.subplots(nrows=n_roi, ncols=n_roi, figsize=figsize)
     for i in range(n_roi):
         for j in range(n_roi):
             for k in range(len(unique_labels)):
                 mean_val = np.mean(group_avgs[k], axis=0)[:,i,j]
-                err = sem(group_avgs[k], axis=0)[:,i,j]
+                err = n_sem * sem(group_avgs[k], axis=0)[:,i,j]
                 axarr[i,j].plot(
                     freqs,
                     mean_val,
                     c=colors[k % len(colors)],
+                    lw=lw,
                 )
                 axarr[i,j].fill_between(
                     freqs,
                     mean_val-err,
                     mean_val+err,
                     fc=colors[k % len(colors)],
-                    alpha=0.5,
+                    alpha=sem_alpha,
                 )
             for direction in ['top', 'right']:
                 axarr[i,j].spines[direction].set_visible(False)

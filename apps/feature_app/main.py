@@ -321,12 +321,14 @@ def feature_app(doc):
             # Average channels in the same region together.
             lfps = lpne.average_channels(lfps, channel_map)
             saved_channels = {**saved_channels, **dict(zip(lfps.keys(),repeat(0)))}
+            
             # Make features.
             features = lpne.make_features(
                     lfps,
                     window_duration=window_duration,
                     directed_spectrum=directed_spectrum,
             )
+            
             # Save features.
             fn = os.path.split(lfp_fns[file_num])[-1][:-len(LFP_SUFFIX)] + '.npy'
             fn = os.path.join(feature_dir, fn)
