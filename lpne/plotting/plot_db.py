@@ -53,15 +53,12 @@ def plot_db(features, freqs, labels, groups, rois=None, colors=None,
     assert len(features) == len(labels) and len(labels) == len(groups)
     assert features.shape[1] == len(freqs)
     assert features.shape[2] == features.shape[3]
-
     # Remove NaNs.
     idx = np.argwhere(np.isnan(features).sum(axis=(1,2,3)) == 0).flatten()
     features, labels, groups = features[idx], labels[idx], groups[idx]
-
     # Get unique groups and labels.
     unique_groups = np.unique(groups)
     unique_labels = np.unique(labels)
-
     # Figure out colors.
     if colors is None:
         colors = list(TABLEAU_COLORS)

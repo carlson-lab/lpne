@@ -2,7 +2,7 @@
 An app for making LFP features.
 
 """
-__date__ = "December 2021 - June 2022"
+__date__ = "December 2021 - August 2022"
 
 
 from bokeh.layouts import column, row
@@ -29,7 +29,6 @@ DEFAULT_FEATURE_DIR = '/Users/jack/Desktop/lpne/test_data/features/'
 DEFAULT_DURATION = 2
 NULL_SELECTION = "No selection"
 LFP_SUFFIX = '_LFP.mat'
-
 
 # FILTERING
 LFP_LOWCUT = 0.5
@@ -215,6 +214,11 @@ def feature_app(doc):
             active=[],
     )
 
+    outlier_checkbox = CheckboxGroup(
+            labels=["Remove outliers?"],
+            active=[0],
+    )
+
     hemisphere_checkbox = CheckboxGroup(
             labels=["Combine hemispheres?"],
             active=[0],
@@ -265,6 +269,7 @@ def feature_app(doc):
             return
         window_duration = window_slider.value
         combine_hemi = 0 in hemisphere_checkbox.active
+        mark_outliers = 0 in outlier_checkbox.active
         directed_spectrum = 0 in dir_spec_checkbox.active
         overwrite = 0 in overwrite_checkbox.active
         default_channel_map = 0 in channel_map_checkbox.active
@@ -296,16 +301,17 @@ def feature_app(doc):
             lfps = lpne.remove_channels_from_lfps(lfps, chans_fns[file_num])
             
             # Mark outliers with NaNs.
-            lfps = lpne.mark_outliers(lfps, int(fs_input.value))
+            if mark_outliers:
+                lfps = lpne.mark_outliers(lfps, int(fs_input.value))
 
-            # Print outlier summary.
-            msg = lpne.get_outlier_summary(
-                    lfps,
-                    int(fs_input.value),
-                    window_duration,
-            )
-            print(lfp_fns[file_num])
-            print(msg)
+                # Print outlier summary.
+                msg = lpne.get_outlier_summary(
+                        lfps,
+                        int(fs_input.value),
+                        window_duration,
+                )
+                print(lfp_fns[file_num])
+                print(msg)
 
             # Get the default channel grouping.
             if default_channel_map:
@@ -350,6 +356,7 @@ def feature_app(doc):
             window_slider,
             save_dir_input,
             hemisphere_checkbox,
+            outlier_checkbox,
             dir_spec_checkbox,
             overwrite_checkbox,
             channel_map_checkbox,

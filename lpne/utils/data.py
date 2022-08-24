@@ -225,11 +225,13 @@ def load_features_and_labels(feature_fns, label_fns, group_func=None,
     # Collect everything.
     features, labels, groups, counts = [], [], [], []
     prev_rois = None
-    for feature_fn, label_fn in zip(feature_fns, label_fns):
+    for i, (feature_fn, label_fn) in enumerate(zip(feature_fns, label_fns)):
         power, rois = load_features(feature_fn)
         if prev_rois is not None:
             assert prev_rois == rois, \
-                    f"Inconsitent ROIs: {rois} != {prev_rois}"
+                    f"Inconsitent ROIs: {prev_rois} != {rois}" \
+                    f"\n\tFile 1: {feature_fns[i-1]}" \
+                    f"\n\tFile 2: {feature_fns[i]}"
         prev_rois = rois
         features.append(power)
         counts.append(len(power))
