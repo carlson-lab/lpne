@@ -5,7 +5,7 @@ TO DO
 -----
 * check CHANS files
 """
-__date__ = "September - October 2021"
+__date__ = "September 2021 - August 2022"
 
 
 from bokeh.layouts import column, row
@@ -35,7 +35,7 @@ DEFAULT_LFP_NAME = "Hipp_D_L_02"
 # DEFAULT_LABEL_DIR = '/home/jg420/r_drive/Internal/Network/labels/2s/'
 TOOLS = 'lasso_select,pan,wheel_zoom,reset,box_zoom'
 LABELS = ['Wake', 'NREM', 'REM', 'Unlabeled']
-COLORS = ['dodgerblue', 'mediumseagreen', 'darkorchid', 'peru']
+COLORS = ['tab:blue', 'tab:orange', 'tab:green', 'peru']
 COLORS = [to_hex(i) for i in COLORS]
 MAX_N_POINTS = 5000
 
