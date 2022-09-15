@@ -68,6 +68,10 @@ def get_excel_channel_map(channels,excel_path):
     """
     Load predifined channel map from an excel file.
 
+    Raises
+    ----------
+    *   UserWarning if a channel present in the LFP is not present in
+        the excel channel map.
     Parameters
     ----------
     excel_path : str
@@ -92,7 +96,7 @@ def get_excel_channel_map(channels,excel_path):
             )
         else:
             channel_map[channel] = channel_map_full[channel]
-            
+
     return channel_map
 
 
