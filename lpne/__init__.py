@@ -15,7 +15,7 @@ except:
 INVALID_LABEL = -1
 INVALID_GROUP = -1
 
-from .models import FaSae, CpSae, GridSearchCV
+from .models import FaSae, CpSae, GridSearchCV, dcsfa_nmf
 
 from .plotting import \
         plot_db, \
