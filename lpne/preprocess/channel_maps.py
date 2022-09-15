@@ -2,7 +2,7 @@
 Channel maps are used to determine which channels to average together.
 
 """
-__date__ = "July 2021 - May 2022"
+__date__ = "July 2021 - September 2022"
 
 
 import numpy as np
@@ -51,7 +51,9 @@ def average_channels(lfps, channel_map, check_channel_map=True):
             if roi in channel_map and channel_map[roi] == grouped_roi:
                 avg.append(lfps[roi].flatten())
         if len(avg) == 0:
-            warnings.warn(f"No channels to make grouped channel {grouped_roi}!")
+            warnings.warn( \
+                f"No channels to make grouped channel {grouped_roi}!",
+            )
         else:
             # Find NaNs and replace them with zeros to calculate an average.
             nan_masks = [np.isnan(trace) for trace in avg]
@@ -64,41 +66,6 @@ def average_channels(lfps, channel_map, check_channel_map=True):
             out_lfps[grouped_roi] = avg
     return out_lfps
 
-def get_excel_channel_map(channels,excel_path):
-    """
-    Load predifined channel map from an excel file.
-
-    Raises
-    ----------
-    *   UserWarning if a channel present in the LFP is not present in
-        the excel channel map.
-    Parameters
-    ----------
-    excel_path : str
-        Path to excel file
-
-    Returns
-    ---------
-    channel_map : dict
-        Maps individual channel names to grouped channel names.
-    """
-    f = pd.read_excel(excel_path,index_col=False,header=None)
-    channel_map_full = f.set_index(0).to_dict()[1]
-
-    channel_map = {}
-
-    #Check that all channels are in the channel map
-    for channel in channels:
-        if channel not in list(channel_map_full.keys()):
-            warnings.warn(
-                f"{channel} exists in LFP files but is not present in"
-                f"channel map file {excel_path}"
-            )
-        else:
-            channel_map[channel] = channel_map_full[channel]
-
-    return channel_map
-
 
 def get_default_channel_map(channels, combine_hemispheres=True):
     """
@@ -106,20 +73,20 @@ def get_default_channel_map(channels, combine_hemispheres=True):
 
     Raises
     ------
-    * UserWarning if a channel doesn't have an underscore or a hemisphere
+    * ``UserWarning`` if a channel doesn't have an underscore or a hemisphere
       indication in its name. The channel is ignored in this case.
 
     Parameters
     ----------
     channels : list of str
-        Names of channels.
+        Names of channels
     combine_hemispheres : bool, optional
-        Combine channels from the left and right hemispheres.
+        Combine channels from the left and right hemispheres
 
     Returns
     -------
     channel_map : dict
-        Maps individual channel names to grouped channel names.
+        Maps individual channel names to grouped channel names
     """
     channel_map = {}
     for channel in channels:
@@ -155,13 +122,46 @@ def get_default_channel_map(channels, combine_hemispheres=True):
     return channel_map
 
 
+def get_excel_channel_map(channels, fn):
+    """
+    Load a predifined channel map from an excel file.
+
+    Raises
+    ------
+    * ``UserWarning`` if a channel present in ``channels`` is not present in
+      the excel channel map. The channel is not included in the channel map
+      in this case.
+    
+    Parameters
+    ----------
+    channels : list of str
+        Channel names, the keys of the channel map
+    fn : str
+        Excel sheet filename
+
+    Returns
+    -------
+    channel_map : dict
+        Maps individual channel names to grouped channel names
+    """
+    f = pd.read_excel(fn, index_col=False, header=None)
+    channel_map_full = f.set_index(0).to_dict()[1]
+    channel_map = {}
+    for channel in channels:
+        if channel not in list(channel_map_full.keys()):
+            warnings.warn(f"{channel} is not present in {fn}!")
+        else:
+            channel_map[channel] = channel_map_full[channel]
+    return channel_map
+
+
 def remove_channels(channel_map, to_remove):
     """
     Remove channels from the channel map.
 
     Raises
     ------
-    * UserWarning if a channel to remove isn't in the channel map.
+    * ``UserWarning`` if a channel to remove isn't in the channel map.
 
     Parameters
     ----------
