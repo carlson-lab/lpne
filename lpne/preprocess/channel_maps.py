@@ -6,6 +6,7 @@ __date__ = "July 2021 - May 2022"
 
 
 import numpy as np
+import pandas as pd
 from scipy.io import loadmat
 import warnings
 
@@ -62,6 +63,37 @@ def average_channels(lfps, channel_map, check_channel_map=True):
             avg[nan_mask > 0] = np.nan
             out_lfps[grouped_roi] = avg
     return out_lfps
+
+def get_excel_channel_map(channels,excel_path):
+    """
+    Load predifined channel map from an excel file.
+
+    Parameters
+    ----------
+    excel_path : str
+        Path to excel file
+
+    Returns
+    ---------
+    channel_map : dict
+        Maps individual channel names to grouped channel names.
+    """
+    f = pd.read_excel(excel_path,index_col=False,header=None)
+    channel_map_full = f.set_index(0).to_dict()[1]
+
+    channel_map = {}
+
+    #Check that all channels are in the channel map
+    for channel in channels:
+        if channel not in list(channel_map_full.keys()):
+            warnings.warn(
+                f"{channel} exists in LFP files but is not present in"
+                f"channel map file {excel_path}"
+            )
+        else:
+            channel_map[channel] = channel_map_full[channel]
+            
+    return channel_map
 
 
 def get_default_channel_map(channels, combine_hemispheres=True):

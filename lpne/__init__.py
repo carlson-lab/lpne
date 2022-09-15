@@ -29,6 +29,7 @@ from .plotting import \
 from .preprocess.channel_maps import \
         IGNORED_KEYS, \
         average_channels, \
+        get_excel_channel_map, \
         get_default_channel_map, \
         remove_channels, \
         remove_channels_from_lfps, \
