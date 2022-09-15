@@ -33,7 +33,7 @@ def test_factor_analysis_sae():
         # Fit the model.
         model.fit(features, labels, groups, print_freq=None)
         # Make some predictions.
-        predictions = model.predict(features)
+        _ = model.predict(features, groups)
         # Calculate a weighted accuracy.
         weighted_acc_orig = model.score(
                 features,
