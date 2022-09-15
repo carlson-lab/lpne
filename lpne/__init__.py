@@ -64,6 +64,7 @@ from .utils.utils import \
         unsqueeze_triangular_array, \
         squeeze_triangular_array, \
         get_outlier_summary, \
+        flatten_dir_spec_features, \
         confusion_matrix
 
 from .utils.viterbi import top_k_viterbi, get_label_stats

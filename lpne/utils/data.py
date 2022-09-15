@@ -77,8 +77,7 @@ def save_features(features, fn):
     else:
         raise NotImplementedError(f"Unsupported file type: {fn}")
 
-
-def load_features(fns, return_counts=False):
+def load_features(fns, return_counts=False,feature="power"):
     """
     Load the features saved in the given filenames.
 
@@ -88,17 +87,21 @@ def load_features(fns, return_counts=False):
         Where the data is saved. Supported file types: {'.npy'}
     return_counts : bool, optional
         Return the number of windows for each file.
+    feature : str, optional
+        Which feature in {"power","dir_spec"} to load.
 
     Returns
     -------
     features : numpy.ndarray
-        LFP power features
-        Shape: ``[n_windows] + feature_dims``
+        LFP power features or directed spectrum features.
+        Power Shape: ``[n_windows,(n_roi)*(n_roi+1)/2,n_freqs]``
+        Dir Spec Shape: ``[n_windows,n_roi,n_roi,n_freqs]``
     rois : list of str
         ROI names
     counts : list of int
         Number of windows in each file. Returned if `return_counts` is `True`.
     """
+    assert feature in ["power","dir_spec"], f"Unsupported feature: {feature}"
     if isinstance(fns, str):
         fns = [fns]
     assert isinstance(fns, list)
@@ -112,7 +115,7 @@ def load_features(fns, return_counts=False):
             assert prev_rois == rois, \
                     f"Inconsitent ROIs: {rois} != {prev_rois}"
         prev_rois = rois
-        features.append(temp['power'])
+        features.append(temp[feature])
         counts.append(len(features[-1]))
     features = np.concatenate(features, axis=0)
     if return_counts:
