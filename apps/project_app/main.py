@@ -29,6 +29,7 @@ NORM_METHODS = ['Median', 'Std. Dev.', 'Maximum']
 COUNTS = None
 FNS = None
 PREDICTIONS = None
+MAP_SEQ = None
 
 
 
@@ -106,7 +107,8 @@ def project_app(doc):
     )
     stats_button = Button(label="Get Stats", width=300)
 
-    save_button = Button(label="Save Predictions", width=150)
+    save_button_1 = Button(label="Save Per-Window Predictions", width=150)
+    save_button_2 = Button(label="Save Smoothed Predictions", width=150)
 
     overwrite_checkbox = CheckboxGroup(
             labels=["Overwrite existing files?"],
@@ -123,7 +125,7 @@ def project_app(doc):
 
 
     def project_callback():
-        global COUNTS, FNS, PREDICTIONS
+        global COUNTS, FNS, PREDICTIONS, MAP_SEQ
         if project_button.button_type=="success":
             # Reset
             project_button.button_type="default"
@@ -131,8 +133,11 @@ def project_app(doc):
             COUNTS = None
             FNS = None
             PREDICTIONS = None
-            save_button.button_type="default"
-            save_button.label="Save Predictions"
+            MAP_SEQ = None
+            save_button_1.button_type="default"
+            save_button_1.label="Save Per-Window Predictions"
+            save_button_2.button_type="default"
+            save_button_2.label="Save Smoothed Predictions"
             alert_box.text = "Reset"
             return
         # Load the features.
@@ -232,7 +237,7 @@ def project_app(doc):
 
 
     def stats_callback():
-        global PREDICTIONS
+        global PREDICTIONS, MAP_SEQ
         # Make sure transition matrix exists.
         mat_fn = transition_mat_in.value
         if not os.path.exists(mat_fn):
@@ -248,6 +253,7 @@ def project_app(doc):
         n_classes = PREDICTIONS.shape[1]
         trans_mat = np.load(mat_fn)
         map_seqs, map_scores = lpne.top_k_viterbi(PREDICTIONS, trans_mat)
+        MAP_SEQ = map_seqs[0] # save the top-1 predictions
         iid_seq = np.argmax(PREDICTIONS, axis=1)
         # Make stats.
         map_counts, map_dur, map_transitions = \
@@ -260,23 +266,24 @@ def project_app(doc):
               f"Number of transistions:\n{map_transitions}\n\n" \
               f"Results without temporal info:\nNumber of bouts: {iid_counts}\n" \
               f"Average bout durations (windows): {iid_dur}\n" \
-              f"Number of transistions:\n{iid_transitions}"
+              f"Number of transistions:\n{iid_transitions}\n\n" \
+              f"Transition matrix:\n{trans_mat}"
         alert_box.text = msg
 
 
     stats_button.on_click(stats_callback)
 
 
-    def save_callback():
+    def save_1_callback():
         global COUNTS, FNS, PREDICTIONS
         if COUNTS is None or FNS is None or PREDICTIONS is None:
-            save_button.button_type="warning"
+            save_button_1.button_type="warning"
             alert_box.text = "Data needs to be projected before " \
                              "predictions can be saved!"
             return
         save_dir = save_dir_in.value
         if not os.path.exists(save_dir):
-            save_button.button_type="warning"
+            save_button_1.button_type="warning"
             alert_box.text = f"Save directory doesn't exist: {save_dir}"
             return
         overwrite = 0 in overwrite_checkbox.active
@@ -288,17 +295,51 @@ def project_app(doc):
         for fn, count in zip(FNS, counts):
             out_fn = os.path.join(save_dir, os.path.split(fn)[-1])
             if not overwrite and os.path.exists(out_fn):
-                save_button.button_type="warning"
+                save_button_1.button_type="warning"
                 alert_box.text = f"File already exists: {out_fn}"
                 return
             lpne.save_labels(PREDICTIONS[i:i+count], out_fn, overwrite=overwrite)
             i += count
-        save_button.button_type="success"
-        save_button.label="Saved Predictions"
+        save_button_1.button_type="success"
+        save_button_1.label="Saved Predictions"
         alert_box.text = "Saved predictions."
 
 
-    save_button.on_click(save_callback)
+    save_button_1.on_click(save_1_callback)
+
+
+    def save_2_callback():
+        global COUNTS, FNS, MAP_SEQ
+        if COUNTS is None or FNS is None or MAP_SEQ is None:
+            save_button_2.button_type="warning"
+            alert_box.text = "Data needs to be projected and smoothed before "\
+                             "smoothed predictions can be saved!"
+            return
+        save_dir = save_dir_in.value
+        if not os.path.exists(save_dir):
+            save_button_2.button_type="warning"
+            alert_box.text = f"Save directory doesn't exist: {save_dir}"
+            return
+        overwrite = 0 in overwrite_checkbox.active
+        counts = np.array(COUNTS)
+        assert np.min(counts) > 0
+        assert len(counts) == len(FNS)
+        assert np.sum(counts) == len(MAP_SEQ)
+        i = 0
+        for fn, count in zip(FNS, counts):
+            out_fn = os.path.join(save_dir, os.path.split(fn)[-1])
+            if not overwrite and os.path.exists(out_fn):
+                save_button_2.button_type="warning"
+                alert_box.text = f"File already exists: {out_fn}"
+                return
+            lpne.save_labels(MAP_SEQ[i:i+count], out_fn, overwrite=overwrite)
+            i += count
+        save_button_2.button_type="success"
+        save_button_2.label="Saved Predictions"
+        alert_box.text = "Saved predictions."
+
+
+    save_button_2.on_click(save_2_callback)
 
 
     column_1 = column(
@@ -326,7 +367,8 @@ def project_app(doc):
     column_3 = column(
             save_dir_in,
             overwrite_checkbox,
-            save_button,
+            save_button_1,
+            save_button_2,
             alert_box,
     )
     tab_3= Panel(child=column_3, title="Save Projections")

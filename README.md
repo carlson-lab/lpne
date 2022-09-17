@@ -42,5 +42,4 @@ Then see `docs/build/html/index.html` for the docs.
 42. Early stopping in `GridSearchCV`
 43. ``[b,f,r,r]`` vs ``[b,r,r,f]`` shapes
 45. automatic groups?
-46. Save smoothed labels
 47. More agressive normalization options
