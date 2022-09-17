@@ -2,11 +2,10 @@
 Make features
 
 """
-__date__ = "July 2021 - May 2022"
+__date__ = "July 2021 - September 2022"
 
 
 import numpy as np
-from scipy.io import loadmat
 from scipy.signal import csd
 
 from .directed_spectrum import get_directed_spectrum
@@ -56,8 +55,8 @@ def make_features(lfps, fs=1000, min_freq=0.0, max_freq=55.0,
     window_duration : float, optional
         Window duration, in seconds
     window_step : None or float, optional
-        Time between consecutive window onsets, in seconds. If ``None``, this is
-        set to ``window_duration``.
+        Time between consecutive window onsets, in seconds. If ``None``, this
+        is set to ``window_duration``.
     max_n_windows : None or int, optional
         Maximum number of windows
     directed_spectrum : bool, optional

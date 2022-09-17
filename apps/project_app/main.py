@@ -3,7 +3,7 @@ Project data onto a network.
 
 Add a plot of predictions?
 """
-__date__ = "January - July 2022"
+__date__ = "January - September 2022"
 
 from bokeh.plotting import curdoc
 from bokeh.layouts import column

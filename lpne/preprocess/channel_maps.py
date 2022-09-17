@@ -6,7 +6,11 @@ __date__ = "July 2021 - September 2022"
 
 
 import numpy as np
-import pandas as pd
+try:
+    import pandas as pd
+    PANDAS_INSTALLED = True
+except ModuleNotFoundError:
+    PANDAS_INSTALLED = False
 from scipy.io import loadmat
 import warnings
 
@@ -144,6 +148,7 @@ def get_excel_channel_map(channels, fn):
     channel_map : dict
         Maps individual channel names to grouped channel names
     """
+    assert PANDAS_INSTALLED, f"pandas needs to be installed!"
     f = pd.read_excel(fn, index_col=False, header=None)
     channel_map_full = f.set_index(0).to_dict()[1]
     channel_map = {}

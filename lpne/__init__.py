@@ -66,6 +66,8 @@ from .utils.utils import \
         get_outlier_summary, \
         confusion_matrix
 
+from .utils.transitions import estimate_transition_times
+
 from .utils.viterbi import top_k_viterbi, get_label_stats
 
 

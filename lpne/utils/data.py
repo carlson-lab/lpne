@@ -2,7 +2,7 @@
 Data utilities
 
 """
-__date__ = "July 2021 - July 2022"
+__date__ = "July 2021 - September 2022"
 
 
 import h5py
@@ -126,8 +126,8 @@ def save_labels(labels, fn, overwrite=True):
 
     Raises
     ------
-    * NotImplementedError if `fn` is an unsupported file type.
-    * AssertionError if `fn` exists and `not overwrite`.
+    * NotImplementedError if ``fn`` is an unsupported file type.
+    * AssertionError if ``fn`` exists and ``not overwrite``.
 
     Parameters
     ----------
@@ -155,20 +155,21 @@ def load_labels(fn, soft_labels=False):
 
     Raises
     ------
-    * NotImplementedError if `fn` is an unsupported file type.
+    * NotImplementedError if ``fn`` is an unsupported file type.
 
     Parameters
     ----------
     fn : str
         Where the data is saved. Supported file types: {'.npy'}
     soft_labels : bool, optional
-        If labels are given as probabilities, don't perform an argmax operation.
+        If labels are given as probabilities, don't perform an argmax
+        operation.
 
     Returns
     -------
     labels : numpy.ndarray
         LFP window labels.
-        Shape: [n_windows] or [n_windows,n_classes]
+        Shape: ``[n_windows]`` or ``[n_windows,n_classes]``
     """
     assert isinstance(fn, str)
     if fn.endswith('.npy'):
