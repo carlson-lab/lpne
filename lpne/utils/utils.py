@@ -442,7 +442,7 @@ def flatten_power_features(features,rois,f):
                 flat_features[:,start_idx:stop_idx] = features[:,:,roi_idx_1,roi_idx_2]
 
                 for freq in f:
-                    feature_id = f"{rois[roi_idx_1]}->{rois[roi_idx_2]} {freq}"
+                    feature_id = f"{rois[roi_idx_1]}<->{rois[roi_idx_2]} {freq}"
                     feature_ids.append(feature_id)
 
 
