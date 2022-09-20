@@ -9,11 +9,35 @@ from scipy.stats import mannwhitneyu
 
 
 class NMF_Base(nn.Module):
-
     def __init__(self,n_components,device='auto',n_sup_networks=1,fixed_corr=None,recon_loss="MSE",recon_weight=1.0,sup_recon_type="Residual",
                 sup_recon_weight=1.0,sup_smoothness_weight=1,feature_groups=None,group_weights=None,verbose=False):
-        super(NMF_Base,self).__init__()
+        """
+        Base model for dCSFA-NMF decoder based methods
 
+        Args:
+            n_components (int): number of networks to learn or latent dimensionality
+            device (str, optional): torch device in {"cuda","cpu","auto"}. Defaults to 'auto'.
+            n_sup_networks (int, optional): Number of networks that will be supervised (0 < n_sup_networks < n_components). Defaults to 1.
+            fixed_corr (list of str, optional): List the same length as n_sup_networks indicating correlation constraints for the network. Defaults to None.
+                "positive" - constrains a supervised network to have a positive correlation between score and label
+                "negative" - constrains a supervised network to have a negative correlation between score and label
+                "n/a" - no constraint is applied and the supervised network can be positive or negatively correlated. 
+            recon_loss (str, optional): Reconstruction loss function in {"IS","MSE"}. Defaults to 'MSE'.
+            recon_weight (float, optional): Importance weight for the reconstruction. Defaults to 1.0.
+            sup_recon_type (str, optional): Which supervised component reconstruction loss to use in {"Residual","All"}. Defaults to "Residual".
+                "Residual" - Estimates network scores optimal for reconstruction and penalizes deviation of the real scores from those values
+                "All" - Evaluates the recon_loss of the supervised network reconstruction against all features. 
+            sup_recon_weight (float, optional): Importance weight for the reconstruction of the supervised component. Defaults to 1.0.
+            sup_smoothness_weight (float, optional): Encourages smoothness for the supervised network. Defaults to 1.0.
+            feature_groups (list of int, optional): Indices of the divisions of feature types. Defaults to None.
+            group_weights (list of floats, optional): Weights for each of the feature types. Defaults to None.
+            verbose (bool, optional): Activates or deactivates print statements globally. Defaults to False.
+
+        Raises:
+            ValueError: raises error if fixed corr values are not in {"positive","negative","n/a"}
+        """
+        super(NMF_Base,self).__init__()
+        
         self.n_components = n_components
         self.n_sup_networks = n_sup_networks
         self.recon_loss = recon_loss
