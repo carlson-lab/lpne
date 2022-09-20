@@ -382,6 +382,71 @@ def get_outlier_summary(lfps, fs, window_duration, top_n=6):
         msg += f"  {i+1}) {roi}: {numerator}/{n_windows} ({percent:.2f}%)\n"
     return msg
 
+def flatten_power_features(features,rois,f):
+    """
+    Returns a flattened cross power features congruous with the legacy format
+
+    Parameters
+    ----------
+    features : numpy.ndarray
+        LFP Directed Spectrum Features
+        Shape: ``[n_windows,n_freqs,n_roi,n_roi]``
+    
+    rois : list of str
+        Sorted list of ROI labels.
+
+    f : np.ndarray
+        Array of evaluated frequencies
+
+    Returns
+    -------
+    flat_features : numpy.ndarray
+        Flattened LFP Directed Spectrum Features sorted by feature type
+        Feature Interpretation: ``[n_windows, power features + causality features]``
+        Shape: ``[n_windows,n_roi*n_freqs + n_roi*(n_roi-1)*n_freqs]``
+    
+    feature_ids : list of str
+        List mapping flat_features index to a feature label ``<feature_id> <freq>``
+        Shape: ``[n_roi*n_freqs + n_roi*(n_roi-1)*n_freqs]
+
+    """
+
+
+    assert features.shape[-1] == len(rois), f"Shape mismatch between features and rois"
+    assert features.shape[1] == len(f), f"Shape mismatch between features and f"
+
+    n_rois = features.shape[-1]
+    n_freqs = features.shape[1]
+    n_flat_features = n_rois**2 * n_freqs
+
+    flat_features = np.zeros((features.shape[0],n_flat_features))
+    feature_ids = []
+
+    #Assign the power features
+    for roi_idx in range(n_rois):
+        flat_features[:,roi_idx*n_freqs:(roi_idx+1)*n_freqs] = features[:,:,roi_idx,roi_idx]
+        
+        for freq in f:
+            feature_id = f"{rois[roi_idx]} {freq}"
+            feature_ids.append(feature_id)
+    
+    #Assign the directed spectrum causality features
+    flat_idx = n_rois
+    for roi_idx_1 in range(n_rois):
+        for roi_idx_2 in range(n_rois):
+            if roi_idx_1 == roi_idx_2:
+                continue
+            else:
+                start_idx = flat_idx*n_freqs
+                stop_idx = (flat_idx+1)*n_freqs
+                flat_features[:,start_idx:stop_idx] = features[:,:,roi_idx_1,roi_idx_2]
+
+                for freq in f:
+                    feature_id = f"{rois[roi_idx_1]}->{rois[roi_idx_2]} {freq}"
+                    feature_ids.append(feature_id)
+
+
+    return flat_features, feature_ids
 def flatten_dir_spec_features(features,rois,f):
     """
     Returns a flattened directed spectrum congruous with the legacy format.
