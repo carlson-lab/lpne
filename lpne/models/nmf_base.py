@@ -8,7 +8,12 @@ import torch.nn as nn
 from tqdm import tqdm
 import numpy as np
 from sklearn.decomposition import NMF
-from torchbd.loss import BetaDivLoss
+try:
+    from torchbd.loss import BetaDivLoss
+
+    TORCHBD_INSTALLED = True
+except ModuleNotFoundError:
+    TORCHBD_INSTALLED = False
 from scipy.stats import mannwhitneyu
 
 
@@ -107,7 +112,7 @@ class NmfBase(nn.Module):
         self.feature_groups = feature_groups
         if feature_groups is not None and group_weights is None:
             group_weights = []
-            for idx, (lb, ub) in enumerate(feature_groups):
+            for (lb, ub) in feature_groups:
                 group_weights.append(
                     (feature_groups[-1][-1] - feature_groups[0][0]) / (ub - lb)
                 )
@@ -162,6 +167,7 @@ class NmfBase(nn.Module):
         if recon_loss == "MSE":
             return nn.MSELoss()
         elif recon_loss == "IS":
+            assert TORCHBD_INSTALLED, "torchbd needs to be installed!"
             return BetaDivLoss(beta=0, reduction="mean")
         else:
             raise ValueError(f"{recon_loss} is not supported")

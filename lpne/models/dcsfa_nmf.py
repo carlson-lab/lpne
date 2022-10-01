@@ -15,7 +15,7 @@ from tqdm import tqdm
 import warnings
 
 
-from .nmf_base_model import NmfBase
+from .nmf_base import NmfBase
 
 
 class DcsfaNmf(NmfBase):
