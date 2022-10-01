@@ -9,19 +9,19 @@ import numpy as np
 from scipy.signal import butter, lfilter, iirnotch
 
 
-ORDER = 3 # Butterworth bandpass filter order
+ORDER = 3  # Butterworth bandpass filter order
 """Butterworth filter order"""
-LOWCUT = 0.5 # Butterworth bandpass filter parameter
+LOWCUT = 0.5  # Butterworth bandpass filter parameter
 """Default lowcut for filtering (Hz)"""
-HIGHCUT = 55.0 # Butterworth bandpass filter parameter
+HIGHCUT = 55.0  # Butterworth bandpass filter parameter
 """Default highcut for filtering (Hz)"""
-Q = 2.0 # Notch filter parameter
+Q = 2.0  # Notch filter parameter
 """Notch filter quality parameter"""
 
 
-
-def filter_signal(x, fs, lowcut=LOWCUT, highcut=HIGHCUT, q=Q, order=ORDER,
-    apply_notch_filters=True):
+def filter_signal(
+    x, fs, lowcut=LOWCUT, highcut=HIGHCUT, q=Q, order=ORDER, apply_notch_filters=True
+):
     """
     Apply a bandpass filter and notch filters to the signal.
 
@@ -56,8 +56,8 @@ def filter_signal(x, fs, lowcut=LOWCUT, highcut=HIGHCUT, q=Q, order=ORDER,
     x = _butter_bandpass_filter(x, lowcut, highcut, fs, order=order)
     # Remove electrical noise at 60Hz and harmonics.
     if apply_notch_filters:
-        for i, freq in enumerate(range(60,int(fs/2),60)):
-            b, a = iirnotch(freq, (i+1)*q, fs)
+        for i, freq in enumerate(range(60, int(fs / 2), 60)):
+            b, a = iirnotch(freq, (i + 1) * q, fs)
             x = lfilter(b, a, x)
     # Reintroduce NaNs.
     x[nan_mask] = np.nan
@@ -84,12 +84,12 @@ def filter_lfps(lfps, fs, lowcut=LOWCUT, highcut=HIGHCUT, q=Q, order=ORDER):
     """
     for channel in list(lfps.keys()):
         lfps[channel] = filter_signal(
-                lfps[channel],
-                fs,
-                lowcut=lowcut,
-                highcut=highcut,
-                q=q,
-                order=order,
+            lfps[channel],
+            fs,
+            lowcut=lowcut,
+            highcut=highcut,
+            q=q,
+            order=order,
         )
     return lfps
 
@@ -98,7 +98,7 @@ def _butter_bandpass(lowcut, highcut, fs, order=ORDER):
     nyq = 0.5 * fs
     low = lowcut / nyq
     high = highcut / nyq
-    b, a = butter(order, [low, high], btype='band')
+    b, a = butter(order, [low, high], btype="band")
     return b, a
 
 
@@ -108,8 +108,7 @@ def _butter_bandpass_filter(data, lowcut, highcut, fs, order=ORDER):
     return y
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     pass
 
 

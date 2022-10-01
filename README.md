@@ -2,6 +2,11 @@
 
 Code for preprocessing and building models with local field potentials.
 
+<p align="center">
+<a href="https://github.com/psf/black/blob/main/LICENSE"><img alt="License: MIT" src="https://black.readthedocs.io/en/stable/_static/license.svg"></a>
+<a href="https://github.com/psf/black"><img alt="Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
+</p>
+
 See `feature_pipeline.py` and `prediction_pipeline.py` for usage.
 
 <p align="center">
@@ -22,8 +27,9 @@ $ make html # build docs
 Then see `docs/build/html/index.html` for the docs.
 
 #### Dependencies
-* [Python3](https://www.python.org/)
+* [Python3](https://www.python.org/) (3.7+)
 * [PyTorch](https://pytorch.org) 1.11+
+* [Black](https://github.com/psf/black)
 * [MoviePy](https://github.com/Zulko/moviepy) (optional)
 
 

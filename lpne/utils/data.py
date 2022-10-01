@@ -13,12 +13,11 @@ import warnings
 
 
 IGNORED_KEYS = [
-    '__header__',
-    '__version__',
-    '__globals__',
+    "__header__",
+    "__version__",
+    "__globals__",
 ]
 """Ignored keys in the LFP data file"""
-
 
 
 def load_lfps(fn):
@@ -36,11 +35,11 @@ def load_lfps(fn):
         Maps ROI names to LFP waveforms.
     """
     assert isinstance(fn, str)
-    if fn.endswith('.mat'):
+    if fn.endswith(".mat"):
         try:
             lfps = loadmat(fn)
         except NotImplementedError:
-            lfps = dict(h5py.File(fn, 'r'))
+            lfps = dict(h5py.File(fn, "r"))
     else:
         raise NotImplementedError(f"Cannot load file: {fn}")
     # Make sure all the channels are 1D float arrays.
@@ -72,12 +71,13 @@ def save_features(features, fn):
         Where to save the data. Supported file types: {'.npy'}
     """
     assert isinstance(fn, str)
-    if fn.endswith('.npy'):
+    if fn.endswith(".npy"):
         np.save(fn, features)
     else:
         raise NotImplementedError(f"Unsupported file type: {fn}")
 
-def load_features(fns, return_counts=False,feature="power"):
+
+def load_features(fns, return_counts=False, feature="power"):
     """
     Load the features saved in the given filenames.
 
@@ -101,19 +101,18 @@ def load_features(fns, return_counts=False,feature="power"):
     counts : list of int
         Number of windows in each file. Returned if `return_counts` is `True`.
     """
-    assert feature in ["power","dir_spec"], f"Unsupported feature: {feature}"
+    assert feature in ["power", "dir_spec"], f"Unsupported feature: {feature}"
     if isinstance(fns, str):
         fns = [fns]
     assert isinstance(fns, list)
     features, counts = [], []
     prev_rois = None
     for fn in fns:
-        assert fn.endswith('.npy'), f"Unsupported file type: {fn}"
+        assert fn.endswith(".npy"), f"Unsupported file type: {fn}"
         temp = np.load(fn, allow_pickle=True).item()
-        rois = temp['rois']
+        rois = temp["rois"]
         if prev_rois is not None:
-            assert prev_rois == rois, \
-                    f"Inconsitent ROIs: {rois} != {prev_rois}"
+            assert prev_rois == rois, f"Inconsitent ROIs: {rois} != {prev_rois}"
         prev_rois = rois
         features.append(temp[feature])
         counts.append(len(features[-1]))
@@ -146,7 +145,7 @@ def save_labels(labels, fn, overwrite=True):
     if isinstance(labels, list):
         labels = np.array(labels)
     assert isinstance(labels, np.ndarray)
-    if fn.endswith('.npy'):
+    if fn.endswith(".npy"):
         np.save(fn, labels)
     else:
         raise NotImplementedError(f"Unsupported file type: {fn}")
@@ -174,7 +173,7 @@ def load_labels(fn, soft_labels=False):
         Shape: [n_windows] or [n_windows,n_classes]
     """
     assert isinstance(fn, str)
-    if fn.endswith('.npy'):
+    if fn.endswith(".npy"):
         labels = np.load(fn)
     else:
         raise NotImplementedError(f"Unsupported file type: {fn}")
@@ -183,8 +182,9 @@ def load_labels(fn, soft_labels=False):
     return labels
 
 
-def load_features_and_labels(feature_fns, label_fns, group_func=None,
-    return_counts=False, soft_labels=False):
+def load_features_and_labels(
+    feature_fns, label_fns, group_func=None, return_counts=False, soft_labels=False
+):
     """
     Load the features and labels.
 
@@ -220,31 +220,35 @@ def load_features_and_labels(feature_fns, label_fns, group_func=None,
     counts : list of int
         Number of windows in each file. Returned if `return_counts` is `True`.
     """
-    assert group_func is None or isinstance(group_func, type(lambda x: x)), \
-            "group_func must either be None or a function!"
-    assert len(feature_fns) == len(label_fns), \
-            f"Expected the same number of feature and label filenames. " \
-            f"Found {len(feature_fns)} and {len(label_fns)}."
+    assert group_func is None or isinstance(
+        group_func, type(lambda x: x)
+    ), "group_func must either be None or a function!"
+    assert len(feature_fns) == len(label_fns), (
+        f"Expected the same number of feature and label filenames. "
+        f"Found {len(feature_fns)} and {len(label_fns)}."
+    )
     # Collect everything.
     features, labels, groups, counts = [], [], [], []
     prev_rois = None
     for i, (feature_fn, label_fn) in enumerate(zip(feature_fns, label_fns)):
         power, rois = load_features(feature_fn)
         if prev_rois is not None:
-            assert prev_rois == rois, \
-                    f"Inconsitent ROIs: {prev_rois} != {rois}" \
-                    f"\n\tFile 1: {feature_fns[i-1]}" \
-                    f"\n\tFile 2: {feature_fns[i]}"
+            assert prev_rois == rois, (
+                f"Inconsitent ROIs: {prev_rois} != {rois}"
+                f"\n\tFile 1: {feature_fns[i-1]}"
+                f"\n\tFile 2: {feature_fns[i]}"
+            )
         prev_rois = rois
         features.append(power)
         counts.append(len(power))
         labels.append(load_labels(label_fn))
-        assert len(power) == len(labels[-1]), \
-            f"Number of windows doesn't match for feature and label file!" \
-            f"\n\tFeatures: {feature_fn} (len({power.shape}))" \
+        assert len(power) == len(labels[-1]), (
+            f"Number of windows doesn't match for feature and label file!"
+            f"\n\tFeatures: {feature_fn} (len({power.shape}))"
             f"\n\tLabels: {label_fn} ({len(labels[-1])})"
+        )
         if group_func is not None:
-            groups.append([group_func(feature_fn)]*len(labels[-1]))
+            groups.append([group_func(feature_fn)] * len(labels[-1]))
     # Concatenate and return.
     features = np.concatenate(features, axis=0)
     labels = np.concatenate(labels, axis=0)
@@ -259,10 +263,8 @@ def load_features_and_labels(feature_fns, label_fns, group_func=None,
     return res
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     pass
-
 
 
 ###

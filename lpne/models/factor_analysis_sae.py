@@ -8,8 +8,7 @@ __date__ = "June 2021 - July 2022"
 import numpy as np
 from sklearn.utils.validation import check_is_fitted
 import torch
-from torch.distributions import Categorical, Normal, MultivariateNormal, \
-    kl_divergence
+from torch.distributions import Categorical, Normal, MultivariateNormal, kl_divergence
 import torch.nn.functional as F
 
 
@@ -21,14 +20,13 @@ from ..utils.utils import get_weights, squeeze_triangular_array
 FLOAT = torch.float32
 EPSILON = 1e-6
 DEFAULT_GP_PARAMS = {
-    'mean': 0.0,
-    'ls': 0.3,
-    'obs_noise_var': 1e-3,
-    'reg': 0.1,
-    'kernel': 'se',
+    "mean": 0.0,
+    "ls": 0.3,
+    "obs_noise_var": 1e-3,
+    "reg": 0.1,
+    "kernel": "se",
 }
 """Default frequency factor GP parameters"""
-
 
 
 class FaSae(BaseModel):
@@ -82,14 +80,22 @@ class FaSae(BaseModel):
         Defaults to ``1``.
     """
 
-    MODEL_NAME = 'FA SAE'
-    FIT_ATTRIBUTES = ['classes_', 'iter_', 'n_freqs_', 'n_rois_']
+    MODEL_NAME = "FA SAE"
+    FIT_ATTRIBUTES = ["classes_", "iter_", "n_freqs_", "n_rois_"]
 
-
-    def __init__(self, reg_strength=1.0, z_dim=32, nonnegative=True,
-        variational=False, kl_factor=1.0, encoder_type='linear',
-        gp_params=DEFAULT_GP_PARAMS, rec_loss_type='lad', irls_iter=1,
-        **kwargs):
+    def __init__(
+        self,
+        reg_strength=1.0,
+        z_dim=32,
+        nonnegative=True,
+        variational=False,
+        kl_factor=1.0,
+        encoder_type="linear",
+        gp_params=DEFAULT_GP_PARAMS,
+        rec_loss_type="lad",
+        irls_iter=1,
+        **kwargs,
+    ):
         super(FaSae, self).__init__(**kwargs)
         assert kl_factor >= 0.0, f"{kl_factor} < 0"
         # Set parameters.
@@ -105,16 +111,15 @@ class FaSae(BaseModel):
         self.variational = variational
         assert isinstance(kl_factor, (int, float))
         assert kl_factor >= 0.0
-        self.kl_factor = float(kl_factor)  
-        assert encoder_type in ['linear', 'lstsq', 'pinv', 'irls']
+        self.kl_factor = float(kl_factor)
+        assert encoder_type in ["linear", "lstsq", "pinv", "irls"]
         self.encoder_type = encoder_type
-        self.gp_params = {**DEFAULT_GP_PARAMS, **gp_params} 
-        assert rec_loss_type in ['lad', 'ls']
+        self.gp_params = {**DEFAULT_GP_PARAMS, **gp_params}
+        assert rec_loss_type in ["lad", "ls"]
         self.rec_loss_type = rec_loss_type
         assert isinstance(irls_iter, int)
         self.irls_iter = irls_iter
         self.classes_ = None
-
 
     def _initialize(self):
         """Initialize parameters of the networks before training."""
@@ -124,22 +129,22 @@ class FaSae(BaseModel):
         # Check arguments.
         n_classes = len(self.classes_)
         assert n_classes <= self.z_dim, f"{n_classes} > {self.z_dim}"
-        assert not (self.encoder_type == 'solve' and self.variational)
-        assert not (self.encoder_type == 'solve' and not self.nonnegative)
+        assert not (self.encoder_type == "solve" and self.variational)
+        assert not (self.encoder_type == "solve" and not self.nonnegative)
         # Set up the frequency factor GP.
         kernel = torch.arange(n_freqs).unsqueeze(0)
         kernel = torch.abs(kernel - torch.arange(n_freqs).unsqueeze(1))
-        if self.gp_params['kernel'] == 'se':
-            kernel = 2**(-1/2) * torch.pow(kernel / self.gp_params['ls'], 2)
-        elif self.gp_params['kernel'] == 'ou':
-            kernel = torch.abs(kernel / self.gp_params['ls'])
+        if self.gp_params["kernel"] == "se":
+            kernel = 2 ** (-1 / 2) * torch.pow(kernel / self.gp_params["ls"], 2)
+        elif self.gp_params["kernel"] == "ou":
+            kernel = torch.abs(kernel / self.gp_params["ls"])
         else:
-            raise NotImplementedError(self.gp_params['kernel'])
+            raise NotImplementedError(self.gp_params["kernel"])
         kernel = torch.exp(-kernel)
-        kernel = kernel + self.gp_params['obs_noise_var'] * torch.eye(n_freqs)
+        kernel = kernel + self.gp_params["obs_noise_var"] * torch.eye(n_freqs)
         self.gp_dist = MultivariateNormal(
-                self.gp_params['mean'] * torch.ones(n_freqs).to(self.device),
-                covariance_matrix=kernel.to(self.device),
+            self.gp_params["mean"] * torch.ones(n_freqs).to(self.device),
+            covariance_matrix=kernel.to(self.device),
         )
         # Make the networks.
         self.recognition_model = torch.nn.Linear(n_features, self.z_dim)
@@ -150,23 +155,23 @@ class FaSae(BaseModel):
         prior_std = torch.ones(self.z_dim).to(self.device)
         self.prior = Normal(prior_mean, prior_std)
         self.model = torch.nn.Parameter(
-                torch.nn.Linear(self.z_dim, n_features).weight.clone(),
-        ) # [x,z]
+            torch.nn.Linear(self.z_dim, n_features).weight.clone(),
+        )  # [x,z]
         self.factor_reg = torch.nn.Parameter(
             torch.zeros(self.z_dim),
-        ) # [z]
+        )  # [z]
         self.factor_reg_target = torch.nn.Parameter(
             torch.ones(self.z_dim),
-        ) # [z]
+        )  # [z]
         self.logit_weights = torch.nn.Parameter(
-                -5 * torch.ones(1,n_classes),
+            -5 * torch.ones(1, n_classes),
         )
-        self.logit_biases = torch.nn.Parameter(torch.zeros(1,n_classes))
+        self.logit_biases = torch.nn.Parameter(torch.zeros(1, n_classes))
         super(FaSae, self)._initialize()
 
-
-    def forward(self, features, labels, groups, weights, return_logits=False,
-        stochastic=True):
+    def forward(
+        self, features, labels, groups, weights, return_logits=False, stochastic=True
+    ):
         """
         Calculate a loss for the features and labels.
 
@@ -195,44 +200,44 @@ class FaSae(BaseModel):
             Shape: [b,c]
         """
         if labels is not None:
-                unlabeled_mask = torch.isinf(1/(labels - INVALID_LABEL))
-                labels[unlabeled_mask] = 0
-        
+            unlabeled_mask = torch.isinf(1 / (labels - INVALID_LABEL))
+            labels[unlabeled_mask] = 0
+
         # Get latents.
-        features = features.view(len(features),-1) # [b,f,r,r] -> [b,x]
+        features = features.view(len(features), -1)  # [b,f,r,r] -> [b,x]
         zs, kld = self.get_latents(
-                features,
-                stochastic=stochastic,
-                return_kld=True,
-        ) # [b,z],[b]
+            features,
+            stochastic=stochastic,
+            return_kld=True,
+        )  # [b,z],[b]
 
         # Predict the labels.
-        logits = zs[:,:self.n_classes] * F.softplus(self.logit_weights)
-        logits = logits + self.logit_biases # [b,c]
+        logits = zs[:, : self.n_classes] * F.softplus(self.logit_weights)
+        logits = logits + self.logit_biases  # [b,c]
         if return_logits:
             return logits
-        log_probs = Categorical(logits=logits).log_prob(labels) # [b]
-        log_probs = weights * log_probs # [b]
-        log_probs[unlabeled_mask] = 0.0 # disregard the unlabeled data
-        
+        log_probs = Categorical(logits=logits).log_prob(labels)  # [b]
+        log_probs = weights * log_probs  # [b]
+        log_probs[unlabeled_mask] = 0.0  # disregard the unlabeled data
+
         # Reconstruct the features.
-        rec_features, A = self.project_latents(zs, return_factor=True) # [b,x]
-        
+        rec_features, A = self.project_latents(zs, return_factor=True)  # [b,x]
+
         # Calculate a reconstruction loss.
-        diff = features - rec_features # [b,x]
-        if self.rec_loss_type == 'lad':
-            rec_loss = torch.abs(diff).mean(dim=1) # [b]
-        elif self.rec_loss_type == 'ls':
-            rec_loss = 0.5 * torch.pow(diff,2).mean(dim=1) # [b]
-        rec_loss = self.reg_strength * rec_loss # [b]
+        diff = features - rec_features  # [b,x]
+        if self.rec_loss_type == "lad":
+            rec_loss = torch.abs(diff).mean(dim=1)  # [b]
+        elif self.rec_loss_type == "ls":
+            rec_loss = 0.5 * torch.pow(diff, 2).mean(dim=1)  # [b]
+        rec_loss = self.reg_strength * rec_loss  # [b]
 
         # Calculate the GP loss.
         freq_f = A.view(self.n_freqs_, self.n_rois_, self.n_rois_, self.z_dim)
-        freq_norm = torch.sqrt(torch.pow(freq_f,2).sum(dim=0, keepdim=True))
+        freq_norm = torch.sqrt(torch.pow(freq_f, 2).sum(dim=0, keepdim=True))
         freq_f = freq_f / freq_norm
-        gp_loss = -self.gp_dist.log_prob(torch.swapaxes(freq_f,0,-1)).sum()
-        gp_loss = self.gp_params['reg'] * gp_loss
-        
+        gp_loss = -self.gp_dist.log_prob(torch.swapaxes(freq_f, 0, -1)).sum()
+        gp_loss = self.gp_params["reg"] * gp_loss
+
         # Combine all the terms into a composite loss.
         loss = rec_loss - log_probs
         if self.variational:
@@ -240,9 +245,7 @@ class FaSae(BaseModel):
         loss = loss.sum() + gp_loss
         return loss
 
-
-    def get_latents(self, features, stochastic=True, return_kld=False,
-        reg=1e-3):
+    def get_latents(self, features, stochastic=True, return_kld=False, reg=1e-3):
         """
         Get the latents corresponding to the given features.
 
@@ -271,82 +274,82 @@ class FaSae(BaseModel):
             z_log_stds = self.rec_model_2(features)
             # Make the variational posterior and get a KL from the prior.
             dist = Normal(z_mus, EPSILON + z_log_stds.exp())
-            kld = kl_divergence(dist, self.prior).sum(dim=1) # [b]
+            kld = kl_divergence(dist, self.prior).sum(dim=1)  # [b]
             # Sample.
             if stochastic:
-                latents = dist.rsample() # [b,z]
+                latents = dist.rsample()  # [b,z]
             else:
-                latents = z_mus # [b,z]
+                latents = z_mus  # [b,z]
             # Project.
             latents = self.linear_layer(latents)
         else:
             # Deterministic autoencoder
             kld = None
-            if self.encoder_type == 'linear':
+            if self.encoder_type == "linear":
                 # Feed through the recognition network to get latents.
-                latents = self.recognition_model(features) # [b,z]
+                latents = self.recognition_model(features)  # [b,z]
                 latents = F.softplus(latents)
-            elif self.encoder_type in ['lstsq', 'pinv', 'irls']:
+            elif self.encoder_type in ["lstsq", "pinv", "irls"]:
                 # Solve the least squares problem and rectify to get latents.
-                A = F.softplus(self.model) # [x,z]
-                A_norm = torch.sqrt(torch.pow(A,2).sum(dim=0, keepdim=True))
+                A = F.softplus(self.model)  # [x,z]
+                A_norm = torch.sqrt(torch.pow(A, 2).sum(dim=0, keepdim=True))
                 A = A / A_norm
                 factor_reg = torch.diag_embed(F.softplus(self.factor_reg))
-                A = torch.cat([A, factor_reg], dim=0) # [x+z,z]
-                pad = self.factor_reg_target.unsqueeze(0) # [1,z]
-                pad = pad.expand(len(features),-1) # [b,z]
-                target = torch.cat([features, pad], dim=1) # [b,x+z]
-                if self.encoder_type == 'lstsq':
+                A = torch.cat([A, factor_reg], dim=0)  # [x+z,z]
+                pad = self.factor_reg_target.unsqueeze(0)  # [1,z]
+                pad = pad.expand(len(features), -1)  # [b,z]
+                target = torch.cat([features, pad], dim=1)  # [b,x+z]
+                if self.encoder_type == "lstsq":
                     # https://github.com/pytorch/pytorch/issues/27036
                     latents = torch.linalg.lstsq(
-                            A.unsqueeze(0),
-                            target.unsqueeze(-1),
-                    ).solution.squeeze(-1) # [b,z]
+                        A.unsqueeze(0),
+                        target.unsqueeze(-1),
+                    ).solution.squeeze(
+                        -1
+                    )  # [b,z]
                     latents = torch.clamp(latents, min=0.0)
-                elif self.encoder_type == 'pinv':
+                elif self.encoder_type == "pinv":
                     # https://github.com/pytorch/pytorch/issues/41306
                     # This may be much faster on GPU than linalg.lstsq.
                     # Hopefully this will change in future releases.
-                    latents = torch.linalg.pinv(A.unsqueeze(0)) \
-                               @ target.unsqueeze(-1)
-                    latents = torch.clamp(latents.squeeze(-1), min=0.0) # [b,z]
-                elif self.encoder_type == 'irls':
+                    latents = torch.linalg.pinv(A.unsqueeze(0)) @ target.unsqueeze(-1)
+                    latents = torch.clamp(latents.squeeze(-1), min=0.0)  # [b,z]
+                elif self.encoder_type == "irls":
                     # features: [b,x]
                     # A : [x,z]
                     latents = torch.linalg.solve(
                         A.t() @ A,
                         A.t() @ target.unsqueeze(-1),
-                    ) # [b,z,1]
+                    )  # [b,z,1]
                     for _ in range(self.irls_iter):
                         diffs = target - latents.squeeze(-1) @ A.t()
-                        weights = 1.0/torch.clamp(torch.abs(diffs), reg, None)
+                        weights = 1.0 / torch.clamp(torch.abs(diffs), reg, None)
                         inner = torch.einsum(
-                            'zx,bx,xw->bzw',
+                            "zx,bx,xw->bzw",
                             A.t(),
                             weights,
                             A,
-                        ) # [b,z,z]
+                        )  # [b,z,z]
                         prod = torch.einsum(
-                            'zx,bx->bz',
+                            "zx,bx->bz",
                             A.t(),
                             weights * target,
-                        ) # [b,z]
+                        )  # [b,z]
                         latents = torch.linalg.solve(
                             inner,
                             prod.unsqueeze(-1),
-                        ) # [b,z,1]
-                    latents = torch.clamp(latents.squeeze(-1), min=0.0) # [b,z]
+                        )  # [b,z,1]
+                    latents = torch.clamp(latents.squeeze(-1), min=0.0)  # [b,z]
             else:
                 raise NotImplementedError(self.encoder_type)
         if return_kld:
             return latents, kld
         return latents
 
-
     def project_latents(self, latents, return_factor=False):
         """
         Feed latents through the model to get observations.
-        
+
         Parameters
         ----------
         latents : torch.Tensor
@@ -363,21 +366,19 @@ class FaSae(BaseModel):
             Shape: [x,z]
         """
         if self.nonnegative:
-            A = F.softplus(self.model) # [x,z]
+            A = F.softplus(self.model)  # [x,z]
         else:
-            A = self.model # [x,z]
-        A_norm = torch.sqrt(torch.pow(A,2).sum(dim=0, keepdim=True))
+            A = self.model  # [x,z]
+        A_norm = torch.sqrt(torch.pow(A, 2).sum(dim=0, keepdim=True))
         A = A / A_norm
         x_pred = A.unsqueeze(0) @ F.softplus(latents).unsqueeze(-1)
-        x_pred = x_pred.squeeze(-1) # [b,x]
+        x_pred = x_pred.squeeze(-1)  # [b,x]
         if return_factor:
             return x_pred, A
         return x_pred
 
-
     @torch.no_grad()
-    def predict_proba(self, features, to_numpy=True, stochastic=False,
-        **kwargs):
+    def predict_proba(self, features, to_numpy=True, stochastic=False, **kwargs):
         """
         Probability estimates.
 
@@ -409,7 +410,7 @@ class FaSae(BaseModel):
         logits = []
         i = 0
         while i <= len(features):
-            batch_f = features[i:i+self.batch_size].to(self.device)
+            batch_f = features[i : i + self.batch_size].to(self.device)
             batch_logit = self(
                 batch_f,
                 None,
@@ -421,11 +422,10 @@ class FaSae(BaseModel):
             logits.append(batch_logit)
             i += self.batch_size
         logits = torch.cat(logits, dim=0)
-        probs = F.softmax(logits, dim=1) # [b,c]
+        probs = F.softmax(logits, dim=1)  # [b,c]
         if to_numpy:
             return probs.cpu().numpy()
         return probs
-
 
     @torch.no_grad()
     def predict(self, X, *args, **kwargs):
@@ -451,7 +451,6 @@ class FaSae(BaseModel):
         probs = self.predict_proba(X, to_numpy=False)
         predictions = torch.argmax(probs, dim=1)
         return self.classes_[predictions.cpu().numpy()]
-
 
     @torch.no_grad()
     def score(self, features, labels, groups, *args, **kwargs):
@@ -484,7 +483,6 @@ class FaSae(BaseModel):
         weighted_acc = np.mean(scores[labels != INVALID_LABEL])
         return weighted_acc
 
-
     @torch.no_grad()
     def get_factor(self, factor_num=0):
         """
@@ -503,38 +501,46 @@ class FaSae(BaseModel):
         check_is_fitted(self, attributes=self.FIT_ATTRIBUTES)
         assert isinstance(factor_num, int)
         assert factor_num >= 0 and factor_num < self.z_dim
-        A = self.model[:,factor_num]
+        A = self.model[:, factor_num]
         if self.nonnegative:
             A = F.softplus(A)
-        A_norm = torch.sqrt(torch.pow(A,2).sum(dim=0, keepdim=True))
+        A_norm = torch.sqrt(torch.pow(A, 2).sum(dim=0, keepdim=True))
         A = A / A_norm
         A = A.detach().cpu().numpy()
-        A = A.reshape(self.n_freqs_, self.n_rois_, self.n_rois_) # [f,r,r]
-        A = squeeze_triangular_array(A, dims=(1,2)) # [f,r(r+1)/2]
-        return A.T # [r(r+1)/2,f]
-
+        A = A.reshape(self.n_freqs_, self.n_rois_, self.n_rois_)  # [f,r,r]
+        A = squeeze_triangular_array(A, dims=(1, 2))  # [f,r(r+1)/2]
+        return A.T  # [r(r+1)/2,f]
 
     def get_params(self, deep=True):
         """Get parameters for this estimator."""
         super_params = super(FaSae, self).get_params(deep=deep)
         params = {
-            'reg_strength': self.reg_strength,
-            'z_dim': self.z_dim,
-            'nonnegative': self.nonnegative,
-            'variational': self.variational,
-            'kl_factor': self.kl_factor,
-            'encoder_type': self.encoder_type,
-            'gp_params': self.gp_params,
-            'rec_loss_type': self.rec_loss_type,
-            'irls_iter': self.irls_iter,
+            "reg_strength": self.reg_strength,
+            "z_dim": self.z_dim,
+            "nonnegative": self.nonnegative,
+            "variational": self.variational,
+            "kl_factor": self.kl_factor,
+            "encoder_type": self.encoder_type,
+            "gp_params": self.gp_params,
+            "rec_loss_type": self.rec_loss_type,
+            "irls_iter": self.irls_iter,
         }
         params = {**super_params, **params}
         return params
 
-
-    def set_params(self, reg_strength=None, z_dim=None, nonnegative=None,
-        variational=None, kl_factor=None, encoder_type=None, gp_params=None,
-        rec_loss_type=None, irls_iter=None, **kwargs):
+    def set_params(
+        self,
+        reg_strength=None,
+        z_dim=None,
+        nonnegative=None,
+        variational=None,
+        kl_factor=None,
+        encoder_type=None,
+        gp_params=None,
+        rec_loss_type=None,
+        irls_iter=None,
+        **kwargs,
+    ):
         """Set the parameters of this estimator."""
         if reg_strength is not None:
             self.reg_strength = reg_strength
@@ -558,8 +564,7 @@ class FaSae(BaseModel):
         return self
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     pass
 
 

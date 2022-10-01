@@ -12,8 +12,7 @@ from sklearn.utils.validation import check_is_fitted
 import torch
 
 
-FIT_ATTRIBUTES = ['best_estimator_', 'best_params_', 'best_score_']
-
+FIT_ATTRIBUTES = ["best_estimator_", "best_params_", "best_score_"]
 
 
 class GridSearchCV:
@@ -39,13 +38,12 @@ class GridSearchCV:
         self.cv = cv
         self.test_size = test_size
 
-
     def fit(self, features, labels, groups, print_freq=5, score_freq=5):
         """
         Fit the model to data.
 
         These parameters are passed to ``BaseModel.fit``.
-        
+
         If ``groups`` is ``None``, a label-stratified K-fold is use for model
         selection. Otherwise, a group shuffle used.
 
@@ -72,7 +70,7 @@ class GridSearchCV:
             # Make sure groups aren't in multiple folds.
             skf = GroupShuffleSplit(test_size=self.test_size, n_splits=self.cv)
             cv_gen = enumerate(skf.split(features, labels, groups))
-        
+
         best_score = -np.inf
         best_params = None
         # For each parameter setting...
@@ -86,16 +84,16 @@ class GridSearchCV:
                 # Set the parameters, fit the model, and score the model.
                 self.model.set_params(**params)
                 self.model.fit(
-                        features[train_idx],
-                        labels[train_idx],
-                        groups[train_idx],
-                        print_freq=print_freq,
-                        score_freq=score_freq,
+                    features[train_idx],
+                    labels[train_idx],
+                    groups[train_idx],
+                    print_freq=print_freq,
+                    score_freq=score_freq,
                 )
                 model_score = self.model.score(
-                        features[test_idx],
-                        labels[test_idx],
-                        groups[test_idx],
+                    features[test_idx],
+                    labels[test_idx],
+                    groups[test_idx],
                 )
                 print(
                     f"Param {param_num} cv {cv_num} score {model_score}",
@@ -110,16 +108,15 @@ class GridSearchCV:
         # Retrain using the best found parameters.
         self.model.set_params(**best_params)
         self.model.fit(
-                features,
-                labels,
-                groups,
-                print_freq=print_freq,
-                score_freq=score_freq,
+            features,
+            labels,
+            groups,
+            print_freq=print_freq,
+            score_freq=score_freq,
         )
         self.best_estimator_ = self.model
         self.best_params_ = best_params
         self.best_score_ = best_score
-
 
     def predict(self, features, groups, *args, **kwargs):
         """
@@ -139,7 +136,6 @@ class GridSearchCV:
         """
         check_is_fitted(self, attributes=FIT_ATTRIBUTES)
         return self.best_estimator_.predict(features, groups, *args, **kwargs)
-
 
     def score(self, features, labels, groups, *args, **kwargs):
         """
@@ -161,13 +157,12 @@ class GridSearchCV:
         """
         check_is_fitted(self, attributes=FIT_ATTRIBUTES)
         return self.best_estimator_.score(
-                features,
-                labels,
-                groups,
-                *args,
-                **kwargs,
+            features,
+            labels,
+            groups,
+            *args,
+            **kwargs,
         )
-
 
     @torch.no_grad()
     def save_state(self, fn):
@@ -177,10 +172,8 @@ class GridSearchCV:
         np.save(fn, params)
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     pass
-
 
 
 ###

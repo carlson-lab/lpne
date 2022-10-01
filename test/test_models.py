@@ -12,7 +12,6 @@ import pytest
 from lpne.models import FaSae, CpSae
 
 
-
 def test_factor_analysis_sae():
     """Make some fake data, train briefly, and reload the model."""
     b, f, r, g = 10, 9, 8, 2
@@ -26,9 +25,9 @@ def test_factor_analysis_sae():
     for nonnegative, variational in product(nmf_vals, variational_vals):
         # Make the model.
         model = FaSae(
-                nonnegative=nonnegative,
-                variational=variational,
-                n_iter=1,
+            nonnegative=nonnegative,
+            variational=variational,
+            n_iter=1,
         )
         # Fit the model.
         model.fit(features, labels, groups, print_freq=None)
@@ -36,9 +35,9 @@ def test_factor_analysis_sae():
         _ = model.predict(features, groups)
         # Calculate a weighted accuracy.
         weighted_acc_orig = model.score(
-                features,
-                labels,
-                groups,
+            features,
+            labels,
+            groups,
         )
         # Get state.
         params = model.get_params()
@@ -47,9 +46,9 @@ def test_factor_analysis_sae():
         new_model.set_params(**params)
         # Calculate a weighted accuracy.
         weighted_acc = new_model.score(
-                features,
-                labels,
-                groups,
+            features,
+            labels,
+            groups,
         )
         assert weighted_acc_orig == weighted_acc
 
@@ -65,9 +64,9 @@ def test_cp_sae():
     _ = model.predict(features, groups)
     # Calculate a weighted accuracy.
     weighted_acc_orig = model.score(
-            features,
-            labels,
-            groups,
+        features,
+        labels,
+        groups,
     )
     # Get state.
     params = model.get_params()
@@ -76,17 +75,15 @@ def test_cp_sae():
     new_model.set_params(**params)
     # Calculate a weighted accuracy.
     weighted_acc = new_model.score(
-            features,
-            labels,
-            groups,
+        features,
+        labels,
+        groups,
     )
     assert weighted_acc_orig == weighted_acc
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     pass
-
 
 
 ###

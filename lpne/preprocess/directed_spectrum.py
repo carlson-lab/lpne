@@ -41,14 +41,13 @@ TOL = 1e-6
 """Wilson factorization convergence tolerance parameter"""
 
 DEFAULT_CSD_PARAMS = {
-    'detrend': 'linear',
-    'window': 'hann',
-    'nperseg': 512,
-    'noverlap': 256,
-    'nfft': None,
+    "detrend": "linear",
+    "window": "hann",
+    "nperseg": 512,
+    "noverlap": 256,
+    "nfft": None,
 }
 """Default parameters sent to ``scipy.signal.csd``"""
-
 
 
 def get_directed_spectrum(X, fs, max_iter=1000, csd_params={}):
@@ -77,35 +76,35 @@ def get_directed_spectrum(X, fs, max_iter=1000, csd_params={}):
         Shape: ``[n_window, n_freq, n_roi, n_roi]``
     """
     if X.ndim == 2:
-        X = X.reshape(1, X.shape[0], X.shape[1]) # [r,t] -> [1,r,t]
+        X = X.reshape(1, X.shape[0], X.shape[1])  # [r,t] -> [1,r,t]
     assert X.ndim == 3, f"len({X.shape}) != 3"
     # Get a cross power spectral density matrix.
     csd_params = {**DEFAULT_CSD_PARAMS, **csd_params}
     f, cpsd = csd(
-            X[:,np.newaxis],
-            X[:,:,np.newaxis],
-            fs=fs,
-            return_onesided=False,
-            **csd_params,
-    ) # [f], [n,r,r,f]
-    cpsd = np.moveaxis(cpsd, 3, 1) # [n,r,r,f] -> [n,f,r,r]
+        X[:, np.newaxis],
+        X[:, :, np.newaxis],
+        fs=fs,
+        return_onesided=False,
+        **csd_params,
+    )  # [f], [n,r,r,f]
+    cpsd = np.moveaxis(cpsd, 3, 1)  # [n,r,r,f] -> [n,f,r,r]
     # Factorize the CPSD into h: [n,f,r,r] and sigma: [n,r,r]
     h, sigma = _wilson_factorize(cpsd, fs, max_iter)
-    h = np.power(np.abs(h),2) # convert to squared magnitude
+    h = np.power(np.abs(h), 2)  # convert to squared magnitude
     # Remove the redundant negative frequencies.
     new_f = (len(f) // 2) + 1
     f = f[:new_f]
     n, r = sigma.shape[:2]
-    ds = np.zeros((n,new_f,r,r), dtype=np.float64) # [n,f,r,r]
+    ds = np.zeros((n, new_f, r, r), dtype=np.float64)  # [n,f,r,r]
     # Iterate through pairs of ROIs calculate DS from the CPSD factorization.
     for i in range(X.shape[1]):
         for j in range(X.shape[1]):
             if i == j:
                 continue
-            temp = (np.abs(sigma[:,i,j]) / np.abs(sigma[:,j,j]))**2
-            temp = sigma[:,i,i].real - temp * sigma[:,j,j].real
-            temp = h[:,:new_f,j,i] * temp[:,np.newaxis]
-            ds[:,:,i,j] = temp
+            temp = (np.abs(sigma[:, i, j]) / np.abs(sigma[:, j, j])) ** 2
+            temp = sigma[:, i, i].real - temp * sigma[:, j, j].real
+            temp = h[:, :new_f, j, i] * temp[:, np.newaxis]
+            ds[:, :, i, j] = temp
     return f, ds
 
 
@@ -146,15 +145,15 @@ def _wilson_factorize(cpsd, fs, max_iter, eps_multiplier=100):
     psi, a0 = _init_psi(cpsd)
     # Make sure the CPSD is well-conditioned.
     epsilon = np.spacing(np.abs(cpsd)).max() * eps_multiplier
-    chol = np.linalg.cholesky(cpsd + epsilon*np.eye(cpsd.shape[-1]))
+    chol = np.linalg.cholesky(cpsd + epsilon * np.eye(cpsd.shape[-1]))
     h = np.zeros_like(psi)
     sigma = np.zeros_like(a0)
     failed_windows = 0
     for w in range(cpsd.shape[0]):
-        flag = False # indicates whether convergence occurs
+        flag = False  # indicates whether convergence occurs
         for i in range(max_iter):
             # These lines implement: g = psi \ cpsd / psi* + I
-            psi_inv_cpsd = np.linalg.solve (psi[w], chol[w])
+            psi_inv_cpsd = np.linalg.solve(psi[w], chol[w])
             g = psi_inv_cpsd @ psi_inv_cpsd.conj().transpose(0, 2, 1)
             g = g + np.identity(cpsd.shape[-1])
             gplus, g0 = _plus_operator(g)
@@ -174,7 +173,7 @@ def _wilson_factorize(cpsd, fs, max_iter, eps_multiplier=100):
         # Do a right-side solve.
         sol = np.linalg.solve(a0[w].T, psi[w].transpose(0, 2, 1))
         h[w] = sol.transpose(0, 2, 1)
-        sigma[w] = (a0[w] @ a0[w].T)
+        sigma[w] = a0[w] @ a0[w].T
     if failed_windows > 0:
         warn(f"{failed_windows} of {cpsd.shape[0]} windows failed to converge!")
     return h, sigma
@@ -237,7 +236,7 @@ def _plus_operator(g):
     if f % 2 == 0:
         gamma[n] *= 0.5
     # Zero out negative frequencies.
-    gamma[n+1:] = 0
+    gamma[n + 1 :] = 0
     gp = fft(gamma, axis=0)
     return gp, gamma[0]
 
@@ -263,16 +262,14 @@ def _converged(x, x0, tol=TOL):
     x_diff = np.abs(x - x0)
     ab_x = np.abs(x)
     this_eps = np.finfo(ab_x.dtype).eps
-    ab_x[ab_x <= 2*this_eps] = 1
+    ab_x[ab_x <= 2 * this_eps] = 1
     rel_diff = x_diff / ab_x
     converged = rel_diff.max() < tol
     return converged
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     pass
-
 
 
 ###

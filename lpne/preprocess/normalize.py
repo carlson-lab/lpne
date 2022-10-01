@@ -10,8 +10,7 @@ import numpy as np
 EPSILON = 1e-6
 
 
-
-def normalize_features(power_features, partition=None, mode='median'):
+def normalize_features(power_features, partition=None, mode="median"):
     """
     Normalize the features.
 
@@ -45,16 +44,16 @@ def normalize_features(power_features, partition=None, mode='median'):
     if partition is None:
         idx = np.arange(len(power_features))
     else:
-        idx = partition['train']
+        idx = partition["train"]
     power_subset = power_features[idx]
     # Remove NaNs.
-    axes = tuple(i for i in range(1,power_subset.ndim))
+    axes = tuple(i for i in range(1, power_subset.ndim))
     power_subset = power_subset[np.sum(np.isnan(power_subset), axis=axes) == 0]
-    if mode == 'std':
+    if mode == "std":
         temp = np.std(power_subset)
-    elif mode == 'max':
+    elif mode == "max":
         temp = np.max(power_subset)
-    elif mode == 'median':
+    elif mode == "median":
         temp = np.median(power_subset)
     else:
         raise NotImplementedError(f"Mode {mode} not implemented!")
@@ -62,7 +61,7 @@ def normalize_features(power_features, partition=None, mode='median'):
     return power_features
 
 
-def normalize_lfps(lfps, mode='zscore'):
+def normalize_lfps(lfps, mode="zscore"):
     """
     Normalize the LFPs.
 
@@ -81,7 +80,7 @@ def normalize_lfps(lfps, mode='zscore'):
     lfps : dict
         Maps ROI names to waveforms.
     """
-    if mode == 'zscore':
+    if mode == "zscore":
         for channel in lfps:
             temp_lfp = lfps[channel]
             temp_lfp = temp_lfp[~np.isnan(temp_lfp)]
@@ -92,11 +91,8 @@ def normalize_lfps(lfps, mode='zscore'):
     return lfps
 
 
-
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     pass
-
 
 
 ###

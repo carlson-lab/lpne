@@ -17,19 +17,26 @@ from ..utils.utils import squeeze_triangular_array
 
 EPSILON = 1e-6
 DEFAULT_CSD_PARAMS = {
-    'detrend': 'constant',
-    'window': 'hann',
-    'nperseg': 512,
-    'noverlap': 256,
-    'nfft': None,
+    "detrend": "constant",
+    "window": "hann",
+    "nperseg": 512,
+    "noverlap": 256,
+    "nfft": None,
 }
 """Default parameters sent to ``scipy.signal.csd``"""
 
 
-
-def make_features(lfps, fs=1000, min_freq=0.0, max_freq=55.0,
-    window_duration=5.0, window_step=None, max_n_windows=None,
-    directed_spectrum=False, csd_params={}):
+def make_features(
+    lfps,
+    fs=1000,
+    min_freq=0.0,
+    max_freq=55.0,
+    window_duration=5.0,
+    window_step=None,
+    max_n_windows=None,
+    directed_spectrum=False,
+    csd_params={},
+):
     """
     Main function: make features from an LFP waveform.
 
@@ -85,15 +92,17 @@ def make_features(lfps, fs=1000, min_freq=0.0, max_freq=55.0,
         '__version__' : str
             Version number of LPNE package
     """
-    assert window_step is None or window_step > 0.0, \
-            f"Nonpositive window step: {window_step}"
+    assert (
+        window_step is None or window_step > 0.0
+    ), f"Nonpositive window step: {window_step}"
     assert max_n_windows is None or max_n_windows > 0
     rois = sorted(lfps.keys())
     n = len(rois)
     assert n >= 1, f"{n} < 1"
     duration = len(lfps[rois[0]]) / fs
-    assert duration >= window_duration, \
-            f"LFPs are too short: {duration} < {window_duration}"
+    assert (
+        duration >= window_duration
+    ), f"LFPs are too short: {duration} < {window_duration}"
     window_samp = int(fs * window_duration)
     csd_params = {**DEFAULT_CSD_PARAMS, **csd_params}
 
@@ -102,10 +111,10 @@ def make_features(lfps, fs=1000, min_freq=0.0, max_freq=55.0,
     if window_step is None:
         # No window overlap: reshape the data.
         idx = (X.shape[1] // window_samp) * window_samp
-        X = X[:,:idx] # [r,t]
-        X = X.reshape(X.shape[0], -1, window_samp).transpose(1,0,2) # [w,r,t]
+        X = X[:, :idx]  # [r,t]
+        X = X.reshape(X.shape[0], -1, window_samp).transpose(1, 0, 2)  # [w,r,t]
         if max_n_windows is not None:
-            X = X[:max_n_windows] # [w,r,t]
+            X = X[:max_n_windows]  # [w,r,t]
     else:
         # Window overlap: copy the data.
         onsets = np.arange(
@@ -117,35 +126,35 @@ def make_features(lfps, fs=1000, min_freq=0.0, max_freq=55.0,
             onsets = onsets[:max_n_windows]
         temp_X = []
         for k in range(len(onsets)):
-                k1 = int(fs*onsets[k])
-                k2 = k1 + window_samp
-                temp_X.append(X[:,k1:k2])
-        X = np.stack(temp_X, axis=0) # [w,r,t]
+            k1 = int(fs * onsets[k])
+            k2 = k1 + window_samp
+            temp_X.append(X[:, k1:k2])
+        X = np.stack(temp_X, axis=0)  # [w,r,t]
     assert X.ndim == 3, f"len({X.shape}) != 3"
     # Make cross power spectral density features for each pair of ROIs.
     # f: [f], cpsd: [w,r,r,f]
-    nan_mask = np.sum(np.isnan(X), axis=(1,2)) != 0
+    nan_mask = np.sum(np.isnan(X), axis=(1, 2)) != 0
     X[nan_mask] = np.random.randn(*X[nan_mask].shape)
     f, cpsd = csd(
-            X[:,:,np.newaxis],
-            X[:,np.newaxis],
-            fs=fs,
-            **csd_params,
+        X[:, :, np.newaxis],
+        X[:, np.newaxis],
+        fs=fs,
+        **csd_params,
     )
     i1, i2 = np.searchsorted(f, [min_freq, max_freq])
     f = f[i1:i2]
-    cpsd = np.abs(cpsd[...,i1:i2])
-    cpsd = squeeze_triangular_array(cpsd, dims=(1,2)) # [w,r*(r+1)//2,f]
-    cpsd[:,:] *= f # scale the power features by frequency
-    cpsd[nan_mask] = np.nan # reintroduce NaNs
+    cpsd = np.abs(cpsd[..., i1:i2])
+    cpsd = squeeze_triangular_array(cpsd, dims=(1, 2))  # [w,r*(r+1)//2,f]
+    cpsd[:, :] *= f  # scale the power features by frequency
+    cpsd[nan_mask] = np.nan  # reintroduce NaNs
 
     # Assemble features.
     res = {
-        'power': cpsd,
-        'freq': f,
-        'rois': rois,
-        '__commit__': LPNE_COMMIT,
-        '__version__': LPNE_VERSION,
+        "power": cpsd,
+        "freq": f,
+        "rois": rois,
+        "__commit__": LPNE_COMMIT,
+        "__version__": LPNE_VERSION,
     }
 
     # Make directed spectrum features.
@@ -154,17 +163,15 @@ def make_features(lfps, fs=1000, min_freq=0.0, max_freq=55.0,
         f_temp, dir_spec = get_directed_spectrum(X, fs, csd_params=csd_params)
         i1, i2 = np.searchsorted(f, [min_freq, max_freq])
         f_temp = f_temp[i1:i2]
-        assert np.allclose(f, f_temp), \
-                f"Frequencies don't match:\n{f}\n{f_temp}"
-        dir_spec = np.moveaxis(dir_spec[:,i1:i2], 1, -1) # [w,r,r,f]
-        dir_spec[nan_mask] = np.nan # reintroduce NaNs
-        res['dir_spec'] = dir_spec
+        assert np.allclose(f, f_temp), f"Frequencies don't match:\n{f}\n{f_temp}"
+        dir_spec = np.moveaxis(dir_spec[:, i1:i2], 1, -1)  # [w,r,r,f]
+        dir_spec[nan_mask] = np.nan  # reintroduce NaNs
+        res["dir_spec"] = dir_spec
 
     return res
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     pass
 
 
