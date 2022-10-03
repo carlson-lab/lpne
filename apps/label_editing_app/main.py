@@ -6,8 +6,17 @@ __date__ = "September - October 2021"
 
 
 from bokeh.layouts import column, row
-from bokeh.models import Button, CheckboxGroup, ColumnDataSource, Select, \
-        Panel, PreText, Slider, Tabs, TextInput
+from bokeh.models import (
+    Button,
+    CheckboxGroup,
+    ColumnDataSource,
+    Select,
+    Panel,
+    PreText,
+    Slider,
+    Tabs,
+    TextInput,
+)
 from bokeh.plotting import figure, curdoc
 from matplotlib.colors import to_hex
 import numpy as np
@@ -22,17 +31,17 @@ SCATTER_SIZE = 16
 LINE_WIDTH = 1
 LFP_HEIGHT = 220
 LFP_WIDTH = 1000
-DEFAULT_LFP_DIR = '/Users/jack/Desktop/lpne/test_data/Data/'
-DEFAULT_LABEL_DIR = '/Users/jack/Desktop/lpne/test_data/labels/'
+DEFAULT_LFP_DIR = "/Users/jack/Desktop/lpne/test_data/Data/"
+DEFAULT_LABEL_DIR = "/Users/jack/Desktop/lpne/test_data/labels/"
 DEFAULT_HIPP_NAME = "Hipp_D_L_02"
 DEFAULT_CX_NAME = "Cx_Cg_L_01"
 DEFAULT_EMG_NAME = "EMG_trap"
 DEFAULT_DURATION = 2
-LABELS = ['Wake', 'NREM', 'REM', 'Unlabeled']
-COLORS = ['dodgerblue', 'mediumseagreen', 'darkorchid', 'peru']
+LABELS = ["Wake", "NREM", "REM", "Unlabeled"]
+COLORS = ["dodgerblue", "mediumseagreen", "darkorchid", "peru"]
 COLORS = [to_hex(i) for i in COLORS]
-LFP_TOOLS = 'pan,xwheel_zoom,reset,box_zoom' # wheel_zoom
-LABEL_TOOLS = 'box_select,pan,reset'
+LFP_TOOLS = "pan,xwheel_zoom,reset,box_zoom"  # wheel_zoom
+LABEL_TOOLS = "box_select,pan,reset"
 NULL_SELECTION = "No selection"
 
 
@@ -44,7 +53,6 @@ EMG_HIGHCUT = 250.0
 Q = 1.5
 
 
-
 def label_editing_app(doc):
     """Define the app."""
     ##################
@@ -53,87 +61,87 @@ def label_editing_app(doc):
     hipp_source = ColumnDataSource()
     hipp_plot = figure(tools=LFP_TOOLS, height=LFP_HEIGHT, width=LFP_WIDTH)
     hipp_plot.line(
-            x="lfp_time",
-            y="hipp",
-            source=hipp_source,
-            line_width=LINE_WIDTH,
-            color="slategray",
+        x="lfp_time",
+        y="hipp",
+        source=hipp_source,
+        line_width=LINE_WIDTH,
+        color="slategray",
     )
-    hipp_plot.yaxis[0].axis_label = 'Hipp Channel'
+    hipp_plot.yaxis[0].axis_label = "Hipp Channel"
 
     cortex_plot = figure(
-            tools=LFP_TOOLS,
-            x_range=hipp_plot.x_range,
-            height=LFP_HEIGHT,
-            width=LFP_WIDTH,
+        tools=LFP_TOOLS,
+        x_range=hipp_plot.x_range,
+        height=LFP_HEIGHT,
+        width=LFP_WIDTH,
     )
     cortex_plot.line(
-            x="lfp_time",
-            y="cortex",
-            source=hipp_source,
-            line_width=LINE_WIDTH,
-            color="slategray",
+        x="lfp_time",
+        y="cortex",
+        source=hipp_source,
+        line_width=LINE_WIDTH,
+        color="slategray",
     )
-    cortex_plot.yaxis[0].axis_label = 'Cortical Channel'
+    cortex_plot.yaxis[0].axis_label = "Cortical Channel"
 
     emg_plot = figure(
-            tools=LFP_TOOLS,
-            x_range=hipp_plot.x_range,
-            height=LFP_HEIGHT,
-            width=LFP_WIDTH,
+        tools=LFP_TOOLS,
+        x_range=hipp_plot.x_range,
+        height=LFP_HEIGHT,
+        width=LFP_WIDTH,
     )
     emg_plot.line(
-            x="lfp_time",
-            y="emg",
-            source=hipp_source,
-            line_width=LINE_WIDTH,
-            color="slategray",
+        x="lfp_time",
+        y="emg",
+        source=hipp_source,
+        line_width=LINE_WIDTH,
+        color="slategray",
     )
-    emg_plot.yaxis[0].axis_label = 'EMG'
+    emg_plot.yaxis[0].axis_label = "EMG"
 
     label_source = ColumnDataSource()
     label_plot = figure(
-            tools=LABEL_TOOLS,
-            x_range=hipp_plot.x_range,
-            height=LFP_HEIGHT,
-            width=LFP_WIDTH,
+        tools=LABEL_TOOLS,
+        x_range=hipp_plot.x_range,
+        height=LFP_HEIGHT,
+        width=LFP_WIDTH,
     )
     label_plot.scatter(
-            x="label_time",
-            y="label_y",
-            source=label_source,
-            line_width=LINE_WIDTH,
-            size=SCATTER_SIZE,
-            color="color",
+        x="label_time",
+        y="label_y",
+        source=label_source,
+        line_width=LINE_WIDTH,
+        size=SCATTER_SIZE,
+        color="color",
     )
-    label_plot.xaxis[0].axis_label = 'Time (s)'
-    label_plot.yaxis[0].axis_label = 'Labels'
+    label_plot.xaxis[0].axis_label = "Time (s)"
+    label_plot.yaxis[0].axis_label = "Labels"
 
     def callback_0():
         new_data = {**{}, **label_source.data}
         for idx in label_source.selected.indices:
-            new_data['color'][idx] = COLORS[0]
+            new_data["color"][idx] = COLORS[0]
         label_source.data = new_data
         label_source.selected.indices = []
 
     def callback_1(label_source=label_source):
         new_data = {**{}, **label_source.data}
         for idx in label_source.selected.indices:
-            new_data['color'][idx] = COLORS[1]
+            new_data["color"][idx] = COLORS[1]
         label_source.data = new_data
         label_source.selected.indices = []
 
     def callback_2(label_source=label_source):
         new_data = {**{}, **label_source.data}
         for idx in label_source.selected.indices:
-            new_data['color'][idx] = COLORS[2]
+            new_data["color"][idx] = COLORS[2]
         label_source.data = new_data
         label_source.selected.indices = []
 
     def callback_3(label_source=label_source):
         new_data = {**{}, **label_source.data}
         for idx in label_source.selected.indices:
-            new_data['color'][idx] = COLORS[3]
+            new_data["color"][idx] = COLORS[3]
         label_source.data = new_data
         label_source.selected.indices = []
 
@@ -170,56 +178,56 @@ def label_editing_app(doc):
 
     def save_fn_callback(attr, old, new):
         npy_savefile_input.value = os.path.join(
-                label_dir_input.value,
-                label_select.value,
+            label_dir_input.value,
+            label_select.value,
         )
 
     # LFP stuff.
     lfp_dir_input = TextInput(
-            value=DEFAULT_LFP_DIR,
-            title="Enter LFP directory:",
+        value=DEFAULT_LFP_DIR,
+        title="Enter LFP directory:",
     )
     lfp_dir_input.on_change("value", lfp_dir_input_callback)
     lfp_select = Select(
-            title="Select LFP file:",
-            value=NULL_SELECTION,
-            options=_my_listdir(lfp_dir_input.value),
+        title="Select LFP file:",
+        value=NULL_SELECTION,
+        options=_my_listdir(lfp_dir_input.value),
     )
 
     # Label stuff.
     label_dir_input = TextInput(
-            value=DEFAULT_LABEL_DIR,
-            title="Enter label directory:",
+        value=DEFAULT_LABEL_DIR,
+        title="Enter label directory:",
     )
     label_dir_input.on_change("value", label_dir_input_callback)
     label_select = Select(
-            title="Select label file:",
-            value=NULL_SELECTION,
-            options=_my_listdir(label_dir_input.value),
+        title="Select label file:",
+        value=NULL_SELECTION,
+        options=_my_listdir(label_dir_input.value),
     )
     label_select.on_change("value", save_fn_callback)
 
     # Parameters
     window_slider = Slider(
-            start=1,
-            end=20,
-            value=DEFAULT_DURATION,
-            step=1,
-            title="Window duration (s)",
+        start=1,
+        end=20,
+        value=DEFAULT_DURATION,
+        step=1,
+        title="Window duration (s)",
     )
     fs_input = TextInput(value="1000", title="Enter samplerate (Hz):")
     subsample_input = TextInput(value="10", title="Enter subsample factor:")
     hipp_channel_input = TextInput(
-            value=DEFAULT_HIPP_NAME,
-            title="Enter Hipp channel:",
+        value=DEFAULT_HIPP_NAME,
+        title="Enter Hipp channel:",
     )
     cortical_channel_input = TextInput(
-            value=DEFAULT_CX_NAME,
-            title="Enter cortical channel:",
+        value=DEFAULT_CX_NAME,
+        title="Enter cortical channel:",
     )
     emg_channel_input = TextInput(
-            value=DEFAULT_EMG_NAME,
-            title="Enter EMG channel:",
+        value=DEFAULT_EMG_NAME,
+        title="Enter EMG channel:",
     )
 
     # Other.
@@ -271,18 +279,17 @@ def label_editing_app(doc):
         all_keys = sorted(list(lfps.keys()))
         if emg_channel not in lfps:
             load_button.button_type = "warning"
-            alert_box.text = \
-                    f"Didn't find the channel '{emg_channel}' in: {all_keys}"
+            alert_box.text = f"Didn't find the channel '{emg_channel}' in: {all_keys}"
             return
         if hipp_channel not in lfps:
             load_button.button_type = "warning"
-            alert_box.text = \
-                    f"Didn't find the channel '{hipp_channel}' in: {all_keys}"
+            alert_box.text = f"Didn't find the channel '{hipp_channel}' in: {all_keys}"
             return
         if cortex_channel not in lfps:
             load_button.button_type = "warning"
-            alert_box.text = \
-                    f"Didn't find the channel '{cortex_channel}' in: {all_keys}"
+            alert_box.text = (
+                f"Didn't find the channel '{cortex_channel}' in: {all_keys}"
+            )
             return
 
         # Assign the source data.
@@ -295,7 +302,7 @@ def label_editing_app(doc):
         cortex_trace = lfps[cortex_channel].flatten()
         cortex_trace = lpne.filter_signal(cortex_trace, fs, LFP_LOWCUT, LFP_HIGHCUT)
         cortex_trace = cortex_trace[::subsamp]
-        lfp_times = subsamp/fs * np.arange(len(emg_trace))
+        lfp_times = subsamp / fs * np.arange(len(emg_trace))
         label_fn = label_select.value
         if label_fn == NULL_SELECTION:
             load_button.button_type = "warning"
@@ -309,11 +316,11 @@ def label_editing_app(doc):
         # try:
         labels = lpne.load_labels(label_fn)
         # except ValueError:
-            # load_button.button_type = "warning"
-            # alert_box.text = f"Error loading labels: {label_fn}"
-            # return
+        # load_button.button_type = "warning"
+        # alert_box.text = f"Error loading labels: {label_fn}"
+        # return
         window = window_slider.value
-        label_times = window * np.arange(len(labels)) + window/2
+        label_times = window * np.arange(len(labels)) + window / 2
         color = [COLORS[i] for i in labels]
         new_lfp_data = dict(
             lfp_time=lfp_times,
@@ -328,12 +335,11 @@ def label_editing_app(doc):
         )
         hipp_source.data = new_lfp_data
         label_source.data = new_label_data
-        load_button.button_type="success"
+        load_button.button_type = "success"
         load_button.label = "Loaded"
         alert_box.text = f"Loaded: {lfp_fn}"
 
     load_button.on_click(load_callback)
-
 
     #############
     # Save tab. #
@@ -343,27 +349,27 @@ def label_editing_app(doc):
     npy_text = PreText(text="Save labels in .npy format")
     npy_savefile_input = TextInput(value="", title="Enter filename:", width=400)
     npy_overwrite_checkbox = CheckboxGroup(
-            labels=["Overwrite existing files?"],
-            active=[],
+        labels=["Overwrite existing files?"],
+        active=[],
     )
     npy_save_button = Button(
-            label="Save Labels",
-            default_size=BUTTON_SIZE,
-            width=100,
+        label="Save Labels",
+        default_size=BUTTON_SIZE,
+        width=100,
     )
 
     def npy_save_callback():
         overwrite = 0 in npy_overwrite_checkbox.active
-        labels = [COLORS.index(c) for c in label_source.data['color']]
+        labels = [COLORS.index(c) for c in label_source.data["color"]]
         label_fn = npy_savefile_input.value
         try:
             lpne.save_labels(labels, label_fn, overwrite=overwrite)
         except AssertionError:
-            npy_save_button.button_type="warning"
+            npy_save_button.button_type = "warning"
             alert_box.text = "File already exists!"
             return
         npy_save_button.label = "Saved"
-        npy_save_button.button_type="success"
+        npy_save_button.button_type = "success"
         alert_box.text = ""
 
     npy_save_button.on_click(npy_save_callback)
@@ -372,62 +378,62 @@ def label_editing_app(doc):
     csv_text = PreText(text="Save labels in .csv format")
     csv_savefile_input = TextInput(value="", title="Enter filename:", width=400)
     csv_overwrite_checkbox = CheckboxGroup(
-            labels=["Overwrite existing files?"],
-            active=[],
+        labels=["Overwrite existing files?"],
+        active=[],
     )
     csv_save_button = Button(
-            label="Save Labels",
-            default_size=BUTTON_SIZE,
-            width=100,
+        label="Save Labels",
+        default_size=BUTTON_SIZE,
+        width=100,
     )
 
     def csv_save_callback():
         overwrite = 0 in csv_overwrite_checkbox.active
-        labels = [COLORS.index(c) for c in label_source.data['color']]
+        labels = [COLORS.index(c) for c in label_source.data["color"]]
         label_fn = csv_savefile_input.value
         if not overwrite and os.path.isfile(label_fn):
-            csv_save_button.button_type="warning"
+            csv_save_button.button_type = "warning"
             alert_box.text = "File already exists!"
             return
-        if not label_fn.endswith('.csv') and not label_fn.endswith('.txt'):
-            csv_save_button.button_type="warning"
+        if not label_fn.endswith(".csv") and not label_fn.endswith(".txt"):
+            csv_save_button.button_type = "warning"
             alert_box.text = "CSV file should have a .csv or .txt extension."
             return
         # Format the data.
         window = window_slider.value
-        t1 = window * np.arange(len(labels)) # onsets
-        t2 = t1 + window # offsets
+        t1 = window * np.arange(len(labels))  # onsets
+        t2 = t1 + window  # offsets
         lines = []
         idx = 0
         prev_label, start_t = None, None
         for j in range(len(t1)):
             label = labels[j]
             if label != prev_label:
-                if j > 0 and prev_label != '_':
+                if j > 0 and prev_label != "_":
                     token = LABELS[prev_label]
                     line = f"{start_t:.6f}\t{t1[j]:.6f}\t{token}\n"
                     lines.append(line)
                 start_t = t1[j]
                 prev_label = label
-            if j == len(t1)-1 and prev_label != '_':
+            if j == len(t1) - 1 and prev_label != "_":
                 token = LABELS[prev_label]
                 line = f"{start_t:.1f}, {t1[j]:.1f}, {token}\n"
                 lines.append(line)
             idx += 1
         # Save the data.
-        with open(label_fn, 'w+') as f:
+        with open(label_fn, "w+") as f:
             f.writelines(lines)
         csv_save_button.label = "Saved"
-        csv_save_button.button_type="success"
+        csv_save_button.button_type = "success"
         alert_box.text = ""
 
     csv_save_button.on_click(csv_save_callback)
 
     # Fake data.
-    x = [1,2,3,4,5]
-    y = [5,5,4,6,2]
-    label_y = [0]*len(x)
-    color = [COLORS[-1]]*len(x)
+    x = [1, 2, 3, 4, 5]
+    y = [5, 5, 4, 6, 2]
+    label_y = [0] * len(x)
+    color = [COLORS[-1]] * len(x)
     hipp_source.data = dict(
         lfp_time=x,
         emg=y,
@@ -441,24 +447,24 @@ def label_editing_app(doc):
     )
 
     file_inputs = row(
-            column(lfp_dir_input, lfp_select),
-            column(label_dir_input, label_select),
+        column(lfp_dir_input, lfp_select),
+        column(label_dir_input, label_select),
     )
     file_inputs = column(
-            file_inputs,
-            window_slider,
-            fs_input,
-            subsample_input,
-            hipp_channel_input,
-            cortical_channel_input,
-            emg_channel_input,
-            load_button,
-            alert_box,
+        file_inputs,
+        window_slider,
+        fs_input,
+        subsample_input,
+        hipp_channel_input,
+        cortical_channel_input,
+        emg_channel_input,
+        load_button,
+        alert_box,
     )
 
     tab_1 = Panel(
-            child=file_inputs,
-            title="Select Files",
+        child=file_inputs,
+        title="Select Files",
     )
 
     buttons = row(*label_buttons)
@@ -466,16 +472,16 @@ def label_editing_app(doc):
     tab_2 = Panel(child=column(plots, buttons, alert_box), title="Edit Labels")
 
     npy_save_things = column(
-            npy_text,
-            npy_savefile_input,
-            npy_overwrite_checkbox,
-            npy_save_button,
+        npy_text,
+        npy_savefile_input,
+        npy_overwrite_checkbox,
+        npy_save_button,
     )
     csv_save_things = column(
-            csv_text,
-            csv_savefile_input,
-            csv_overwrite_checkbox,
-            csv_save_button,
+        csv_text,
+        csv_savefile_input,
+        csv_overwrite_checkbox,
+        csv_save_button,
     )
     save_things = column(row(npy_save_things, csv_save_things), alert_box)
 
@@ -485,11 +491,11 @@ def label_editing_app(doc):
     doc.add_root(tabs)
 
 
-
 def _my_listdir(dir):
     try:
-        return [NULL_SELECTION] + \
-                sorted([i for i in os.listdir(dir) if not i.startswith('.')])
+        return [NULL_SELECTION] + sorted(
+            [i for i in os.listdir(dir) if not i.startswith(".")]
+        )
     except:
         return [NULL_SELECTION]
 

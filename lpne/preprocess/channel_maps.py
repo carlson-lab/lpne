@@ -2,22 +2,27 @@
 Channel maps are used to determine which channels to average together.
 
 """
-__date__ = "July 2021 - September 2022"
+__date__ = "July 2021 - October 2022"
 
 
 import numpy as np
-import pandas as pd
+
+try:
+    import pandas as pd
+
+    PANDAS_INSTALLED = True
+except ModuleNotFoundError:
+    PANDAS_INSTALLED = False
 from scipy.io import loadmat
 import warnings
 
 
 IGNORED_KEYS = [
-    '__header__',
-    '__version__',
-    '__globals__',
+    "__header__",
+    "__version__",
+    "__globals__",
 ]
 """Ignored keys in the LFP data file"""
-
 
 
 def average_channels(lfps, channel_map, check_channel_map=True):
@@ -51,7 +56,7 @@ def average_channels(lfps, channel_map, check_channel_map=True):
             if roi in channel_map and channel_map[roi] == grouped_roi:
                 avg.append(lfps[roi].flatten())
         if len(avg) == 0:
-            warnings.warn( \
+            warnings.warn(
                 f"No channels to make grouped channel {grouped_roi}!",
             )
         else:
@@ -92,13 +97,12 @@ def get_default_channel_map(channels, combine_hemispheres=True):
     for channel in channels:
         if channel in IGNORED_KEYS:
             continue
-        if '_' not in channel:
+        if "_" not in channel:
             warnings.warn(
-                f"Expected an underscore in channel name: {channel}"
-                f", ignoring."
+                f"Expected an underscore in channel name: {channel}" f", ignoring."
             )
             continue
-        split_str = channel.split('_')
+        split_str = channel.split("_")
         try:
             temp = int(split_str[-1])
         except ValueError:
@@ -108,16 +112,16 @@ def get_default_channel_map(channels, combine_hemispheres=True):
             )
             continue
         if combine_hemispheres:
-            if len(split_str) < 3 or split_str[-2] not in ['L', 'R']:
+            if len(split_str) < 3 or split_str[-2] not in ["L", "R"]:
                 warnings.warn(
                     f"Unexpected channel name: {channel}"
                     f", no hemisphere indication. Ignoring."
                 )
                 continue
             else:
-                grouped_roi = '_'.join(split_str[:-2])
+                grouped_roi = "_".join(split_str[:-2])
         else:
-            grouped_roi = '_'.join(split_str[:-1])
+            grouped_roi = "_".join(split_str[:-1])
         channel_map[channel] = grouped_roi
     return channel_map
 
@@ -131,7 +135,7 @@ def get_excel_channel_map(channels, fn):
     * ``UserWarning`` if a channel present in ``channels`` is not present in
       the excel channel map. The channel is not included in the channel map
       in this case.
-    
+
     Parameters
     ----------
     channels : list of str
@@ -144,6 +148,7 @@ def get_excel_channel_map(channels, fn):
     channel_map : dict
         Maps individual channel names to grouped channel names
     """
+    assert PANDAS_INSTALLED, "Pandas needs to be installed!"
     f = pd.read_excel(fn, index_col=False, header=None)
     channel_map_full = f.set_index(0).to_dict()[1]
     channel_map = {}
@@ -188,7 +193,7 @@ def remove_channels(channel_map, to_remove):
 def remove_channels_from_lfps(lfps, fn):
     """
     Remove channels specified in the CHANS file from the LFPs.
-    
+
     Parameters
     ----------
     lfps : dict
@@ -227,15 +232,15 @@ def get_removed_channels_from_file(fn):
         List of channels to remove.
     """
     assert isinstance(fn, str)
-    if fn.endswith('.mat'):
+    if fn.endswith(".mat"):
         # try:
         data = loadmat(fn)
         # except: for old .mat files in hdf5 format...
-        assert('CHANNAMES' in data), f"{fn} must contain CHANNAMES!"
-        assert('CHANACTIVE' in data), f"{fn} must contain CHANACTIVE!"
-        channel_active = data['CHANACTIVE'].flatten()
+        assert "CHANNAMES" in data, f"{fn} must contain CHANNAMES!"
+        assert "CHANACTIVE" in data, f"{fn} must contain CHANACTIVE!"
+        channel_active = data["CHANACTIVE"].flatten()
         channel_names = np.array(
-                [str(i[0]) for i in data['CHANNAMES'].flatten()],
+            [str(i[0]) for i in data["CHANNAMES"].flatten()],
         )
         idx = np.argwhere(channel_active == 0).flatten()
         return channel_names[idx].tolist()
@@ -263,10 +268,8 @@ def _check_channel_map(lfps, channel_map):
             warnings.warn(f"Channel {channel} is not present in LFPS!")
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     pass
-
 
 
 ###

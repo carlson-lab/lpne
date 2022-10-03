@@ -11,8 +11,7 @@ import pytest
 import lpne
 
 
-FAKE_ROIS = ['foo_L_01', 'foo_R_02', 'bar_L_01', 'bar_L_02']
-
+FAKE_ROIS = ["foo_L_01", "foo_R_02", "bar_L_01", "bar_L_02"]
 
 
 def test_get_default_channel_map_1():
@@ -56,14 +55,12 @@ def _get_fake_lfps():
 def _get_fake_channel_map():
     channel_map = {}
     for roi in _get_fake_rois():
-        channel_map[roi] = roi.split('_')[0]
+        channel_map[roi] = roi.split("_")[0]
     return channel_map
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     pass
-
 
 
 ###

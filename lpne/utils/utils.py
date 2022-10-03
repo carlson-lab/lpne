@@ -15,15 +15,15 @@ from .. import INVALID_LABEL
 from .data import load_features, save_labels
 
 
-LFP_FN_SUFFIX = '_LFP.mat'
-CHANS_FN_SUFFIX = '_CHANS.mat'
-FEATURE_FN_SUFFIX = '.npy'
-LABEL_FN_SUFFIX = '.npy'
+LFP_FN_SUFFIX = "_LFP.mat"
+CHANS_FN_SUFFIX = "_CHANS.mat"
+FEATURE_FN_SUFFIX = ".npy"
+LABEL_FN_SUFFIX = ".npy"
 
 
-
-def write_fake_labels(feature_dir, label_dir, n_classes=2, label_format='.npy',
-    seed=42):
+def write_fake_labels(
+    feature_dir, label_dir, n_classes=2, label_format=".npy", seed=42
+):
     """
     Write fake behavioral labels.
 
@@ -38,8 +38,8 @@ def write_fake_labels(feature_dir, label_dir, n_classes=2, label_format='.npy',
     # Get filenames.
     feature_fns = get_feature_filenames(feature_dir)
     label_fns = get_label_filenames_from_feature_filenames(
-            feature_fns,
-            label_dir,
+        feature_fns,
+        label_dir,
     )
     # Seed.
     if seed is not None:
@@ -49,7 +49,7 @@ def write_fake_labels(feature_dir, label_dir, n_classes=2, label_format='.npy',
         # Make the appropiate number of labels and save them.
         features = load_features(feature_fn)[0]
         n = len(features)
-        labels = np.random.randint(0,high=n_classes,size=n)
+        labels = np.random.randint(0, high=n_classes, size=n)
         save_labels(labels, label_fn)
     # Undo the seed.
     if seed is not None:
@@ -77,9 +77,9 @@ def get_lfp_filenames(lfp_dir):
     """
     assert os.path.exists(lfp_dir), f"{lfp_dir} doesn't exist!"
     fns = [
-            os.path.join(lfp_dir,fn) \
-            for fn in sorted(os.listdir(lfp_dir)) \
-            if fn.endswith(LFP_FN_SUFFIX)
+        os.path.join(lfp_dir, fn)
+        for fn in sorted(os.listdir(lfp_dir))
+        if fn.endswith(LFP_FN_SUFFIX)
     ]
     if len(fns) == 0:
         warnings.warn(f"No LFP files in {lfp_dir}!")
@@ -102,9 +102,9 @@ def get_feature_filenames(feature_dir):
     """
     assert os.path.exists(feature_dir), f"{feature_dir} doesn't exist!"
     fns = [
-            os.path.join(feature_dir,fn) \
-            for fn in sorted(os.listdir(feature_dir)) \
-            if fn.endswith(FEATURE_FN_SUFFIX)
+        os.path.join(feature_dir, fn)
+        for fn in sorted(os.listdir(feature_dir))
+        if fn.endswith(FEATURE_FN_SUFFIX)
     ]
     if len(fns) == 0:
         warnings.warn(f"No feature files in {feature_dir}!")
@@ -128,8 +128,8 @@ def get_label_filenames_from_feature_filenames(feature_fns, label_dir):
         Label filenames
     """
     return [
-            os.path.join(label_dir, os.path.split(feature_fn)[-1]) \
-            for feature_fn in feature_fns
+        os.path.join(label_dir, os.path.split(feature_fn)[-1])
+        for feature_fn in feature_fns
     ]
 
 
@@ -152,23 +152,23 @@ def get_lfp_chans_filenames(lfp_dir, chans_dir):
     assert os.path.exists(lfp_dir), f"{lfp_dir} doesn't exist!"
     assert os.path.exists(chans_dir), f"{chans_dir} doesn't exist!"
     lfp_fns = [
-            os.path.join(lfp_dir,fn) \
-            for fn in sorted(os.listdir(lfp_dir)) \
-            if fn.endswith(LFP_FN_SUFFIX)
+        os.path.join(lfp_dir, fn)
+        for fn in sorted(os.listdir(lfp_dir))
+        if fn.endswith(LFP_FN_SUFFIX)
     ]
     if len(lfp_fns) == 0:
         warnings.warn(f"No LFP files in {lfp_fns}!")
     chans_fns = [
-            os.path.join(chans_dir,fn) \
-            for fn in sorted(os.listdir(chans_dir)) \
-            if fn.endswith(CHANS_FN_SUFFIX)
+        os.path.join(chans_dir, fn)
+        for fn in sorted(os.listdir(chans_dir))
+        if fn.endswith(CHANS_FN_SUFFIX)
     ]
     if len(chans_fns) == 0:
         warnings.warn(f"No CHANS files in {chans_dir}!")
     assert len(lfp_fns) == len(chans_fns), f"{len(lfp_fns)} != {len(chans_fns)}"
     for i in range(len(lfp_fns)):
-        lfp_fn = os.path.split(lfp_fns[i])[-1][:-len(LFP_FN_SUFFIX)]
-        chans_fn = os.path.split(chans_fns[i])[-1][:-len(CHANS_FN_SUFFIX)]
+        lfp_fn = os.path.split(lfp_fns[i])[-1][: -len(LFP_FN_SUFFIX)]
+        chans_fn = os.path.split(chans_fns[i])[-1][: -len(CHANS_FN_SUFFIX)]
         assert lfp_fn == chans_fn, f"{lfp_fn} != {chans_fn}"
     return lfp_fns, chans_fns
 
@@ -194,21 +194,20 @@ def get_feature_label_filenames(feature_dir, label_dir):
     assert os.path.exists(feature_dir), f"{feature_dir} doesn't exist!"
     assert os.path.exists(label_dir), f"{label_dir} doesn't exist!"
     feature_fns = [
-            os.path.join(feature_dir,fn) \
-            for fn in sorted(os.listdir(feature_dir)) \
-            if fn.endswith(FEATURE_FN_SUFFIX)
+        os.path.join(feature_dir, fn)
+        for fn in sorted(os.listdir(feature_dir))
+        if fn.endswith(FEATURE_FN_SUFFIX)
     ]
     if len(feature_fns) == 0:
         warnings.warn(f"No feature files in {feature_dir}!")
     label_fns = [
-            os.path.join(label_dir,fn) \
-            for fn in sorted(os.listdir(label_dir)) \
-            if fn.endswith(LABEL_FN_SUFFIX)
+        os.path.join(label_dir, fn)
+        for fn in sorted(os.listdir(label_dir))
+        if fn.endswith(LABEL_FN_SUFFIX)
     ]
     if len(label_fns) == 0:
         warnings.warn(f"No label files in {label_dir}!")
-    assert len(feature_fns) == len(label_fns), \
-            f"{len(feature_fns)} != {len(label_fns)}"
+    assert len(feature_fns) == len(label_fns), f"{len(feature_fns)} != {len(label_fns)}"
     for i in range(len(feature_fns)):
         feature_fn = os.path.split(feature_fns[i])[-1]
         label_fn = os.path.split(label_fns[i])[-1]
@@ -248,21 +247,18 @@ def get_weights(labels, groups, invalid_label=INVALID_LABEL):
     if isinstance(groups, torch.Tensor):
         groups = groups.detach().cpu().numpy()
     ids = np.array(labels)
-    idx = np.argwhere( ids == invalid_label).flatten()
+    idx = np.argwhere(ids == invalid_label).flatten()
     idx_comp = np.argwhere(ids != invalid_label).flatten()
     n = len(idx_comp)
     if groups is not None:
-        ids = ids + (np.max(labels)+1) * np.array(groups)
+        ids = ids + (np.max(labels) + 1) * np.array(groups)
     ids_subset = ids[idx_comp]
     unique_ids = np.unique(ids_subset)
-    id_counts = [ \
-            len(np.argwhere(ids_subset==t_id).flatten()) \
-            for t_id in unique_ids \
-    ]
+    id_counts = [len(np.argwhere(ids_subset == t_id).flatten()) for t_id in unique_ids]
     id_weights = n / (len(unique_ids) * np.array(id_counts))
     weights = np.ones(len(labels))
     for id, weight in zip(unique_ids, id_weights):
-        weights[np.argwhere(ids==id).flatten()] = weight
+        weights[np.argwhere(ids == id).flatten()] = weight
     weights[idx] = 1.0
     return weights
 
@@ -282,25 +278,26 @@ def unsqueeze_triangular_array(arr, dim=0):
     new_arr : numpy.ndarray
         Expanded array
     """
-    n = int(round((-1 + np.sqrt(1 + 8*arr.shape[dim])) / 2))
-    assert (n * (n+1)) // 2 == arr.shape[dim], \
-            f"{(n * (n+1)) // 2} != {arr.shape[dim]}"
+    n = int(round((-1 + np.sqrt(1 + 8 * arr.shape[dim])) / 2))
+    assert (n * (n + 1)) // 2 == arr.shape[
+        dim
+    ], f"{(n * (n+1)) // 2} != {arr.shape[dim]}"
     arr = np.swapaxes(arr, dim, -1)
-    new_shape = arr.shape[:-1] + (n,n)
+    new_shape = arr.shape[:-1] + (n, n)
     new_arr = np.zeros(new_shape, dtype=arr.dtype)
     for i in range(n):
-        for j in range(i+1):
-            idx = (i * (i+1)) // 2 + j
+        for j in range(i + 1):
+            idx = (i * (i + 1)) // 2 + j
             new_arr[..., i, j] = arr[..., idx]
             if i != j:
                 new_arr[..., j, i] = arr[..., idx]
-    dim_list = list(range(new_arr.ndim-2)) + [dim]
-    dim_list = dim_list[:dim] + [-2,-1] + dim_list[dim+1:]
+    dim_list = list(range(new_arr.ndim - 2)) + [dim]
+    dim_list = dim_list[:dim] + [-2, -1] + dim_list[dim + 1 :]
     new_arr = np.transpose(new_arr, dim_list)
     return new_arr
 
 
-def squeeze_triangular_array(arr, dims=(0,1)):
+def squeeze_triangular_array(arr, dims=(0, 1)):
     """
     Inverse of `unsqueeze_triangular_array`.
 
@@ -321,15 +318,15 @@ def squeeze_triangular_array(arr, dims=(0,1)):
     assert dims[1] == dims[0] + 1
     n = arr.shape[dims[0]]
     dim_list = list(range(arr.ndim))
-    dim_list = dim_list[:dims[0]] + dim_list[dims[1]+1:] + list(dims)
+    dim_list = dim_list[: dims[0]] + dim_list[dims[1] + 1 :] + list(dims)
     arr = np.transpose(arr, dim_list)
-    new_arr = np.zeros(arr.shape[:-2] + ((n*(n+1))//2,))
+    new_arr = np.zeros(arr.shape[:-2] + ((n * (n + 1)) // 2,))
     for i in range(n):
-        for j in range(i+1):
-            idx = (i * (i+1)) // 2 + j
+        for j in range(i + 1):
+            idx = (i * (i + 1)) // 2 + j
             new_arr[..., idx] = arr[..., i, j]
     dim_list = list(range(new_arr.ndim))
-    dim_list = dim_list[:dims[0]] + [-1] + dim_list[dims[0]:-1]
+    dim_list = dim_list[: dims[0]] + [-1] + dim_list[dims[0] : -1]
     new_arr = np.transpose(new_arr, dim_list)
     return new_arr
 
@@ -337,10 +334,10 @@ def squeeze_triangular_array(arr, dims=(0,1)):
 def get_outlier_summary(lfps, fs, window_duration, top_n=6):
     """
     Return a message summarizing the outliers found
-    
+
     Parameters
     ----------
-    lfps : 
+    lfps :
     fs : int
         Samplerate
     window_duration : float
@@ -370,9 +367,11 @@ def get_outlier_summary(lfps, fs, window_duration, top_n=6):
         if flag:
             window_count += 1
     # Make the message.
-    msg = f"{window_count} of {n_windows} windows contain outliers " \
-          f"({100*window_count/n_windows:.2f}%)\n" \
-          f"Top offending channels:\n"
+    msg = (
+        f"{window_count} of {n_windows} windows contain outliers "
+        f"({100*window_count/n_windows:.2f}%)\n"
+        f"Top offending channels:\n"
+    )
     sorted_counts = np.sort(-roi_counts)
     sorted_rois = np.array(rois)[np.argsort(-roi_counts)]
     for i in range(min(len(rois), top_n)):
@@ -383,13 +382,150 @@ def get_outlier_summary(lfps, fs, window_duration, top_n=6):
     return msg
 
 
+def flatten_power_features(features, rois, f):
+    """
+    Returns a flattened cross power features congruous with the legacy format
+
+    Parameters
+    ----------
+    features : numpy.ndarray
+        LFP Directed Spectrum Features
+        Shape: ``[n_windows,n_freqs,n_roi,n_roi]``
+
+    rois : list of str
+        Sorted list of ROI labels.
+
+    f : np.ndarray
+        Array of evaluated frequencies
+
+    Returns
+    -------
+    flat_features : numpy.ndarray
+        Flattened LFP Directed Spectrum Features sorted by feature type
+        Feature Interpretation: ``[n_windows, power features + causality features]``
+        Shape: ``[n_windows,n_roi*n_freqs + n_roi*(n_roi-1)*n_freqs]``
+
+    feature_ids : list of str
+        List mapping flat_features index to a feature label ``<feature_id> <freq>``
+        Shape: ``[n_roi*n_freqs + n_roi*(n_roi-1)*n_freqs]
+
+    """
+
+    assert features.shape[-1] == len(rois), f"Shape mismatch between features and rois"
+    assert features.shape[1] == len(f), f"Shape mismatch between features and f"
+
+    n_rois = features.shape[-1]
+    n_freqs = features.shape[1]
+    n_flat_features = n_rois**2 * n_freqs
+
+    flat_features = np.zeros((features.shape[0], n_flat_features))
+    feature_ids = []
+
+    # Assign the power features
+    for roi_idx in range(n_rois):
+        flat_features[:, roi_idx * n_freqs : (roi_idx + 1) * n_freqs] = features[
+            :, :, roi_idx, roi_idx
+        ]
+
+        for freq in f:
+            feature_id = f"{rois[roi_idx]} {freq}"
+            feature_ids.append(feature_id)
+
+    # Assign the directed spectrum causality features
+    flat_idx = n_rois
+    for roi_idx_1 in range(n_rois):
+        for roi_idx_2 in range(n_rois):
+            if roi_idx_1 == roi_idx_2:
+                continue
+            else:
+                start_idx = flat_idx * n_freqs
+                stop_idx = (flat_idx + 1) * n_freqs
+                flat_features[:, start_idx:stop_idx] = features[
+                    :, :, roi_idx_1, roi_idx_2
+                ]
+
+                for freq in f:
+                    feature_id = f"{rois[roi_idx_1]}<->{rois[roi_idx_2]} {freq}"
+                    feature_ids.append(feature_id)
+
+    return flat_features, feature_ids
+
+
+def flatten_dir_spec_features(features, rois, f):
+    """
+    Returns a flattened directed spectrum congruous with the legacy format.
+
+    Parameters
+    ----------
+    features : numpy.ndarray
+        LFP Directed Spectrum Features
+        Shape: ``[n_windows,n_roi,n_roi,n_freqs]``
+
+    rois : list of str
+        Sorted list of ROI labels.
+
+    f : np.ndarray
+        Array of evaluated frequencies
+
+    Returns
+    -------
+    flat_features : numpy.ndarray
+        Flattened LFP Directed Spectrum Features sorted by feature type
+        Feature Interpretation: ``[n_windows, power features + causality features]``
+        Shape: ``[n_windows,n_roi*n_freqs + n_roi*(n_roi-1)*n_freqs]``
+
+    feature_ids : list of str
+        List mapping flat_features index to a feature label ``<feature_id> <freq>``
+        Shape: ``[n_roi*n_freqs + n_roi*(n_roi-1)*n_freqs]
+    """
+
+    assert features.shape[1] == len(rois), f"Shape mismatch between features and rois"
+    assert features.shape[-1] == len(f), f"Shape mismatch between features and f"
+
+    n_rois = features.shape[1]
+    n_freqs = features.shape[-1]
+    n_flat_features = n_rois**2 * n_freqs
+
+    flat_features = np.zeros((features.shape[0], n_flat_features))
+    feature_ids = []
+
+    # Assign the power features
+    for roi_idx in range(n_rois):
+        flat_features[:, roi_idx * n_freqs : (roi_idx + 1) * n_freqs] = features[
+            :, roi_idx, roi_idx, :
+        ]
+
+        for freq in f:
+            feature_id = f"{rois[roi_idx]} {freq}"
+            feature_ids.append(feature_id)
+
+    # Assign the directed spectrum causality features
+    flat_idx = n_rois
+    for roi_idx_1 in range(n_rois):
+        for roi_idx_2 in range(n_rois):
+            if roi_idx_1 == roi_idx_2:
+                continue
+            else:
+                start_idx = flat_idx * n_freqs
+                stop_idx = (flat_idx + 1) * n_freqs
+                flat_features[:, start_idx:stop_idx] = features[
+                    :, roi_idx_1, roi_idx_2, :
+                ]
+
+                for freq in f:
+                    feature_id = f"{rois[roi_idx_1]}->{rois[roi_idx_2]} {freq}"
+                    feature_ids.append(feature_id)
+
+    return flat_features, feature_ids
+
+
 def confusion_matrix(true_labels, pred_labels):
     """
     Return a confusion matrix with true labels on the rows.
 
     This is a wrapper around ``sklearn.metrics.confusion_matrix`` that
     disregards ``lpne.INVALID_LABEL``.
-    
+
     Parameters
     ----------
     true_labels : numpy.ndarray
@@ -410,10 +546,8 @@ def confusion_matrix(true_labels, pred_labels):
     return sk_confusion_matrix(true_labels[idx], pred_labels[idx])
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     pass
-
 
 
 ###

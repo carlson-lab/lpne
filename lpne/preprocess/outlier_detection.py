@@ -12,15 +12,15 @@ from .filter import filter_signal
 
 DEFAULT_MAD_TRESHOLD = 15.0
 """Default median absolute deviation threshold for outlier detection"""
-LOWCUT = 30.0 # Butterworth bandpass filter parameter
+LOWCUT = 30.0  # Butterworth bandpass filter parameter
 """Default lowcut for filtering (Hz)"""
-HIGHCUT = 55.0 # Butterworth bandpass filter parameter
+HIGHCUT = 55.0  # Butterworth bandpass filter parameter
 """Default highcut for filtering (Hz)"""
 
 
-
-def mark_outliers(lfps, fs, lowcut=LOWCUT, highcut=HIGHCUT,
-    mad_threshold=DEFAULT_MAD_TRESHOLD):
+def mark_outliers(
+    lfps, fs, lowcut=LOWCUT, highcut=HIGHCUT, mad_threshold=DEFAULT_MAD_TRESHOLD
+):
     """
     Detect outlying samples in the LFPs.
 
@@ -45,24 +45,23 @@ def mark_outliers(lfps, fs, lowcut=LOWCUT, highcut=HIGHCUT,
         trace = np.copy(lfps[roi])
         # Filter the signal.
         trace = filter_signal(
-                trace,
-                fs,
-                lowcut=lowcut,
-                highcut=highcut,
-                apply_notch_filters=False,
+            trace,
+            fs,
+            lowcut=lowcut,
+            highcut=highcut,
+            apply_notch_filters=False,
         )
         # Subtract out the median and rectify.
         trace = np.abs(trace - np.median(trace))
         # Calculate the MAD and the treshold.
-        mad = np.median(trace) # median absolute deviation
+        mad = np.median(trace)  # median absolute deviation
         thresh = mad_threshold * mad
         # Mark outlying samples.
         lfps[roi][trace > thresh] = np.nan
     return lfps
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     pass
 
 
