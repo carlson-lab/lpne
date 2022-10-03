@@ -8,6 +8,7 @@ import torch.nn as nn
 from tqdm import tqdm
 import numpy as np
 from sklearn.decomposition import NMF
+
 try:
     from torchbd.loss import BetaDivLoss
 
