@@ -753,7 +753,7 @@ class DcsfaNmf(NmfBase):
                     self.val_recon_hist.append(validation_mse_loss)
                     self.val_pred_hist.append(validation_auc_list)
 
-                    mse_var_rat = validation_mse_loss / torch.std(X_val)
+                    mse_var_rat = validation_mse_loss / torch.std(X_val)**2
                     auc_err = (1-np.mean(validation_auc_list))
 
                     if mse_var_rat + auc_err < self.best_performance:
