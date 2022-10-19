@@ -354,6 +354,14 @@ class DcsfaNmf(NmfBase):
         pred_loss (torch.Tensor):
             ``sup_weight * BCELoss()``
         """
+
+        X = X.to(self.device)
+        y = y.to(self.device)
+        task_mask = task_mask.to(self.device)
+        pred_weight = pred_weight.to(self.device)
+        if intercept_mask is not None:
+            intercept_mask = intercept_mask.to(self.device)
+
         # Get the scores from the encoder
         s = self.get_embedding(X)
 
@@ -407,6 +415,8 @@ class DcsfaNmf(NmfBase):
         """
         if not torch.is_tensor(X):
             X = torch.Tensor(X).float().to(self.device)
+        else:
+            X = X.to(self.device)
 
         s = self.get_embedding(X)
         X_recon = self.get_all_comp_recon(s)
@@ -462,12 +472,12 @@ class DcsfaNmf(NmfBase):
         # Freeze the decoder
         self.W_nmf.requires_grad = False
         # Load arguments onto device
-        X = torch.Tensor(X).float().to(self.device)
-        y = torch.Tensor(y).float().to(self.device)
-        y_pred_weights = torch.Tensor(y_pred_weights).float().to(self.device)
-        task_mask = torch.Tensor(task_mask).long().to(self.device)
-        intercept_mask = torch.Tensor(intercept_mask).to(self.device)
-        sample_weights = torch.Tensor(sample_weights).to(self.device)
+        X = torch.Tensor(X).float().to("cpu")
+        y = torch.Tensor(y).float().to("cpu")
+        y_pred_weights = torch.Tensor(y_pred_weights).float().to("cpu")
+        task_mask = torch.Tensor(task_mask).long().to("cpu")
+        intercept_mask = torch.Tensor(intercept_mask).to("cpu")
+        sample_weights = torch.Tensor(sample_weights).to("cpu")
         # Create a Dataset.
         # dset = TensorDataset(X,y,y_pred_weights,task_mask,intercept_mask)
         # NOTE: I changed the order to match ``self.forward``
@@ -635,12 +645,12 @@ class DcsfaNmf(NmfBase):
             )
 
         # Send training arguments to Tensors.
-        X = torch.Tensor(X).float().to(self.device)
-        y = torch.Tensor(y).float().to(self.device)
-        y_pred_weights = torch.Tensor(y_pred_weights).float().to(self.device)
-        task_mask = torch.Tensor(task_mask).long().to(self.device)
-        intercept_mask = torch.Tensor(intercept_mask).long().to(self.device)
-        samples_weights = torch.Tensor(samples_weights).to(self.device)
+        X = torch.Tensor(X).float().to("cpu")
+        y = torch.Tensor(y).float().to("cpu")
+        y_pred_weights = torch.Tensor(y_pred_weights).float().to("cpu")
+        task_mask = torch.Tensor(task_mask).long().to("cpu")
+        intercept_mask = torch.Tensor(intercept_mask).long().to("cpu")
+        samples_weights = torch.Tensor(samples_weights).to("cpu")
 
         # If validation data is provided, set up the tensors.
         if X_val is not None and y_val is not None:
@@ -660,15 +670,15 @@ class DcsfaNmf(NmfBase):
             if y_pred_weights_val is None:
                 y_pred_weights_val = np.ones((y_val[:, 0].shape[0], 1))
 
-            X_val = torch.Tensor(X_val).float().to(self.device)
-            y_val = torch.Tensor(y_val).float().to(self.device)
-            task_mask_val = torch.Tensor(task_mask_val).long().to(self.device)
+            X_val = torch.Tensor(X_val).float().to("cpu")
+            y_val = torch.Tensor(y_val).float().to("cpu")
+            task_mask_val = torch.Tensor(task_mask_val).long().to("cpu")
             y_pred_weights_val = (
                 torch.Tensor(
                     y_pred_weights_val,
                 )
                 .float()
-                .to(self.device)
+                .to("cpu")
             )
 
         # Instantiate the dataloader and optimizer.
