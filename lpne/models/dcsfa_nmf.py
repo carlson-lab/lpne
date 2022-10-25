@@ -354,6 +354,14 @@ class DcsfaNmf(NmfBase):
         pred_loss (torch.Tensor):
             ``sup_weight * BCELoss()``
         """
+
+        X = X.to(self.device)
+        y = y.to(self.device)
+        task_mask = task_mask.to(self.device)
+        pred_weight = pred_weight.to(self.device)
+        if intercept_mask is not None:
+            intercept_mask = intercept_mask.to(self.device)
+
         # Get the scores from the encoder
         s = self.get_embedding(X)
 
@@ -407,6 +415,8 @@ class DcsfaNmf(NmfBase):
         """
         if not torch.is_tensor(X):
             X = torch.Tensor(X).float().to(self.device)
+        else:
+            X = X.to(self.device)
 
         s = self.get_embedding(X)
         X_recon = self.get_all_comp_recon(s)
@@ -462,12 +472,12 @@ class DcsfaNmf(NmfBase):
         # Freeze the decoder
         self.W_nmf.requires_grad = False
         # Load arguments onto device
-        X = torch.Tensor(X).float().to(self.device)
-        y = torch.Tensor(y).float().to(self.device)
-        y_pred_weights = torch.Tensor(y_pred_weights).float().to(self.device)
-        task_mask = torch.Tensor(task_mask).long().to(self.device)
-        intercept_mask = torch.Tensor(intercept_mask).to(self.device)
-        sample_weights = torch.Tensor(sample_weights).to(self.device)
+        X = torch.Tensor(X).float().to("cpu")
+        y = torch.Tensor(y).float().to("cpu")
+        y_pred_weights = torch.Tensor(y_pred_weights).float().to("cpu")
+        task_mask = torch.Tensor(task_mask).long().to("cpu")
+        intercept_mask = torch.Tensor(intercept_mask).to("cpu")
+        sample_weights = torch.Tensor(sample_weights).to("cpu")
         # Create a Dataset.
         # dset = TensorDataset(X,y,y_pred_weights,task_mask,intercept_mask)
         # NOTE: I changed the order to match ``self.forward``
@@ -635,12 +645,12 @@ class DcsfaNmf(NmfBase):
             )
 
         # Send training arguments to Tensors.
-        X = torch.Tensor(X).float().to(self.device)
-        y = torch.Tensor(y).float().to(self.device)
-        y_pred_weights = torch.Tensor(y_pred_weights).float().to(self.device)
-        task_mask = torch.Tensor(task_mask).long().to(self.device)
-        intercept_mask = torch.Tensor(intercept_mask).long().to(self.device)
-        samples_weights = torch.Tensor(samples_weights).to(self.device)
+        X = torch.Tensor(X).float().to("cpu")
+        y = torch.Tensor(y).float().to("cpu")
+        y_pred_weights = torch.Tensor(y_pred_weights).float().to("cpu")
+        task_mask = torch.Tensor(task_mask).long().to("cpu")
+        intercept_mask = torch.Tensor(intercept_mask).long().to("cpu")
+        samples_weights = torch.Tensor(samples_weights).to("cpu")
 
         # If validation data is provided, set up the tensors.
         if X_val is not None and y_val is not None:
@@ -649,6 +659,7 @@ class DcsfaNmf(NmfBase):
                 f"of type .pt"
             )
             self.best_model_name = best_model_name
+            self.best_performance = 1e8
             self.best_val_recon = 1e8
             self.best_val_avg_auc = 0.0
             self.val_recon_hist = []
@@ -660,15 +671,15 @@ class DcsfaNmf(NmfBase):
             if y_pred_weights_val is None:
                 y_pred_weights_val = np.ones((y_val[:, 0].shape[0], 1))
 
-            X_val = torch.Tensor(X_val).float().to(self.device)
-            y_val = torch.Tensor(y_val).float().to(self.device)
-            task_mask_val = torch.Tensor(task_mask_val).long().to(self.device)
+            X_val = torch.Tensor(X_val).float().to("cpu")
+            y_val = torch.Tensor(y_val).float().to("cpu")
+            task_mask_val = torch.Tensor(task_mask_val).long().to("cpu")
             y_pred_weights_val = (
                 torch.Tensor(
                     y_pred_weights_val,
                 )
                 .float()
-                .to(self.device)
+                .to("cpu")
             )
 
         # Instantiate the dataloader and optimizer.
@@ -708,15 +719,15 @@ class DcsfaNmf(NmfBase):
                     X,
                     y,
                     intercept_mask,
-                    return_npy=False,
+                    return_npy=True,
                 )
-                training_mse_loss = nn.MSELoss()(X_recon, X).item()
+                training_mse_loss = np.mean((X.detach().numpy()-X_recon)**2)
                 training_auc_list = []
                 for sup_net in range(self.n_sup_networks):
-                    temp_mask = task_mask[:, sup_net].detach().cpu().numpy()
+                    temp_mask = task_mask[:, sup_net].detach().numpy()
                     auc = roc_auc_score(
-                        y.detach().cpu().numpy()[temp_mask == 1, sup_net],
-                        y_pred.detach().cpu().numpy()[temp_mask == 1, sup_net],
+                        y.detach().numpy()[temp_mask == 1, sup_net],
+                        y_pred[temp_mask == 1, sup_net],
                     )
                     training_auc_list.append(auc)
                 self.recon_hist.append(training_mse_loss)
@@ -727,29 +738,28 @@ class DcsfaNmf(NmfBase):
                     X_recon_val, y_pred_val, _ = self.transform(
                         X_val,
                         y_val,
-                        return_npy=False,
+                        return_npy=True,
                     )
-                    validation_mse_loss = nn.MSELoss()(
-                        X_recon_val,
-                        X_val,
-                    ).item()
+                    validation_mse_loss = np.mean((X_val.detach().numpy()-X_recon_val)**2)
                     validation_auc_list = []
                     for sup_net in range(self.n_sup_networks):
-                        temp_mask = task_mask_val[:, sup_net].detach().cpu().numpy()
+                        temp_mask = task_mask_val[:, sup_net].detach().numpy()
                         auc = roc_auc_score(
-                            y_val.detach().cpu().numpy()[temp_mask == 1, sup_net],
-                            y_pred_val.detach().cpu().numpy()[temp_mask == 1, sup_net],
+                            y_val.detach().numpy()[temp_mask == 1, sup_net],
+                            y_pred_val[temp_mask == 1, sup_net],
                         )
                         validation_auc_list.append(auc)
 
                     self.val_recon_hist.append(validation_mse_loss)
                     self.val_pred_hist.append(validation_auc_list)
 
-                    cond_1 = validation_mse_loss < self.best_val_recon
-                    cond_2 = np.mean(validation_auc_list) > self.best_val_avg_auc
+                    mse_var_rat = validation_mse_loss / torch.std(X_val)**2
+                    auc_err = (1-np.mean(validation_auc_list))
 
-                    if cond_1 and cond_2:
+                    if mse_var_rat + auc_err < self.best_performance:
                         self.best_epoch = epoch
+                        self.best_performance = mse_var_rat + auc_err
+                        self.best_val_avg_auc = np.mean(validation_auc_list)
                         self.best_val_recon = validation_mse_loss
                         self.best_val_aucs = validation_auc_list
                         # NOTE: os.path.join does this a bit better:
