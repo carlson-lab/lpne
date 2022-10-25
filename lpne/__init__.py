@@ -5,7 +5,7 @@ Code for preprocessing and building factor models with local field potentials.
 
 """
 __date__ = "July 2021 - October 2022"
-__version__ = "0.1.7"
+__version__ = "0.1.8"
 try:
     with open(".git/logs/HEAD", "r") as fh:
         __commit__ = fh.read().split("\n")[-2]
@@ -15,7 +15,14 @@ except:
 INVALID_LABEL = -1
 INVALID_GROUP = -1
 
-from .models import FaSae, CpSae, GridSearchCV, dcsfa_nmf
+from .models import (
+    FaSae,
+    CpSae,
+    GridSearchCV,
+    DcsfaNmf,
+    get_reconstruction_stats,
+    get_reconstruction_summary,
+)
 
 from .plotting import (
     plot_db,

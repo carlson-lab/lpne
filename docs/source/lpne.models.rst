@@ -46,6 +46,15 @@ lpne.models.grid_search_cv module
     :show-inheritance:
 
 
+lpne.models.model_utils module
+------------------------------
+
+.. automodule:: lpne.models.model_utils
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
 lpne.models.nmf_base module
 ---------------------------
 

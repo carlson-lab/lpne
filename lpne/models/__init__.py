@@ -11,6 +11,8 @@ from .factor_analysis_sae import FaSae
 
 from .grid_search_cv import GridSearchCV
 
+from .model_utils import get_reconstruction_stats, get_reconstruction_summary
+
 from .nmf_base import NmfBase
 
 

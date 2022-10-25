@@ -1,5 +1,5 @@
 """
-Base model defining the training procedure
+Base model defining the training procedure and some common methods for SAEs
 
 """
 __date__ = "June - July 2022"
@@ -112,11 +112,7 @@ class BaseModel(torch.nn.Module):
         weights = torch.tensor(weights, dtype=FLOAT).to(self.device)
         # Make a Dataset, a DataLoader, and an optimizer.
         dset = TensorDataset(features, labels, groups, weights)
-        loader = DataLoader(
-            dset,
-            batch_size=self.batch_size,
-            shuffle=True,
-        )
+        loader = DataLoader(dset, batch_size=self.batch_size, shuffle=True)
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
         # Train.
         while self.iter_ <= self.n_iter:
@@ -128,14 +124,14 @@ class BaseModel(torch.nn.Module):
                 loss.backward()
                 optimizer.step()
             if print_freq is not None and self.iter_ % print_freq == 0:
-                print(f"iter {self.iter_:04d}, loss: {i_loss:3f}")
+                print(f"iter {self.iter_:04d}, loss: {i_loss:.3f}")
             if score_freq is not None and self.iter_ % score_freq == 0:
                 weighted_acc = self.score(
                     features[idx_comp],
                     np_labels[idx_comp],
                     np_groups[idx_comp],
                 )
-                print(f"iter {self.iter_:04d}, acc: {weighted_acc:3f}")
+                print(f"iter {self.iter_:04d}, acc: {weighted_acc:.3f}")
             self.iter_ += 1
         return self
 

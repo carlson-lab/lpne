@@ -19,7 +19,7 @@ Required directory structure:
 
 
 """
-__date__ = "July 2021 - July 2022"
+__date__ = "July 2021 - October 2022"
 
 
 import numpy as np
@@ -31,31 +31,31 @@ from lpne.models import FaSae, CpSae
 
 
 USAGE = "Usage:\n$ python prediction_pipeline.py <experiment_directory>"
-FEATURE_SUBDIR = 'features'
-LABEL_SUBDIR = 'labels'
+FEATURE_SUBDIR = "features"
+LABEL_SUBDIR = "labels"
 CP_SAE = True
 MODEL_KWARGS = dict(
-    n_iter=1000,
+    n_iter=5000,
     reg_strength=10.0,
+    z_dim=12,
 )
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Check input arguments.
     if len(sys.argv) != 2:
         quit(USAGE)
     exp_dir = sys.argv[1]
-    assert os.path.exists(exp_dir), f"{exp_dir}"
+    assert os.path.exists(exp_dir), f"{exp_dir} doesn't exist!"
     feature_dir = os.path.join(exp_dir, FEATURE_SUBDIR)
-    assert os.path.exists(feature_dir), f"{feature_dir}"
+    assert os.path.exists(feature_dir), f"{feature_dir} doesn't exist!"
     label_dir = os.path.join(exp_dir, LABEL_SUBDIR)
-    assert os.path.exists(label_dir), f"{label_dir}"
+    assert os.path.exists(label_dir), f"{label_dir} doesn't exist!"
 
     # Get the filenames.
     feature_fns, label_fns = lpne.get_feature_label_filenames(
-            feature_dir,
-            label_dir,
+        feature_dir,
+        label_dir,
     )
 
     # Write fake labels.
@@ -63,8 +63,8 @@ if __name__ == '__main__':
 
     # Collect all the features and labels.
     features, labels, rois = lpne.load_features_and_labels(
-            feature_fns,
-            label_fns,
+        feature_fns,
+        label_fns,
     )
 
     # Define a test/train split.
@@ -72,59 +72,63 @@ if __name__ == '__main__':
     train_idx = np.arange(idx)
     test_idx = np.arange(idx, len(features))
     partition = {
-        'train': train_idx,
-        'test': test_idx,
+        "train": train_idx,
+        "test": test_idx,
     }
 
     # Normalize and reshape the power features.
     features = lpne.normalize_features(features, partition)
     features = lpne.unsqueeze_triangular_array(features, 1)
-    features = np.transpose(features, [0,3,1,2]) # [b,f,r,r]
+    features = np.transpose(features, [0, 3, 1, 2])  # [b,f,r,r]
 
     # Make the model.
     model = (CpSae if CP_SAE else FaSae)(**MODEL_KWARGS)
 
     # Make fake groups.
-    groups = np.random.randint(0,2,len(labels))
+    groups = np.random.randint(0, 2, len(labels))
 
     # Plot cross power in decibels for the labels, averaged over groups.
-    freqs = np.arange(features.shape[1]) # NOTE: HERE
+    freqs = np.arange(features.shape[1])  # NOTE: not the actual frequencies
     lpne.plot_db(features, freqs, labels, groups, rois=rois)
 
     # Fit the model.
     print("Training model...")
     model.fit(
-            features[train_idx],
-            labels[train_idx],
-            groups[train_idx],
-            print_freq=50,
-            score_freq=50,
+        features[train_idx],
+        labels[train_idx],
+        groups[train_idx],
+        print_freq=50,
+        score_freq=50,
     )
     print("Done training.\n")
 
     # Save the model.
     print("Saving model...")
-    model.save_state(os.path.join(exp_dir, 'model_state.npy'))
+    model.save_state(os.path.join(exp_dir, "model_state.npy"))
 
     # Plot a couple factors.
     print("Plotting factors...")
     factor = model.get_factor(0)
-    lpne.plot_factor(factor, rois, fn='factor_1.pdf')
+    lpne.plot_factor(factor, rois, fn="factor_1.pdf")
     factor = model.get_factor(1)
-    lpne.plot_factor(factor, rois, fn='factor_2.pdf')
+    lpne.plot_factor(factor, rois, fn="factor_2.pdf")
+
+    # Print out some statistics summarizing the reconstruction quality.
+    print(lpne.get_reconstruction_summary(model, features[train_idx]))
 
     # Plot a random window and its reconstruction.
-    idx = np.random.randint(len(features))
-    feature = features[idx:idx+1] # [1,f,r,r]
-    rec_feature = model.reconstruct(feature.reshape(1,-1)) # [1,x]
-    rec_feature = rec_feature.reshape(feature.shape) # [1,f,r,r]
-    both_features = np.concatenate([feature, rec_feature], axis=0) # [1,f,r,r]
-    both_features = lpne.squeeze_triangular_array(both_features, dims=(2,3))
-    both_features = np.transpose(both_features, [0,2,1]) # [2,r*(r+1)//2,f]
+    inlier_idx = np.argwhere(np.isnan(features).sum(axis=(1, 2, 3)) == 0).flatten()
+    idx = np.random.choice(inlier_idx)
+    feature = features[idx : idx + 1]  # [1,f,r,r]
+    rec_feature = model.reconstruct(feature.reshape(1, -1))  # [1,x]
+    rec_feature = rec_feature.reshape(feature.shape)  # [1,f,r,r]
+    both_features = np.concatenate([feature, rec_feature], axis=0)  # [1,f,r,r]
+    both_features = lpne.squeeze_triangular_array(both_features, dims=(2, 3))
+    both_features = np.transpose(both_features, [0, 2, 1])  # [2,r*(r+1)//2,f]
     lpne.plot_factors(
         both_features,
         rois=rois,
-        fn='reconstruction.pdf',
+        fn="reconstruction.pdf",
     )
 
     # Make some predictions.
@@ -143,11 +147,11 @@ if __name__ == '__main__':
 
     # Calculate a weighted accuracy.
     weighted_acc = model.score(
-            features[test_idx],
-            labels[test_idx],
-            groups[test_idx],
+        features[test_idx],
+        labels[test_idx],
+        groups[test_idx],
     )
-    print("Weighted accuracy on test set:", weighted_acc)
+    print(f"Weighted accuracy on test set: {weighted_acc:.3f}")
 
 
 ###

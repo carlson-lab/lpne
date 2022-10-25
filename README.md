@@ -1,12 +1,7 @@
 <h1 align="center">LPNE feature extraction and classification pipeline</h1>
 
-<h2 align="center">Code for preprocessing and building models with local field potentials</h2>
+<h3 align="center">Code for preprocessing and building models with local field potentials</h3>
 
-
-<p align="center">
-<a href="https://github.com/carlson-lab/lpne/blob/master/LICENSE.md"><img alt="License: MIT" src="https://black.readthedocs.io/en/stable/_static/license.svg"></a>
-<a href="https://github.com/psf/black"><img alt="Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
-</p>
 
 See `feature_pipeline.py` and `prediction_pipeline.py` for usage.
 
@@ -30,7 +25,6 @@ Then see `docs/build/html/index.html` for the docs.
 #### Dependencies
 * [Python3](https://www.python.org/) (3.7+)
 * [PyTorch](https://pytorch.org) 1.11+
-* [Black](https://github.com/psf/black)
 * [MoviePy](https://github.com/Zulko/moviepy) (optional)
 
 
@@ -49,5 +43,4 @@ Then see `docs/build/html/index.html` for the docs.
 42. Early stopping in `GridSearchCV`
 43. ``[b,f,r,r]`` vs ``[b,r,r,f]`` shapes
 45. automatic groups?
-46. Save smoothed labels
 47. More agressive normalization options

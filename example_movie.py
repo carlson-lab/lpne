@@ -11,15 +11,15 @@ from feature_pipeline import WINDOW_DURATION
 import lpne
 
 
-FN = os.path.join('test_data', 'data', 'example_LFP.mat')
-MODEL_FN = os.path.join('test_data', 'model_state.npy')
-FEATURE = ['power', 'dir_spec'][0]
+FN = os.path.join("test_data", "data", "example_LFP.mat")
+MODEL_FN = os.path.join("test_data", "model_state.npy")
+FEATURE = ["power", "dir_spec"][0]
 DURATION = 25.0
 WINDOW_DURATION = 5.0
 CP_SAE = False
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Load LFP data.
     lfps = lpne.load_lfps(FN)
 
@@ -35,16 +35,15 @@ if __name__ == '__main__':
 
     # Make the movie.
     lpne.make_power_movie(
-            lfps,
-            duration=DURATION,
-            window_duration=WINDOW_DURATION,
-            fps=10,
-            speed_factor=3,
-            feature=FEATURE,
-            model=model,
-            fn='out.gif',
+        lfps,
+        duration=DURATION,
+        window_duration=WINDOW_DURATION,
+        fps=10,
+        speed_factor=3,
+        feature=FEATURE,
+        model=model,
+        fn="out.gif",
     )
-
 
 
 ###
