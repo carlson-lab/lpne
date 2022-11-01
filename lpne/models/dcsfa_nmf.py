@@ -721,7 +721,7 @@ class DcsfaNmf(NmfBase):
                     intercept_mask,
                     return_npy=True,
                 )
-                training_mse_loss = np.mean((X.detach().numpy()-X_recon)**2)
+                training_mse_loss = np.mean((X.detach().numpy() - X_recon) ** 2)
                 training_auc_list = []
                 for sup_net in range(self.n_sup_networks):
                     temp_mask = task_mask[:, sup_net].detach().numpy()
@@ -740,7 +740,9 @@ class DcsfaNmf(NmfBase):
                         y_val,
                         return_npy=True,
                     )
-                    validation_mse_loss = np.mean((X_val.detach().numpy()-X_recon_val)**2)
+                    validation_mse_loss = np.mean(
+                        (X_val.detach().numpy() - X_recon_val) ** 2
+                    )
                     validation_auc_list = []
                     for sup_net in range(self.n_sup_networks):
                         temp_mask = task_mask_val[:, sup_net].detach().numpy()
@@ -753,8 +755,8 @@ class DcsfaNmf(NmfBase):
                     self.val_recon_hist.append(validation_mse_loss)
                     self.val_pred_hist.append(validation_auc_list)
 
-                    mse_var_rat = validation_mse_loss / torch.std(X_val)**2
-                    auc_err = (1-np.mean(validation_auc_list))
+                    mse_var_rat = validation_mse_loss / torch.std(X_val) ** 2
+                    auc_err = 1 - np.mean(validation_auc_list)
 
                     if mse_var_rat + auc_err < self.best_performance:
                         self.best_epoch = epoch

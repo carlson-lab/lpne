@@ -44,3 +44,5 @@ Then see `docs/build/html/index.html` for the docs.
 43. ``[b,f,r,r]`` vs ``[b,r,r,f]`` shapes
 45. automatic groups?
 47. More agressive normalization options
+48. Add strict channel map checking options
+49. Add CSV version of CHANS files

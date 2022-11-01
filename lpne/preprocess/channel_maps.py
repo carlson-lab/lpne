@@ -2,15 +2,14 @@
 Channel maps are used to determine which channels to average together.
 
 """
-__date__ = "July 2021 - October 2022"
+__date__ = "July 2021 - November 2022"
 
 
 import numpy as np
 
+PANDAS_INSTALLED = True
 try:
     import pandas as pd
-
-    PANDAS_INSTALLED = True
 except ModuleNotFoundError:
     PANDAS_INSTALLED = False
 from scipy.io import loadmat
@@ -35,17 +34,17 @@ def average_channels(lfps, channel_map, check_channel_map=True):
     Parameters
     ----------
     lfps : dict
-        Maps ROI names to LFP waveforms.
+        Maps ROI names to LFP waveforms
     channel_map : dict
-        Maps ROI names to grouped ROI names.
+        Maps ROI names to grouped ROI names
     check_channel_map : bool, optional
-        Checks whether all the channels in the channel map are present in the
-        LFPs.
+        Check whether all the channels in the channel map are present in the
+        LFPs
 
     Returns
     -------
     lfps : dict
-        Maps ROI names to LFP waveforms.
+        Maps ROI names to LFP waveforms
     """
     if check_channel_map:
         _check_channel_map(lfps, channel_map)
@@ -250,11 +249,11 @@ def get_removed_channels_from_file(fn):
 
 def _check_channel_map(lfps, channel_map):
     """
-    Check that every channel in `channel_map` is in `lfps`.
+    Check that every channel in ``channel_map`` is in ``lfps``.
 
     Warnings
     --------
-    * Whenever there is a channel in `channel_map` that isn't in `lfps`.
+    * Whenever there is a channel in ``channel_map`` that isn't in ``lfps``.
 
     Parameters
     ----------
@@ -265,7 +264,7 @@ def _check_channel_map(lfps, channel_map):
     """
     for channel in channel_map:
         if channel not in lfps:
-            warnings.warn(f"Channel {channel} is not present in LFPS!")
+            warnings.warn(f"Channel {channel} is not present in LFPs!")
 
 
 if __name__ == "__main__":

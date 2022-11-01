@@ -188,7 +188,7 @@ def load_features_and_labels(
     """
     Load the features and labels.
 
-    If `group_func` is specified, then groups are also returned.
+    If ``group_func`` is specified, then groups are also returned.
 
     Parameters
     ----------
@@ -197,9 +197,9 @@ def load_features_and_labels(
     label_fns : list of str
         Corresponding label filenames
     group_func : None or function, optional
-        If `None`, no groups are returned. Otherwise, groups are defined as
-        `group_func(feature_fn)` for the corresponding feature filename of each
-        window. `group_func` should map strings (filenames) to integers
+        If ``None``, no groups are returned. Otherwise, groups are defined as
+        ``group_func(feature_fn)`` for the corresponding feature filename of each
+        window. ``group_func`` should map strings (filenames) to integers
         (groups).
     return_counts : bool, optional
         Return the number of windows for each file.
@@ -215,10 +215,10 @@ def load_features_and_labels(
     rois : list of str
         Regions of interest, channel names
     groups : numpy.ndarray
-        Returned if `group_func is not None`
+        Returned if ``group_func is not None``
         Shape: [n_windows]
     counts : list of int
-        Number of windows in each file. Returned if `return_counts` is `True`.
+        Number of windows in each file. Returned if ``return_counts`` is ``True``.
     """
     assert group_func is None or isinstance(
         group_func, type(lambda x: x)
