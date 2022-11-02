@@ -80,7 +80,7 @@ class FaSae(BaseModel):
         Defaults to ``1``.
     """
 
-    MODEL_NAME = "FA SAE"
+    MODEL_NAME = "FaSae"
     FIT_ATTRIBUTES = ["classes_", "iter_", "n_freqs_", "n_rois_"]
 
     def __init__(

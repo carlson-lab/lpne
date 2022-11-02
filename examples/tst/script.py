@@ -6,9 +6,11 @@ A work in progress!
 TODO: put the functions here into the main package
 TODO: add the body of the __main__ block to the main package
 TODO: default experiment parameters should be shipped with the code
-TODO: check for duplicate mice on different days
+TODO: explicitly check for duplicate mice on different days
 TODO: group the parameters differently or add kwargs to functions?
 TODO: remove channels that aren't in the channel map
+TODO: seeds for training
+TODO: save NumPy and PyTorch versions?
 """
 __date__ = "October - November 2022"
 
@@ -229,6 +231,30 @@ def load_channel_map(fn):
         raise NotImplementedError(f"Cannot load the channel map file: {fn}")
 
 
+def get_model_class(model_name):
+    """
+    Get the model class corresponding to the given model name.
+
+    Parameters
+    ----------
+    model_name : str
+        Model name. Spaces, underscores, and capitalization is ignored.
+
+    Returns
+    -------
+    model_class : type
+        Corresponding model class
+    """
+    assert isinstance(model_name, str)
+    model_name = model_name.replace(' ', '').replace('_', '').lower()
+    if model_name == 'cpsae':
+        return lpne.CpSae
+    elif model_name == 'fasae':
+        return lpne.FaSae
+    else:
+        raise NotImplementedError(model_name)
+
+
 if __name__ == "__main__":
     # Check the input argument.
     if len(sys.argv) != 2:
@@ -300,7 +326,6 @@ if __name__ == "__main__":
             lpne.save_features(features, feature_fns[file_num])
 
     # Load all the features and labels.
-
     # TODO: clean this up by editing ``load_features_and_labels``
     def group_func(fn):
         for key in group_map:
@@ -314,28 +339,64 @@ if __name__ == "__main__":
         group_func=group_func,
     )
 
-    print("features", features.shape)
-    print("rois", rois)
-    quit()
-
-    # Normalize the features.
-    # TODO: add normalization mode
-    features = lpne.normalize_features(features)  # [b,r(r+1)//2,f]
+    # Normalize the features and reshape.
+    features = lpne.normalize_features(
+            features,
+            mode=params['training']['normalize_mode'],
+    )  # [b,r(r+1)//2,f]
     features = lpne.unsqueeze_triangular_array(features, 1)  # [b,r,r,f]
     features = np.transpose(features, [0, 3, 1, 2])  # [b,f,r,r]
 
     # Make some summary plots showing the different classes and mice.
-    pass
+    if params['pipeline']['summary_plots']:
+        # TODO
+        # TODO
+        # TODO
+        # lpne.plot_db
+        pass
 
     # Do some cross-validation to estimate generalization and train a single model.
+    model_class = get_model_class(params['training']['model_name'])
+    model = lpne.GridSearchCV(
+        model_class(**params['training']['model_kwargs']),
+        params['training']['param_grid'],
+        cv=params['training']['cv'],
+        test_size=params['training']['test_size'],
+    )
+    # NOTE: HERE, not working as expected!
+    model.fit(features, labels, groups)
+
+    quit()
 
     # Save the model.
+    model_fn = os.path.join(exp_dir, params['file']['model_fn'])
+    model.save_state(model_fn)
 
-    # See how well we predict on the test set.
+    # Print out the best parameters and the score.
+    print("model parameters:", model.best_params_)
+    print("mode score:", model.best_score_)
 
-    # Summarize the reconstruction quality on the train and test sets.
+    # Reload the model to expose methods. TODO: simplify this!
+    model = model_class(model_class(**params['training']['model_kwargs']))
+    model.load_state(model_fn)
+    
+    # Print out some statistics summarizing the reconstruction quality.
+    print(lpne.get_reconstruction_summary(model, features))
 
-    # Plot the predictive factors.
+    # Plot the factors.
+    print("Plotting factors...")
+    factors = np.stack([model.get_factor(i) for i in range(model.z_dim)], axis=0)
+    plot_dir = os.path.join(exp_dir, params['file']['plot_subdir'])
+    lpne.plot_factors(
+        factors,
+        rois,
+        fn=os.path.join(plot_dir, "factors.pdf"),
+    )
+    lpne.plot_factors(
+        factors[:len(np.unique(labels))],
+        rois,
+        fn=os.path.join(plot_dir, "predictive_factors.pdf"),
+    )
 
 
 if __name__ == "__main__":

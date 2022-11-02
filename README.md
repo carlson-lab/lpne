@@ -31,11 +31,9 @@ Then see `docs/build/html/index.html` for the docs.
 ### TO DO
 9. Add a Tucker decomposition model
 10. PoE?
-12. Manually remove regions from LFPs
-21. Make some pre-zipped features and labels
+21. Make some pre-zipped features and labels: make TST public
 26. Add random seeds?
 31. Movie app
-32. `from joblib import Parallel, delayed`
 34. mouse-specific intercepts
 36. SMC for sampling label sequence posterior
 37. Mouse-specific normalization options
@@ -46,3 +44,6 @@ Then see `docs/build/html/index.html` for the docs.
 47. More agressive normalization options
 48. Add strict channel map checking options
 49. Add CSV version of CHANS files
+50. save GridSearchCV with validation scores for each parameter setting
+51. Load CSV label files
+52. Also save confusion matrices for GridSearchCV

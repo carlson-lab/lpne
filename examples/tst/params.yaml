@@ -1,4 +1,5 @@
 file:
+  channel_map_fn: channel_map.csv
   chans_subdir: CHANS
   chans_suffix: _CHANS.mat
   feature_subdir: features
@@ -6,10 +7,12 @@ file:
   label_suffix: .npy
   lfp_subdir: Data
   lfp_suffix: _LFP.mat
-  channel_map_fn: channel_map.csv
+  model_fn: model_state.npy
+  plot_subdir: plots
   strict_checking: false
 pipeline:
   make_features: false # TEMP
+  summary_plots: true
   train_model: true
 preprocess:
   csd_params:
@@ -30,3 +33,21 @@ preprocess:
   remove_outliers: true
   window_duration: 1
   window_step: null
+training:
+  cv: 1 # TEMP
+  model_kwargs:
+    batch_size: 256
+    device: auto
+    encoder_type: linear
+    lr: 0.001
+    n_iter: 50 # TEMP
+    rec_loss_type: lad
+    reg_strength: 1.0
+    z_dim: 16
+  model_name: cp_sae
+  normalize_mode: median
+  score_mode: weighted_acc
+  test_size: 2
+  param_grid:
+    reg_strength: [0.001, 0.01, 0.1]
+

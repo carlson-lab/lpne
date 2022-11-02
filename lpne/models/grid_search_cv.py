@@ -2,7 +2,7 @@
 A simple grid search cross validation model.
 
 """
-__date__ = "December 2021 - July 2022"
+__date__ = "December 2021 - November 2022"
 
 
 from itertools import product
@@ -21,7 +21,7 @@ class GridSearchCV:
 
     Parameters
     ----------
-    model : ``BaseModel``
+    model : BaseModel
         Model
     param_grid : dict
         Maps names of model parameters (strings) to lists of values. These
@@ -74,11 +74,12 @@ class GridSearchCV:
         best_score = -np.inf
         best_params = None
         # For each parameter setting...
-        param_names = list(self.param_grid.keys())
+        param_names = sorted(list(self.param_grid.keys()))
         gen = list(product(*[self.param_grid[param] for param in param_names]))
         for param_num, param_setting in enumerate(gen):
             params = dict(zip(param_names, param_setting))
             scores = []
+            print("Parameter setting:", params)
             # For each fold...
             for cv_num, (train_idx, test_idx) in cv_gen:
                 # Set the parameters, fit the model, and score the model.

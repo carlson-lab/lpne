@@ -65,7 +65,7 @@ class CpSae(BaseModel):
         Defaults to ``1``.
     """
 
-    MODEL_NAME = "CP SAE"
+    MODEL_NAME = "CpSae"
     FIT_ATTRIBUTES = ["classes_", "groups_", "iter_"]
 
     def __init__(
@@ -79,16 +79,16 @@ class CpSae(BaseModel):
         **kwargs,
     ):
         super(CpSae, self).__init__(**kwargs)
-        assert isinstance(reg_strength, (int, float))
+        assert isinstance(reg_strength, (int, float)), f"found {type(reg_strength)}"
         self.reg_strength = float(reg_strength)
-        assert isinstance(z_dim, int)
+        assert isinstance(z_dim, int), f"found {type(z_dim)}"
         self.z_dim = z_dim
         self.gp_params = {**DEFAULT_GP_PARAMS, **gp_params}
         assert encoder_type in ["linear", "pinv", "irls"]
         self.encoder_type = encoder_type
         assert rec_loss_type in ["lad", "ls"]
         self.rec_loss_type = rec_loss_type
-        assert isinstance(irls_iter, int)
+        assert isinstance(irls_iter, int), f"found {type(irls_iter)}"
         self.irls_iter = irls_iter
 
     @torch.no_grad()
@@ -474,7 +474,7 @@ class CpSae(BaseModel):
             Shape: ``[r(r+1)/2,f]``
         """
         check_is_fitted(self, attributes=self.FIT_ATTRIBUTES)
-        assert isinstance(factor_num, int)
+        assert isinstance(factor_num, int), f"found {type(factor_num)}"
         assert factor_num >= 0 and factor_num < self.z_dim
         volume = self._get_mean_projection()[factor_num]  # [f,r,r]
         volume = volume.detach().cpu().numpy()  # [f,r,r]
