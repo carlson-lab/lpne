@@ -32,7 +32,6 @@ Then see `docs/build/html/index.html` for the docs.
 9. Add a Tucker decomposition model
 10. PoE?
 21. Make some pre-zipped features and labels: make TST public
-26. Add random seeds?
 31. Movie app
 34. mouse-specific intercepts
 36. SMC for sampling label sequence posterior
@@ -46,4 +45,4 @@ Then see `docs/build/html/index.html` for the docs.
 49. Add CSV version of CHANS files
 50. save GridSearchCV with validation scores for each parameter setting
 51. Load CSV label files
-52. Also save confusion matrices for GridSearchCV
+52. Also save confusion matrices for ``GridSearchCV``

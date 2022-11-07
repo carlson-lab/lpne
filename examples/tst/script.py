@@ -339,6 +339,8 @@ if __name__ == "__main__":
         group_func=group_func,
     )
 
+    print("\nUnique labels:", np.unique(labels))
+
     # Normalize the features and reshape.
     features = lpne.normalize_features(
             features,
@@ -356,44 +358,47 @@ if __name__ == "__main__":
         pass
 
     # Do some cross-validation to estimate generalization and train a single model.
+    print()
     model_class = get_model_class(params['training']['model_name'])
     model = lpne.GridSearchCV(
         model_class(**params['training']['model_kwargs']),
         params['training']['param_grid'],
         cv=params['training']['cv'],
         test_size=params['training']['test_size'],
+        cv_seed=params['training']['grid_search_cv_seed'],
+        training_seed=params['training']['grid_search_training_seed'],
     )
-    # NOTE: HERE, not working as expected!
     model.fit(features, labels, groups)
 
-    quit()
-
     # Save the model.
+    print("\nSaving...")
     model_fn = os.path.join(exp_dir, params['file']['model_fn'])
     model.save_state(model_fn)
 
     # Print out the best parameters and the score.
-    print("model parameters:", model.best_params_)
-    print("mode score:", model.best_score_)
+    print("\nModel parameters:", model.best_params_)
+    print(f"Model score: {model.best_score_:.3f}")
 
     # Reload the model to expose methods. TODO: simplify this!
-    model = model_class(model_class(**params['training']['model_kwargs']))
+    model = model_class(**params['training']['model_kwargs'])
     model.load_state(model_fn)
     
     # Print out some statistics summarizing the reconstruction quality.
-    print(lpne.get_reconstruction_summary(model, features))
+    print("\n" + lpne.get_reconstruction_summary(model, features))
 
     # Plot the factors.
-    print("Plotting factors...")
+    print("\nPlotting factors...")
     factors = np.stack([model.get_factor(i) for i in range(model.z_dim)], axis=0)
     plot_dir = os.path.join(exp_dir, params['file']['plot_subdir'])
+    if not os.path.exists(plot_dir): # NOTE: add this earlier!
+        os.makedirs(plot_dir)
     lpne.plot_factors(
         factors,
         rois,
         fn=os.path.join(plot_dir, "factors.pdf"),
     )
     lpne.plot_factors(
-        factors[:len(np.unique(labels))],
+        factors[:len(model.classes_)],
         rois,
         fn=os.path.join(plot_dir, "predictive_factors.pdf"),
     )

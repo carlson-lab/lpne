@@ -34,7 +34,9 @@ preprocess:
   window_duration: 1
   window_step: null
 training:
-  cv: 1 # TEMP
+  cv: 2 # TEMP
+  grid_search_cv_seed: 42
+  grid_search_training_seed: 42
   model_kwargs:
     batch_size: 256
     device: auto
