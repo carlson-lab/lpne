@@ -36,8 +36,9 @@ class GridSearchCV:
         Passed to ``BaseModel.fit``. Defaults to ``42``.
     """
 
-    def __init__(self, model, param_grid, cv=3, test_size=2, cv_seed=42,
-        training_seed=42):
+    def __init__(
+        self, model, param_grid, cv=3, test_size=2, cv_seed=42, training_seed=42
+    ):
         # NOTE: HERE!
         self.model = model
         self.param_grid = param_grid
@@ -75,6 +76,7 @@ class GridSearchCV:
             def get_cv_gen():
                 skf = StratifiedKFold(n_splits=self.cv, random_state=self.cv_seed)
                 return enumerate(skf.split(features, labels))
+
         else:
             # Make sure groups aren't in multiple folds.
             def get_cv_gen():

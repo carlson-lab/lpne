@@ -52,8 +52,15 @@ class BaseModel(torch.nn.Module):
         self.to(self.device)
         self.iter_ = 1
 
-    def fit(self, features, labels, groups=None, print_freq=5, score_freq=20,
-        random_state=None):
+    def fit(
+        self,
+        features,
+        labels,
+        groups=None,
+        print_freq=5,
+        score_freq=20,
+        random_state=None,
+    ):
         """
         Train the model on the given dataset.
 

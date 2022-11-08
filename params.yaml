@@ -11,9 +11,10 @@ file:
   plot_subdir: plots
   strict_checking: false
 pipeline:
-  make_features: false # TEMP
+  make_features: true
   summary_plots: true
   train_model: true
+  evaluate_model: true
 preprocess:
   csd_params:
     detrend: constant
