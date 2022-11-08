@@ -5,6 +5,7 @@ TODO: add the body of the __main__ block to the main package
 TODO: explicitly check for duplicate mice on different days
 TODO: group the parameters differently or add kwargs to functions?
 TODO: remove channels that aren't in the channel map
+TODO: improve the channel map warnings
 """
 __date__ = "October - November 2022"
 
@@ -12,7 +13,6 @@ __date__ = "October - November 2022"
 import numpy as np
 import os
 import sys
-import warnings
 import yaml
 
 import lpne
@@ -29,7 +29,6 @@ if __name__ == "__main__":
 
     # Load the parameters.
     try:
-        stream = open("params.yaml", "r")
         with open("params.yaml") as f:
             params = yaml.safe_load(f)
     except:
@@ -100,17 +99,10 @@ if __name__ == "__main__":
             lpne.save_features(features, feature_fns[file_num])
 
     # Load all the features and labels.
-    # TODO: clean this up by editing ``load_features_and_labels`` to accept a group map
-    def group_func(fn):
-        for key in group_map:
-            if key in os.path.split(fn)[1]:
-                return group_map[key]
-        raise NotImplementedError(fn)
-
     features, labels, rois, groups, freqs = lpne.load_features_and_labels(
         feature_fns,
         label_fns,
-        group_func=group_func,
+        group_map=group_map,
         return_freqs=True,
     )
 

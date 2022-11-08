@@ -14,7 +14,8 @@ import torch.nn.functional as F
 
 from .base_model import BaseModel
 from .. import INVALID_LABEL
-from ..utils.utils import get_weights, squeeze_triangular_array
+from ..utils.array_utils import squeeze_triangular_array
+from ..utils.utils import get_weights
 
 
 FLOAT = torch.float32

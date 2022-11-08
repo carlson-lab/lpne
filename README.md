@@ -42,7 +42,10 @@ Then see `docs/build/html/index.html` for the docs.
 47. More agressive normalization options
 48. Add strict channel map checking options
 49. Add CSV version of CHANS files
-50. save GridSearchCV with validation scores for each parameter setting
+50. save `GridSearchCV` with validation scores for each parameter setting
 51. Load CSV label files
 52. Also save confusion matrices for ``GridSearchCV``
 54. Add pipeline subpackage
+55. Add `__all__` to files
+56. Add more `model.score` options
+58. Edit `average_channels`

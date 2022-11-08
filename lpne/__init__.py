@@ -14,6 +14,12 @@ except:
 
 INVALID_LABEL = -1
 INVALID_GROUP = -1
+MATLAB_IGNORED_KEYS = [
+    "__header__",
+    "__version__",
+    "__globals__",
+]
+"""Ignored keys in Matlab files"""
 
 from .models import (
     FaSae,
@@ -36,7 +42,6 @@ from .plotting import (
 )
 
 from .preprocess.channel_maps import (
-    IGNORED_KEYS,
     average_channels,
     get_excel_channel_map,
     get_default_channel_map,
@@ -55,7 +60,6 @@ from .preprocess.normalize import normalize_features, normalize_lfps
 
 from .preprocess.outlier_detection import mark_outliers
 
-
 from .utils.array_utils import *
 
 from .utils.data import (
@@ -68,7 +72,7 @@ from .utils.data import (
     save_labels,
 )
 
-from utils.file_utils import *
+from .utils.file_utils import *
 
 from .utils.utils import *
 

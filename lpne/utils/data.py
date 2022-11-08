@@ -3,21 +3,31 @@ Data utilities
 
 """
 __date__ = "July 2021 - November 2022"
+__all__ = [
+    "load_channel_map",
+    "load_features",
+    "load_features_and_labels",
+    "load_labels",
+    "load_lfps",
+    "save_features",
+    "save_labels",
+]
 
 
 import h5py
 import numpy as np
 import os
+
+PANDAS_INSTALLED = True
+try:
+    import pandas as pd
+except ModuleNotFoundError:
+    PANDAS_INSTALLED = False
 from scipy.io import loadmat
 import warnings
 
 
-IGNORED_KEYS = [
-    "__header__",
-    "__version__",
-    "__globals__",
-]
-"""Ignored keys in the LFP data file"""
+from .. import MATLAB_IGNORED_KEYS
 
 
 def load_channel_map(fn):
@@ -44,6 +54,17 @@ def load_channel_map(fn):
                 assert len(parts) == 2, f"Expected two columns on line {ln+1}!"
                 assert parts[0] not in channel_map, f"Duplicate entry on line {ln+1}!"
                 channel_map[parts[0]] = parts[1]
+        return channel_map
+    elif fn.endswith(".xlsx"):
+        assert PANDAS_INSTALLED, f"Pandas needs to be installed to read: {fn}"
+        f = pd.read_excel(fn, index_col=False, header=None)
+        channel_map_full = f.set_index(0).to_dict()[1]
+        channel_map = {}
+        for channel in channels:
+            if channel not in list(channel_map_full.keys()):
+                warnings.warn(f"{channel} is not present in {fn}!")
+            else:
+                channel_map[channel] = channel_map_full[channel]
         return channel_map
     else:
         raise NotImplementedError(f"Cannot load the channel map file: {fn}")
@@ -109,6 +130,7 @@ def load_features_and_labels(
     feature_fns,
     label_fns,
     group_func=None,
+    group_map=None,
     return_counts=False,
     soft_labels=False,
     return_freqs=False,
@@ -116,7 +138,7 @@ def load_features_and_labels(
     """
     Load the features and labels.
 
-    If ``group_func`` is specified, then groups are also returned.
+    If ``group_func`` or ``group_map`` is specified, then groups are also returned.
 
     Parameters
     ----------
@@ -125,10 +147,12 @@ def load_features_and_labels(
     label_fns : list of str
         Corresponding label filenames
     group_func : None or function, optional
-        If ``None``, no groups are returned. Otherwise, groups are defined as
-        ``group_func(feature_fn)`` for the corresponding feature filename of each
-        window. ``group_func`` should map strings (filenames) to integers
-        (groups).
+        Groups are defined as ``group_func(feature_fn)`` for the corresponding feature
+        filename of each window. ``group_func`` should map strings (filenames) to
+        integers (groups).
+    group_map : None or dict, optional
+        An alternative way of specifying groups. Maps filenames to integers specifying
+        groups.
     return_counts : bool, optional
         Whether to return the number of windows for each file
     soft_labels : bool, optional
@@ -155,10 +179,25 @@ def load_features_and_labels(
     assert group_func is None or isinstance(
         group_func, type(lambda x: x)
     ), "group_func must either be None or a function!"
+    assert group_map is None or isinstance(
+        group_map, dict
+    ), "group_map must either be None or a dict"
+    assert (
+        group_func is None or group_map is None
+    ), "Only one of group_map and group_func can be specified!"
     assert len(feature_fns) == len(label_fns), (
         f"Expected the same number of feature and label filenames. "
         f"Found {len(feature_fns)} and {len(label_fns)}."
     )
+    # Translate the group_map to a group_func.
+    if group_map is not None:
+
+        def group_func(fn):
+            for key in group_map:
+                if key in os.path.split(fn)[1]:
+                    return group_map[key]
+            raise NotImplementedError(fn)
+
     # Collect everything.
     features, labels, groups, counts = [], [], [], []
     prev_rois, prev_freqs = None, None
@@ -254,12 +293,13 @@ def load_lfps(fn):
         try:
             lfps = loadmat(fn)
         except NotImplementedError:
+            # This must be one of the older HDF5 mat files.
             lfps = dict(h5py.File(fn, "r"))
     else:
         raise NotImplementedError(f"Cannot load file: {fn}")
     # Make sure all the channels are 1D float arrays.
     for channel in list(lfps.keys()):
-        if channel in IGNORED_KEYS:
+        if channel in MATLAB_IGNORED_KEYS:
             del lfps[channel]
             continue
         try:

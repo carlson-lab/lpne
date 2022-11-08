@@ -14,7 +14,8 @@ import warnings
 
 from .base_model import BaseModel
 from .. import INVALID_LABEL, INVALID_GROUP
-from ..utils.utils import get_weights, squeeze_triangular_array
+from ..utils.array_utils import squeeze_triangular_array
+from ..utils.utils import get_weights
 
 
 FLOAT = torch.float32

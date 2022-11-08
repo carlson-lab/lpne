@@ -12,7 +12,7 @@ from scipy.signal import csd
 from .directed_spectrum import get_directed_spectrum
 from .. import __commit__ as LPNE_COMMIT
 from .. import __version__ as LPNE_VERSION
-from ..utils.utils import squeeze_triangular_array
+from ..utils.array_utils import squeeze_triangular_array
 
 
 EPSILON = 1e-6
