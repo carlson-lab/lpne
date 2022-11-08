@@ -2,13 +2,15 @@
 Make decibel plots
 
 """
-__date__ = "July 2022"
+__date__ = "July - November 2022"
 
 
 from matplotlib.colors import TABLEAU_COLORS
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import sem
+
+from .. import INVALID_LABEL
 
 EPS = 1e-7
 
@@ -30,6 +32,8 @@ def plot_db(
 ):
     """
     Plot cross power in decibels for the labels, averaged over groups.
+
+    Labels equal to ``lpne.INVALID_LABEL`` (``-1`` by default) are ignored.
 
     Parameters
     ----------
@@ -64,8 +68,10 @@ def plot_db(
     assert len(features) == len(labels) and len(labels) == len(groups)
     assert features.shape[1] == len(freqs)
     assert features.shape[2] == features.shape[3]
-    # Remove NaNs.
-    idx = np.argwhere(np.isnan(features).sum(axis=(1, 2, 3)) == 0).flatten()
+    # Remove NaNs and invalid labels.
+    idx1 = np.argwhere(np.isnan(features).sum(axis=(1, 2, 3)) == 0).flatten()
+    idx2 = np.argwhere(labels != INVALID_LABEL).flatten()
+    idx = np.intersect1d(idx1, idx2)
     features, labels, groups = features[idx], labels[idx], groups[idx]
     # Get unique groups and labels.
     unique_groups = np.unique(groups)

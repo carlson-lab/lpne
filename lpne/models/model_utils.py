@@ -2,10 +2,37 @@
 Useful functions for SAE models
 
 """
-__date__ = "October 2022"
+__date__ = "October - November 2022"
 
 from sklearn.decomposition import PCA
 import numpy as np
+
+
+from . import CpSae, FaSae
+
+
+def get_model_class(model_name):
+    """
+    Get the model class corresponding to the given model name.
+
+    Parameters
+    ----------
+    model_name : str
+        Model name. Spaces, underscores, and capitalization is ignored.
+
+    Returns
+    -------
+    model_class : type
+        Corresponding model class
+    """
+    assert isinstance(model_name, str)
+    model_name = model_name.replace(" ", "").replace("_", "").lower()
+    if model_name == "cpsae":
+        return CpSae
+    elif model_name == "fasae":
+        return FaSae
+    else:
+        raise NotImplementedError(model_name)
 
 
 def get_reconstruction_stats(model, features):

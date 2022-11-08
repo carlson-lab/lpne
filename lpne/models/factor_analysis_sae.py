@@ -14,7 +14,8 @@ import torch.nn.functional as F
 
 from .base_model import BaseModel
 from .. import INVALID_LABEL
-from ..utils.utils import get_weights, squeeze_triangular_array
+from ..utils.array_utils import squeeze_triangular_array
+from ..utils.utils import get_weights
 
 
 FLOAT = torch.float32
@@ -80,7 +81,7 @@ class FaSae(BaseModel):
         Defaults to ``1``.
     """
 
-    MODEL_NAME = "FA SAE"
+    MODEL_NAME = "FaSae"
     FIT_ATTRIBUTES = ["classes_", "iter_", "n_freqs_", "n_rois_"]
 
     def __init__(

@@ -2,27 +2,23 @@
 Channel maps are used to determine which channels to average together.
 
 """
-__date__ = "July 2021 - October 2022"
+__date__ = "July 2021 - November 2022"
+__all__ = [
+    "average_channels",
+    "get_default_channel_map",
+    "get_excel_channel_map",
+    "remove_channels",
+    "remove_channels_from_lfps",
+    "get_removed_channels_from_file",
+]
 
 
 import numpy as np
-
-try:
-    import pandas as pd
-
-    PANDAS_INSTALLED = True
-except ModuleNotFoundError:
-    PANDAS_INSTALLED = False
 from scipy.io import loadmat
 import warnings
 
-
-IGNORED_KEYS = [
-    "__header__",
-    "__version__",
-    "__globals__",
-]
-"""Ignored keys in the LFP data file"""
+from .. import MATLAB_IGNORED_KEYS
+from ..utils.data import load_channel_map
 
 
 def average_channels(lfps, channel_map, check_channel_map=True):
@@ -35,17 +31,17 @@ def average_channels(lfps, channel_map, check_channel_map=True):
     Parameters
     ----------
     lfps : dict
-        Maps ROI names to LFP waveforms.
+        Maps ROI names to LFP waveforms
     channel_map : dict
-        Maps ROI names to grouped ROI names.
+        Maps ROI names to grouped ROI names
     check_channel_map : bool, optional
-        Checks whether all the channels in the channel map are present in the
-        LFPs.
+        Check whether all the channels in the channel map are present in the
+        LFPs
 
     Returns
     -------
     lfps : dict
-        Maps ROI names to LFP waveforms.
+        Maps ROI names to LFP waveforms
     """
     if check_channel_map:
         _check_channel_map(lfps, channel_map)
@@ -95,7 +91,7 @@ def get_default_channel_map(channels, combine_hemispheres=True):
     """
     channel_map = {}
     for channel in channels:
-        if channel in IGNORED_KEYS:
+        if channel in MATLAB_IGNORED_KEYS:
             continue
         if "_" not in channel:
             warnings.warn(
@@ -128,18 +124,12 @@ def get_default_channel_map(channels, combine_hemispheres=True):
 
 def get_excel_channel_map(channels, fn):
     """
-    Load a predifined channel map from an excel file.
-
-    Raises
-    ------
-    * ``UserWarning`` if a channel present in ``channels`` is not present in
-      the excel channel map. The channel is not included in the channel map
-      in this case.
+    Load a channel map from an excel file.
 
     Parameters
     ----------
     channels : list of str
-        Channel names, the keys of the channel map
+        Ignored
     fn : str
         Excel sheet filename
 
@@ -148,16 +138,9 @@ def get_excel_channel_map(channels, fn):
     channel_map : dict
         Maps individual channel names to grouped channel names
     """
-    assert PANDAS_INSTALLED, "Pandas needs to be installed!"
-    f = pd.read_excel(fn, index_col=False, header=None)
-    channel_map_full = f.set_index(0).to_dict()[1]
-    channel_map = {}
-    for channel in channels:
-        if channel not in list(channel_map_full.keys()):
-            warnings.warn(f"{channel} is not present in {fn}!")
-        else:
-            channel_map[channel] = channel_map_full[channel]
-    return channel_map
+    msg = "get_excel_channel_map is deprecated! Use lpne.load_channel_map instead."
+    warnings.warn(msg)
+    return load_channel_map(fn)
 
 
 def remove_channels(channel_map, to_remove):
@@ -171,14 +154,14 @@ def remove_channels(channel_map, to_remove):
     Parameters
     ----------
     channel_map : dict
-        ...
+        Maps channel names to ROI names
     to_remove : list
-        List of channels to remove.
+        List of channels to remove
 
     Returns
     -------
     channel_map : dict
-        The input channel map with deleted keys.
+        The input channel map with deleted keys
     """
     assert isinstance(channel_map, dict)
     assert isinstance(to_remove, list)
@@ -190,30 +173,30 @@ def remove_channels(channel_map, to_remove):
     return channel_map
 
 
-def remove_channels_from_lfps(lfps, fn):
+def remove_channels_from_lfps(lfps, chans_fn):
     """
     Remove channels specified in the CHANS file from the LFPs.
 
     Parameters
     ----------
     lfps : dict
-        Maps ROI names to LFP waveforms.
-    fn : str
-        CHANS file filename
+        Maps ROI names to LFP waveforms
+    chans_fn : str
+        CHANS filename
 
     Returns
     -------
     lfps : dict
         Maps ROI names to LFP waveforms
     """
-    to_remove = get_removed_channels_from_file(fn)
+    to_remove = get_removed_channels_from_file(chans_fn)
     for roi in to_remove:
         if roi in lfps:
             del lfps[roi]
     return lfps
 
 
-def get_removed_channels_from_file(fn):
+def get_removed_channels_from_file(chans_fn):
     """
     Load a list of removed channels from a file.
 
@@ -223,21 +206,21 @@ def get_removed_channels_from_file(fn):
 
     Parameters
     ----------
-    fn : str
-        Filename
+    chans_fn : str
+        CHANS filename
 
     Returns
     -------
     to_remove : list of str
         List of channels to remove.
     """
-    assert isinstance(fn, str)
-    if fn.endswith(".mat"):
+    assert isinstance(chans_fn, str)
+    if chans_fn.endswith(".mat"):
         # try:
-        data = loadmat(fn)
+        data = loadmat(chans_fn)
         # except: for old .mat files in hdf5 format...
-        assert "CHANNAMES" in data, f"{fn} must contain CHANNAMES!"
-        assert "CHANACTIVE" in data, f"{fn} must contain CHANACTIVE!"
+        assert "CHANNAMES" in data, f"{chans_fn} must contain CHANNAMES!"
+        assert "CHANACTIVE" in data, f"{chans_fn} must contain CHANACTIVE!"
         channel_active = data["CHANACTIVE"].flatten()
         channel_names = np.array(
             [str(i[0]) for i in data["CHANNAMES"].flatten()],
@@ -245,16 +228,17 @@ def get_removed_channels_from_file(fn):
         idx = np.argwhere(channel_active == 0).flatten()
         return channel_names[idx].tolist()
     else:
-        raise NotImplementedError(f"Cannot load file: {fn}")
+        raise NotImplementedError(f"Cannot load file: {chans_fn}")
 
 
-def _check_channel_map(lfps, channel_map):
+def _check_channel_map(lfps, channel_map, strict_checking=False):
     """
-    Check that every channel in `channel_map` is in `lfps`.
+    Check that every channel in ``channel_map`` is in ``lfps``.
 
-    Warnings
-    --------
-    * Whenever there is a channel in `channel_map` that isn't in `lfps`.
+    Raises
+    ------
+    * UserWarning whenever there is a channel in ``channel_map`` that isn't in ``lfps``.
+      This is upgraded to an AssertionError if ``strict_checking`` is ``True``.
 
     Parameters
     ----------
@@ -265,7 +249,30 @@ def _check_channel_map(lfps, channel_map):
     """
     for channel in channel_map:
         if channel not in lfps:
-            warnings.warn(f"Channel {channel} is not present in LFPS!")
+            warnings.warn(f"Channel {channel} is not in LFPs!")
+
+
+def _check_channel_map_2(lfps, channel_map, strict_checking=False):
+    """
+    Check that every channel in ``lfps`` is in ``channel_map``.
+
+    Raises
+    ------
+    * UserWarning whenever there is a channel in ``lfps`` that isn't in ``channel_map``.
+      This is upgraded to an AssertionError if ``strict_checking`` is ``True``.
+
+    Parameters
+    ----------
+    lfps : dict
+        Maps ROI names to LFP waveforms.
+    channel_map : dict
+        Maps ROI names to grouped ROI names.
+    """
+    for channel in lfps:
+        if strict_checking:
+            assert channel in channel_map, f"Channel {channel} is not in channel map!"
+        if channel not in channel_map:
+            warnings.warn(f"Channel {channel} is not in channel map!")
 
 
 if __name__ == "__main__":

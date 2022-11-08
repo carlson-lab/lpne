@@ -52,7 +52,15 @@ class BaseModel(torch.nn.Module):
         self.to(self.device)
         self.iter_ = 1
 
-    def fit(self, features, labels, groups=None, print_freq=5, score_freq=5):
+    def fit(
+        self,
+        features,
+        labels,
+        groups=None,
+        print_freq=5,
+        score_freq=20,
+        random_state=None,
+    ):
         """
         Train the model on the given dataset.
 
@@ -64,10 +72,12 @@ class BaseModel(torch.nn.Module):
             Shape: [b]
         groups : None or numpy.ndarray
             Shape: [b]
-        print_freq : int, optional
+        print_freq : int or None, optional
             Print loss every ``print_freq`` epochs.
-        score_freq : int, optional
+        score_freq : int or None, optional
             Print weighted accuracy every ``score_freq`` epochs.
+        random_state : int or None, optional
+            A random seed for training. If ``None``, then no seed is set.
 
         Returns
         -------
@@ -102,6 +112,9 @@ class BaseModel(torch.nn.Module):
         np_groups = np.copy(groups)
         self.groups_, groups = np.unique(groups, return_inverse=True)
         np_labels = np.copy(labels)
+        # Set the random seed if one is given.
+        if random_state is not None:
+            torch.manual_seed(random_state)
         # Initialize the parameters.
         self.features_shape_ = features.shape
         self._initialize()
