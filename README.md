@@ -45,4 +45,4 @@ Then see `docs/build/html/index.html` for the docs.
 50. save GridSearchCV with validation scores for each parameter setting
 51. Load CSV label files
 52. Also save confusion matrices for ``GridSearchCV``
-53. Split file-related utilities off from utils.utils
+54. Add pipeline subpackage

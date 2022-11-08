@@ -55,6 +55,9 @@ from .preprocess.normalize import normalize_features, normalize_lfps
 
 from .preprocess.outlier_detection import mark_outliers
 
+
+from .utils.array_utils import *
+
 from .utils.data import (
     load_channel_map,
     load_features,
@@ -65,22 +68,9 @@ from .utils.data import (
     save_labels,
 )
 
-from .utils.utils import (
-    get_all_fns,
-    infer_groups_from_fns,
-    write_fake_labels,
-    get_lfp_filenames,
-    get_feature_filenames,
-    get_label_filenames_from_feature_filenames,
-    get_lfp_chans_filenames,
-    get_feature_label_filenames,
-    get_weights,
-    unsqueeze_triangular_array,
-    squeeze_triangular_array,
-    get_outlier_summary,
-    flatten_dir_spec_features,
-    confusion_matrix,
-)
+from utils.file_utils import *
+
+from .utils.utils import *
 
 from .utils.viterbi import top_k_viterbi, get_label_stats
 

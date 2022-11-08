@@ -1,13 +1,10 @@
 """
 Trying to make a more automated experimental pipeline.
 
-TODO: put the functions here into the main package
 TODO: add the body of the __main__ block to the main package
-TODO: default experiment parameters should be shipped with the code
 TODO: explicitly check for duplicate mice on different days
 TODO: group the parameters differently or add kwargs to functions?
 TODO: remove channels that aren't in the channel map
-TODO: save NumPy and PyTorch versions?
 """
 __date__ = "October - November 2022"
 
