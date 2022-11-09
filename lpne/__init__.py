@@ -51,34 +51,17 @@ from .preprocess.channel_maps import (
     remove_channels_from_lfps,
     get_removed_channels_from_file,
 )
-
 from .preprocess.directed_spectrum import get_directed_spectrum
-
 from .preprocess.filter import filter_signal, filter_lfps
-
 from .preprocess.make_features import make_features
-
 from .preprocess.normalize import normalize_features, normalize_lfps
-
 from .preprocess.outlier_detection import mark_outliers
 
 from .utils.array_utils import *
-
-from .utils.data import (
-    load_channel_map,
-    load_features,
-    load_features_and_labels,
-    load_labels,
-    load_lfps,
-    save_features,
-    save_labels,
-)
-
+from .utils.data import *
 from .utils.file_utils import *
-
 from .utils.utils import *
-
-from .utils.viterbi import top_k_viterbi, get_label_stats
+from .utils.viterbi import *
 
 
 if __name__ == "__main__":

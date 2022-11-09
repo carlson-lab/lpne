@@ -48,3 +48,4 @@ Then see `docs/build/html/index.html` for the docs.
 55. Add `__all__` to files
 56. Add more `model.score` options
 59. Make pipeline app
+60. Fix the docs bugs

@@ -23,17 +23,14 @@ def normalize_features(power_features, partition=None, mode="median"):
         Shape: ``[n_windows, n_roi*(n_roi+1)//2, n_freq]``
     partition : None or dict, optional
         If ``None``, use all the indices to calculate window statistics.
-        Otherwise, use only the indices contained in ``partition['train']``.
-        ``'train'``: numpy.ndarray
-            Train indices.
-        ``'test'``: numpy.ndarray
-            Test indices.
+        Otherwise, use only the indices contained in ``partition['train']``. Maps
+        ``'train'`` to train indices and ``'test'`` to test indices, both
+        ``np.ndarray``s.
     mode : {'median', 'max', 'std'}, optional
-        Normalization method. Defaults to ``'median'``.
-        ``'std'``: normalize by the standard deviation of the training set.
-        ``'max'``: normalize by the maximum value of the training set, scaling
-                   to [0,1].
-        ``'median'``: normalize by the median of the training set.
+        Normalization method. Defaults to ``'median'``. ``'std'``: normalize by the
+        standard deviation of the training set. ``'max'``: normalize by the maximum
+        value of the training set, scaling to [0,1]. ``'median'``: normalize by the
+        median of the training set.
 
     Returns
     -------

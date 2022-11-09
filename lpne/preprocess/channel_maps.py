@@ -43,7 +43,7 @@ def average_channels(
     channel_map : dict
         Maps ROI names to grouped ROI names
     check_channel_map : None, optional
-        Ignored.
+        Ignored. Will be deprecated soon!
     assert_onto : bool, optional
         Assert that the map from channels to ROIs is onto, there is a channel in
         ``lfps`` that maps to every value in ``channel_map``.

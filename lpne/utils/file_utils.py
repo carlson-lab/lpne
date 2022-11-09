@@ -295,8 +295,8 @@ def get_lfp_filenames(lfp_dir):
     * AssertionError if the feature directory doesn't exist.
     * UserWarning if there are no feature files.
 
-    Paramters
-    ---------
+    Parameters
+    ----------
     lfp_dir : str
         LFP directory
 
