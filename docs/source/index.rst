@@ -31,6 +31,7 @@ Welcome to lpne's documentation!
      :caption: Docs:
 
      lpne.models
+     lpne.pipelines
      lpne.plotting
      lpne.preprocess
      lpne.utils

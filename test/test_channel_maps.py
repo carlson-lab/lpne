@@ -2,11 +2,10 @@
 Test lpne.channel_maps functions.
 
 """
-__date__ = "July 2021"
+__date__ = "July 2021 - November 2022"
 
 
 import numpy as np
-import pytest
 
 import lpne
 
@@ -36,20 +35,51 @@ def test_remove_channels():
     assert len(channel_map) == original_len - 1
 
 
-def test_get_removed_channels_from_file():
-    """To do"""
-    pass
+def test_average_channels():
+    """Make sure lpne.average_channels checks channels correctly."""
+    channel_map = dict(foo_1="foo", bar_1="bar")
+    d = np.ones(10)
+    # Make sure assert_onto works.
+    lfps = dict(foo_1=d)
+    try:
+        lpne.average_channels(
+            lfps,
+            channel_map,
+            assert_onto=True,
+            check_lfp_channels_in_map=False,
+        )
+        assert False
+    except AssertionError:
+        pass
+    # Make sure check_lfp_channels_in_map works.
+    lfps = dict(foo_1=d, baz_1=d)
+    try:
+        lpne.average_channels(
+            lfps,
+            channel_map,
+            check_lfp_channels_in_map=True,
+            strict_checking=True,
+        )
+        assert False
+    except AssertionError:
+        pass
+    # Make sure check_map_channels_in_lfps works.
+    lfps = dict(foo_1=d, bar_2=d)
+    try:
+        lpne.average_channels(
+            lfps,
+            channel_map,
+            check_lfp_channels_in_map=False,
+            check_map_channels_in_lfps=True,
+            strict_checking=True,
+        )
+        assert False
+    except AssertionError:
+        pass
 
 
 def _get_fake_rois():
     return FAKE_ROIS
-
-
-def _get_fake_lfps():
-    lfps = {}
-    for roi in _get_fake_rois():
-        lfps[roi] = np.random.randn(20)
-    return lfps
 
 
 def _get_fake_channel_map():

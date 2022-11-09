@@ -5,7 +5,7 @@ Code for preprocessing and building factor models with local field potentials.
 
 """
 __date__ = "July 2021 - November 2022"
-__version__ = "0.1.10"
+__version__ = "0.1.11"
 try:
     with open(".git/logs/HEAD", "r") as fh:
         __commit__ = fh.read().split("\n")[-2]
@@ -30,6 +30,8 @@ from .models import (
     get_reconstruction_stats,
     get_reconstruction_summary,
 )
+
+from .pipelines import DEFAULT_PIPELINE_PARAMS, standard_pipeline
 
 from .plotting import (
     plot_db,

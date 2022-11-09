@@ -6,7 +6,6 @@ __date__ = "July 2021 - November 2022"
 
 
 import numpy as np
-from scipy.io import loadmat
 from scipy.signal import csd
 
 from .directed_spectrum import get_directed_spectrum

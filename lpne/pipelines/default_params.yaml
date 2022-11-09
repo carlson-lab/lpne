@@ -16,6 +16,11 @@ pipeline:
   train_model: true
   evaluate_model: true
 preprocess:
+  channel_map_params:
+    assert_onto: true
+    check_lfp_channels_in_map: true
+    check_map_channels_in_lfps: false
+    strict_checking: true
   csd_params:
     detrend: constant
     window: hann
@@ -35,7 +40,7 @@ preprocess:
   window_duration: 1
   window_step: null
 training:
-  cv: 2 # TEMP
+  cv: 2 # 3
   grid_search_cv_seed: 42
   grid_search_training_seed: 42
   model_kwargs:
@@ -43,7 +48,7 @@ training:
     device: auto
     encoder_type: linear
     lr: 0.001
-    n_iter: 50 # TEMP
+    n_iter: 50 # 1000
     rec_loss_type: lad
     reg_strength: 1.0
     z_dim: 16

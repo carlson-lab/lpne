@@ -21,7 +21,15 @@ from .. import MATLAB_IGNORED_KEYS
 from ..utils.data import load_channel_map
 
 
-def average_channels(lfps, channel_map, check_channel_map=True):
+def average_channels(
+    lfps,
+    channel_map,
+    check_channel_map=None,
+    assert_onto=False,
+    check_lfp_channels_in_map=True,
+    check_map_channels_in_lfps=False,
+    strict_checking=False,
+):
     """
     Average different channels in the the same region.
 
@@ -34,17 +42,32 @@ def average_channels(lfps, channel_map, check_channel_map=True):
         Maps ROI names to LFP waveforms
     channel_map : dict
         Maps ROI names to grouped ROI names
-    check_channel_map : bool, optional
-        Check whether all the channels in the channel map are present in the
-        LFPs
+    check_channel_map : None, optional
+        Ignored.
+    assert_onto : bool, optional
+        Assert that the map from channels to ROIs is onto, there is a channel in
+        ``lfps`` that maps to every value in ``channel_map``.
+    check_lfp_channels_in_map : bool, optional
+        Check whether all the LFP channels are in the channel map
+    check_map_channels_in_lfps : bool, optional
+        Check whether all the map channels are in the LFPs
+    strict_checking : bool, optional
+        Whether to throw an error (if ``strict_checking`` is ``True``) or a warning
+        (otherwise) when checking the channels.
 
     Returns
     -------
     lfps : dict
         Maps ROI names to LFP waveforms
     """
-    if check_channel_map:
-        _check_channel_map(lfps, channel_map)
+    # Check the channels.
+    if check_channel_map is not None:
+        warnings.warn("check_channel_map is ignored and will be deprecated soon!")
+    if check_lfp_channels_in_map:
+        _check_lfp_channels_in_map(lfps, channel_map, strict_checking=strict_checking)
+    if check_map_channels_in_lfps:
+        _check_map_channels_in_lfps(lfps, channel_map, strict_checking=strict_checking)
+    # Form each region LFP by averaging channels.
     out_lfps = {}
     for grouped_roi in np.unique(list(channel_map.values())):
         avg = []
@@ -52,9 +75,11 @@ def average_channels(lfps, channel_map, check_channel_map=True):
             if roi in channel_map and channel_map[roi] == grouped_roi:
                 avg.append(lfps[roi].flatten())
         if len(avg) == 0:
-            warnings.warn(
-                f"No channels to make grouped channel {grouped_roi}!",
-            )
+            msg = f"No channels to make grouped channel {grouped_roi}!"
+            if assert_onto:
+                assert False, msg
+            else:
+                warnings.warn(msg)
         else:
             # Find NaNs and replace them with zeros to calculate an average.
             nan_masks = [np.isnan(trace) for trace in avg]
@@ -231,28 +256,7 @@ def get_removed_channels_from_file(chans_fn):
         raise NotImplementedError(f"Cannot load file: {chans_fn}")
 
 
-def _check_channel_map(lfps, channel_map, strict_checking=False):
-    """
-    Check that every channel in ``channel_map`` is in ``lfps``.
-
-    Raises
-    ------
-    * UserWarning whenever there is a channel in ``channel_map`` that isn't in ``lfps``.
-      This is upgraded to an AssertionError if ``strict_checking`` is ``True``.
-
-    Parameters
-    ----------
-    lfps : dict
-        Maps ROI names to LFP waveforms.
-    channel_map : dict
-        Maps ROI names to grouped ROI names.
-    """
-    for channel in channel_map:
-        if channel not in lfps:
-            warnings.warn(f"Channel {channel} is not in LFPs!")
-
-
-def _check_channel_map_2(lfps, channel_map, strict_checking=False):
+def _check_lfp_channels_in_map(lfps, channel_map, strict_checking=False):
     """
     Check that every channel in ``lfps`` is in ``channel_map``.
 
@@ -271,8 +275,31 @@ def _check_channel_map_2(lfps, channel_map, strict_checking=False):
     for channel in lfps:
         if strict_checking:
             assert channel in channel_map, f"Channel {channel} is not in channel map!"
-        if channel not in channel_map:
+        elif channel not in channel_map:
             warnings.warn(f"Channel {channel} is not in channel map!")
+
+
+def _check_map_channels_in_lfps(lfps, channel_map, strict_checking=False):
+    """
+    Check that every channel in ``channel_map`` is in ``lfps``.
+
+    Raises
+    ------
+    * UserWarning whenever there is a channel in ``channel_map`` that isn't in ``lfps``.
+      This is upgraded to an AssertionError if ``strict_checking`` is ``True``.
+
+    Parameters
+    ----------
+    lfps : dict
+        Maps ROI names to LFP waveforms.
+    channel_map : dict
+        Maps ROI names to grouped ROI names.
+    """
+    for channel in channel_map:
+        if strict_checking:
+            assert channel in lfps, f"Channel {channel} is not in LFPs!"
+        elif channel not in lfps:
+            warnings.warn(f"Channel {channel} is not in LFPs!")
 
 
 if __name__ == "__main__":

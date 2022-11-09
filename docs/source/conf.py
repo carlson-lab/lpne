@@ -19,7 +19,7 @@ import lpne
 # -- Project information -----------------------------------------------------
 
 project = 'lpne'
-copyright = '2021, Carlson Lab'
+copyright = '2022, Carlson Lab'
 author = 'Carlson Lab'
 
 # The full version, including alpha/beta/rc tags
