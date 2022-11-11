@@ -2,11 +2,10 @@
 Make a movie of LFP power features.
 
 """
-__date__ = "August 2021 - July 2022"
+__date__ = "August 2021 - November 2022"
 
 
 import os
-from feature_pipeline import WINDOW_DURATION
 
 import lpne
 
@@ -16,7 +15,13 @@ MODEL_FN = os.path.join("test_data", "model_state.npy")
 FEATURE = ["power", "dir_spec"][0]
 DURATION = 25.0
 WINDOW_DURATION = 5.0
+RECONSTRUCTION = False
+MODE = "circle"
 CP_SAE = False
+CIRCLE_PARAMS = dict(
+    freq_ticks=[0,20,40],
+    min_max_quantiles=[0.6,0.99],
+)
 
 
 if __name__ == "__main__":
@@ -30,8 +35,11 @@ if __name__ == "__main__":
     lfps = lpne.average_channels(lfps, channel_map)
 
     # Make the model.
-    model = lpne.CpSae() if CP_SAE else lpne.FaSae()
-    model.load_state(MODEL_FN)
+    if RECONSTRUCTION:
+        model = lpne.CpSae() if CP_SAE else lpne.FaSae()
+        model.load_state(MODEL_FN)
+    else:
+        model = None
 
     # Make the movie.
     lpne.make_power_movie(
@@ -41,8 +49,10 @@ if __name__ == "__main__":
         fps=10,
         speed_factor=3,
         feature=FEATURE,
+        mode=MODE,
         model=model,
-        fn="out.gif",
+        circle_params=CIRCLE_PARAMS,
+        fn="out.webm",
     )
 
 

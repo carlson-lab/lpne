@@ -267,8 +267,10 @@ class BaseModel(torch.nn.Module):
         """Load and set the parameters for this estimator."""
         d = np.load(fn, allow_pickle=True).item()
         if "model_name" in d:
+            model_name_1 = d["model_name"].lower().replace(" ", "").replace("_", "")
+            model_name_2 = self.MODEL_NAME.lower().replace(" ", "").replace("_", "")
             assert (
-                d["model_name"] == self.MODEL_NAME
+                model_name_1 == model_name_2
             ), f"Expected {self.MODEL_NAME}, found {d['model_name']}"
         else:
             warnings.warn("Didn't find field model_name when loading model.")
