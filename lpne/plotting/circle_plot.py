@@ -26,7 +26,6 @@ def circle_plot(
     buffer_percent=1.0,
     outer_radius=1.2,
     min_max_quantiles=(0.5, 0.9),
-    min_max_vals=None,
     color=None,
     fn="temp.pdf",
 ):
@@ -46,7 +45,6 @@ def circle_plot(
     buffer_percent : float, optional
     outer_radius : float, optional
     min_max_quantiles : None or tuple
-    min_max_vals : None or tuple
     color : None or str, optional
     fn : str, optional
         Image filename

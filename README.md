@@ -7,10 +7,6 @@
 <img align="middle" src="example_cpsd.gif" width="600" height="600" />
 </p>
 
-<p align="center">
-<img align="middle" src="example_circle_plot.webm.mov" width="600" height="600" />
-</p>
-
 See `script.py` for usage.
 
 #### Installation
