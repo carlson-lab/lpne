@@ -16,3 +16,4 @@ build
 !example_cpsd.gif
 *.npy
 *.png
+*.webm

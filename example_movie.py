@@ -52,7 +52,7 @@ if __name__ == "__main__":
         mode=MODE,
         model=model,
         circle_params=CIRCLE_PARAMS,
-        fn="out.gif",
+        fn="out.webm",
     )
 
 

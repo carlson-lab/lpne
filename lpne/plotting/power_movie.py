@@ -155,7 +155,6 @@ def make_power_movie(
             pretty_rois,
             freq,
             circle_params["freq_ticks"],
-            rois,
         )
 
         title = fig.suptitle("", fontsize=CIRCLE_FONTSIZE, y=0.93)
