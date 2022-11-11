@@ -131,7 +131,7 @@ def _update_circle_plot(
 
 
 def _set_up_circle_plot(
-    start_angles, stop_angles, r1, r2, pretty_rois, freqs, freq_ticks, rois
+    start_angles, stop_angles, r1, r2, pretty_rois, freqs, freq_ticks
 ):
     """ """
     fig = plt.figure(figsize=(8, 8))
@@ -141,7 +141,7 @@ def _set_up_circle_plot(
         _draw_power_axis(r1, r2, c1, c2, ax)
         if freqs is not None and freq_ticks is not None:
             _plot_ticks(r2, c1, c2, ax, freqs, freq_ticks)
-        if rois is not None:
+        if pretty_rois is not None:
             _plot_roi_name(r2, 0.5 * (c1 + c2), ax, pretty_rois[i])
 
     ax.set_ylim(-1.5, 1.5)
