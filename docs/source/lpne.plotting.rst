@@ -61,3 +61,12 @@ lpne.plotting.power_movie module
     :members:
     :undoc-members:
     :show-inheritance:
+
+
+lpne.plotting.simplex_plot module
+---------------------------------
+
+.. automodule:: lpne.plotting.simplex_plot
+    :members:
+    :undoc-members:
+    :show-inheritance:
