@@ -26,7 +26,7 @@ def plot_factor(factor, rois, color=None, alpha=1.0, spines=[], fn="temp.pdf"):
         Transparency
     spines : list of str, optional
         Which spines to plot. Should be a subset of
-        ``['left', 'right', 'top', bottom]``.
+        ``['left', 'right', 'top', 'bottom']``.
     fn : str, optional
         Image filename
     """
