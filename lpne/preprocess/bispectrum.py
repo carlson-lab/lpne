@@ -10,7 +10,7 @@ __all__ = ["bispectrum"]
 import numpy as np
 from scipy import fft as sp_fft
 from scipy.signal import detrend as sp_detrend
-from scipy.signal import get_window
+from scipy.signal import get_window, welch, spectrogram
 
 
 def bispectrum(
@@ -290,7 +290,6 @@ def _spectral_helper(
             # res[...,i,j] = temp
     result = res
 
-    print("result", result.shape)
     # quit()
     # # HERE!
     # result[...,-1] *= scale
@@ -391,34 +390,134 @@ def _fft_helper(x, win, detrend_func, nperseg, noverlap, nfft):
     return result
 
 
-if __name__ == "__main__":
-    x = np.random.randn(2, 1001)
+def power_decomposition(x, **kwargs):
+    """
+    Decompose the power spectrum into pure and bispectral components.
 
-    N = 10001
-    t = np.linspace(0, 100, N)
-    fs = 1 / (t[1] - t[0])
-    s1 = np.cos(2 * np.pi * 5 * t + 0.2)
-    s2 = 3 * np.cos(2 * np.pi * 7 * t + 0.5)
-    np.random.seed(0)
-    noise = 5 * np.random.normal(0, 1, N)
-    x = s1 + s2 + 0.5 * s1 * s2 + noise
-    x = x.reshape(1, -1)
+    Parameters
+    ----------
+    x : numpy.ndarray
+        Signal
+    kwargs : passed to ``scipy.signal.welch`` and ``bispectrum``.
 
-    freq, bispec = bispectrum(x, fs=1000, nperseg=64)
-    print("freq", freq.shape)
+    Returns
+    -------
+    
+    """
+    f, power = welch(x, **kwargs)
+    print("power", power.shape)
+    f2, bispec = bispectrum(x, **kwargs)
+    bispec = np.abs(bispec)**2
+    print("bispec", bispec.shape)
+    assert np.allclose(f, f2)
+
+    nfreq = len(f)
+    nfreq2 = (nfreq + 1) // 2
+
+    power_decomp = np.zeros(bispec.shape[:-2] + (nfreq,nfreq))
+    power_decomp[...,0,0] = power[...,0]
+    for k in range(1, nfreq2): # indexes pure power
+        partial_sum = 0.0
+        for i in range(k):
+            j = k - i
+            num = bispec[...,j,i]
+            denom = power_decomp[...,i,i] * power_decomp[...,j,j]
+            temp = num / (denom + 1e-8)
+            partial_sum += temp
+            power_decomp[...,i,j] = temp
+        power_decomp[...,k,k] = power[...,k] - partial_sum
+
+    return f, power_decomp
+
+
+def cheap_power(x):
+    f, _, spec = spectrogram(x)
+    # idx = np.arange((len(f) + 1) // 2) # [f']
+    # spec = spec[...,idx,:] # [b,f',t]
+    return (np.abs(spec)**2).mean(axis=-1) # [b,f']
+
+
+def cheap_bispec(x):
+    f, _, spec = spectrogram(x)
+    spec = np.swapaxes(spec, -1, -2) # [b,f,t] -> [b,t,f]
+    idx = np.arange((len(f) + 1) // 2) # [f']
+    idx2 = idx[..., :, None] + idx[..., None, :] # [f',f']
+    temp = spec[..., :, idx, None] * spec[..., :, None, idx] # [b,t,f',f']
+    temp *= np.conjugate(spec[..., :, idx2]) # [b,t,f',f']
+    bispec = np.mean(temp, axis=-3) # [b,f',f']
+    return bispec
+
+
+def cheap_decomp(x):
+    power = cheap_power(x) # [b,f]
+    print("power", power.shape)
+    bispec = cheap_bispec(x) # [b,f',f']
+    bispec = np.abs(bispec)**2
     print("bispec", bispec.shape)
 
-    print(bispec.dtype)
-    bispec = np.abs(bispec).real
+    nfreq = bispec.shape[-1]
 
+    power_decomp = np.zeros(bispec.shape) # [b,f',f']
+    power_decomp[...,0,0] = power[...,0]
+    for k in range(1, nfreq): # indexes pure power
+        partial_sum = 0.0
+        for i in range(k):
+            j = k - i
+            num = bispec[...,j,i]
+            denom = power_decomp[...,i,i] * power_decomp[...,j,j]
+            temp = num / (denom + 1e-8)
+            partial_sum += temp
+            if i == j:
+                power_decomp[...,i,j] = temp
+            else:
+                power_decomp[...,i,j] = temp / 2
+                power_decomp[...,j,i] = temp / 2
+        power_decomp[...,k,k] = power[...,k] - partial_sum
+    return power_decomp
+
+
+def cheap_bicoherence(x):
+    power = cheap_power(x) # [b,f]
+    print("power", power.shape)
+    bispec = cheap_bispec(x) # [b,f,f]
+    bispec = np.abs(bispec)**2
+    print("bispec", bispec.shape)
+
+
+if __name__ == "__main__":
     import matplotlib.pyplot as plt
+    np.random.seed(42)
+    x = np.random.randn(2, 100)
+    # N = 10001
+    # t = np.linspace(0, 100, N)
+    # fs = 1 / (t[1] - t[0])
+    # s1 = np.cos(2 * np.pi * 5 * t + 0.2)
+    # s2 = 3 * np.cos(2 * np.pi * 7 * t + 0.5)
+    # np.random.seed(0)
+    # noise = 5 * np.random.normal(0, 1, N)
+    # x = s1 + s2 + 0.5 * s1 * s2 + noise
+    # x = x.reshape(1, -1)
 
-    plt.imshow(
-        bispec[0],
-        extent=[freq[0], freq[-1], freq[0], freq[-1] // 2],
-        origin="lower",
-        aspect="equal",
-    )
+
+    # power = cheap_power(x)
+    # print("power", power.shape)
+
+    # plt.plot(power[0])
+    # plt.show()
+    # plt.close('all')
+
+    decomp = cheap_decomp(x)
+    print("decomp", decomp.shape)
+    plt.imshow(decomp[0], origin='lower')
+    plt.colorbar()
+    plt.show()
+    plt.close('all')
+    quit()
+
+
+    bispec = np.abs(cheap_bispec(x))
+    print(bispec.shape)
+    plt.imshow(bispec[0], origin='lower')
     plt.colorbar()
     plt.show()
 
