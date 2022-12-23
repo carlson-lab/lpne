@@ -3,31 +3,45 @@ Estimate the bispectrum
 
 """
 __date__ = "December 2022"
-__all__ = ["bispectrum"]
+__all__ = ["bispectral_power_decomposition"]
 
 import numpy as np
 import scipy.fft as sp_fft
-from scipy.signal import spectrogram
-
 
 
 
 def fft_power(x):
+    # Remove the DC offset.
+    x -= np.mean(x, axis=1, keepdims=True)
     f = sp_fft.rfftfreq(len(x))
     return np.abs(sp_fft.rfft(x))**2, f
 
 
-def cheap_power(x):
+def fft_bispec(x, max_f):
     """
     
+    Parameters
+    ----------
+    x : numpy.ndarray
+        Shape: [n,t]
+    max_f : int
+        HERE
+
+    Returns
+    -------
+    bispec : numpy.ndarray
+        Shape: [f,f]
     """
-    f, _, spec = spectrogram(x)
-    return (np.abs(spec)**2).mean(axis=-1), f # [b,f], [f]
-
-
-def fft_bispec(x):
+    # Remove the DC offset.
+    x -= np.mean(x, axis=1, keepdims=True)
     f = sp_fft.rfftfreq(x.shape[1])
     fft = sp_fft.rfft(x)
+
+    max_f = min(max_f, len(f))
+    f, fft = f[:max_f], fft[:max_f]
+
+    # NOTE: HERE!
+
     print("f", f.shape, "fft", fft.shape)
     idx = np.arange(len(f)//2 + 1)
     idx2 = idx[:, None] + idx[None, :]
@@ -36,97 +50,43 @@ def fft_bispec(x):
     return bispec
 
 
-def cheap_bispec(x):
+def bispectral_power_decomposition(x, f=50):
     """
     
+    Parameters
+    ----------
+    x : numpy.ndarray
+        Shape: [?]
+
+    Returns
+    -------
+    ?
     """
-    f, _, spec = spectrogram(x)
-    # df = f[1] - f[0]
-    spec = np.swapaxes(spec, -1, -2) # [b,f,t] -> [b,t,f]
-    idx = np.arange((len(f) + 1) // 2) # [f']
-    idx2 = idx[..., :, None] + idx[..., None, :] # [f',f']
-    temp = spec[..., :, idx, None] * spec[..., :, None, idx] # [b,t,f',f']
-    temp *= np.conjugate(spec[..., :, idx2]) # [b,t,f',f']
-    bispec = np.mean(temp, axis=-3) # [b,f',f']
-    return bispec
 
+    power = sp_fft.rfft(x)
+    power = np.mean(power * np.conj(power), axis=0).real
+    f = min(f, len(power))
+    power = power[:f]
 
-def cheap_decomp(x):
-    """
-    
-    
-    """
-    power, f = cheap_power(x) # [b,f]
-    assert power.shape[1] >= 2
-    df = f[1] - f[0]
-    print("df", df)
-    print("power", power.shape)
-    bispec = cheap_bispec(x) # [b,f',f']
-    bispec = np.abs(bispec)**2
-    print("bispec", bispec.shape, bispec.dtype)
-
-    bc2 = np.zeros_like(bispec)
-    sum_bc2 = np.zeros_like(power)
-
-    pure_power = np.zeros_like(power)
-    for i in [0,1]:
-        pure_power[...,i] = power[...,i]
-
-    for k in range(len(f)):
-        for j in range(k // 2 + 1):
-            i = k - j
-            idx1 = np.argwhere(bispec[:,i,j] > 0).flatten()
-            idx2 = np.argwhere(pure_power[:,i]!= 0).flatten()
-            idx3 = np.argwhere(pure_power[:,j] != 0).flatten()
-            idx = np.intersect1d(np.intersect1d(idx1, idx2), idx3)
-            denom = pure_power[idx,i] * pure_power[idx,j] * power[idx,k] * df
-            bc2[idx,i,j] = bispec[idx,i,j] / denom
-            sum_bc2[idx,k] += bc2[idx,i,j]
-        print("sum", sum_bc2[...,k])
-        print("power", power[...,k])
-        idx = np.argwhere(sum_bc2[...,k] > 1.0).flatten()
-        if len(idx) > 0:
-            for j in range(k // 2 + 1):
-                i = k - j
-                bc2[idx,i,j] /= sum_bc2[idx,k]
-            sum_bc2[idx,k] = 1.0
-            print("\tsum: ", sum_bc2[...,k])
-        if k > 1:
-            pure_power[...,k] = power[...,k] * (1.0 - sum_bc2[...,k])
-        assert np.min(pure_power[...,k]) >= 0.0, f"{pure_power[...,k]}, {k}"
-
-    print("sdfasdf")
-    quit()
-
-
-def fft_decomp(x):
-    """
-    
-    
-    """
-    bispec = fft_bispec(x)
-    bispec = np.abs(bispec)**2
+    bispec = fft_bispec(x, f) # [f,f]
+    bispec = np.abs(bispec)**2 # [f,f]
     print("bispec", bispec.shape)
-
-    # import matplotlib.pyplot as plt
-    # plt.imshow(bispec, origin='lower')
-    # plt.colorbar()
-    # plt.savefig('temp.pdf')
 
     fft = sp_fft.rfft(x)
     power = np.mean(fft * np.conj(fft), axis=0).real
-    # power = np.abs(fft)**2
     print("power", power.shape)
+
+    bc2 = np.zeros_like(bispec) # [f,f]
 
     # Zero-pad the bispectrum.
     new_bispec = np.zeros((len(power), len(power)))
     new_bispec[:len(bispec),:len(bispec)] = bispec
     bispec = new_bispec
 
-    bc2 = np.zeros_like(bispec)
     sum_bc2 = np.zeros_like(power)
 
     pure_power = np.zeros_like(power)
+    print("pure_power", pure_power.shape)
     pure_power[:2] = power[:2]
 
     for k in range(len(power)):
@@ -142,7 +102,12 @@ def fft_decomp(x):
         if sum_bc2[k] >= 1.0:
             for j in range(k // 2 + 1):
                 i = k - j
-                bc2[i,j] /= sum_bc2[k]
+                try:
+                    bc2[i,j] /= sum_bc2[k]
+                except:
+                    print("caught")
+                    print(i,j,k,sum_bc2.shape, bc2.shape,power.shape)
+                    quit()
             sum_bc2[k] = 1.0
 
             print("\tsum: ", sum_bc2[k])
@@ -151,15 +116,21 @@ def fft_decomp(x):
         pure_power[k] = power[k] * (1.0 - sum_bc2[k])
         assert pure_power[k] >= 0.0, f"{pure_power[k]}, {k}"
 
-    print(np.sum(bc2, axis=0)[:5])
-    print(np.sum(bc2, axis=1)[:5])
+    # Convert the partial bicoherence into the power decomposition.
+    power_decomp = np.zeros_like(bc2)
+    for i in range(len(bc2)):
+        for j in range(len(bc2)):
+            k = i + j
+            power_decomp[i,j] = bc2[i,j] * power[k]
+    # Place the pure power along the zero-frequency axis.
+    power_decomp[:,0] = pure_power[:len(bc2)]
 
     import matplotlib.pyplot as plt
-    plt.imshow(bc2, origin='lower')
+    plt.imshow(power_decomp, origin='lower')
     plt.colorbar()
     plt.savefig('temp.pdf')
 
-    print("sdfasdf")
+    print("done")
     quit()
 
 
@@ -167,18 +138,19 @@ def fft_decomp(x):
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     np.random.seed(42)
-    x = np.random.randn(100, 100)
 
-    decomp = fft_decomp(x)
-    quit()
+    N = 200
+    t = np.linspace(0, 100, N)
+    xs = []
+    for i in range(1000):
+        s1 = np.cos(2 * np.pi * 5 * t + 0.2)
+        s2 = 3 * np.cos(2 * np.pi * 7 * t + 0.5)
+        noise = 5 * np.random.normal(0, 1, N)
+        signal = s1 + s2 + 0.5 * s1 * s2 + noise
+        xs.append(signal)
+    x = np.array(xs)
 
-    decomp = cheap_decomp(x)
-    
-    print("decomp", decomp.shape)
-    plt.imshow(decomp[0], origin='lower')
-    plt.colorbar()
-    plt.show()
-    plt.close('all')
+    decomp = bispectral_power_decomposition(x)
 
 
 ###
