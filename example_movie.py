@@ -2,7 +2,7 @@
 Make a movie of LFP power features.
 
 """
-__date__ = "August 2021 - November 2022"
+__date__ = "August 2021 - January 2023"
 
 
 import os
@@ -12,7 +12,7 @@ import lpne
 
 FN = os.path.join("test_data", "data", "example_LFP.mat")
 MODEL_FN = os.path.join("test_data", "model_state.npy")
-FEATURE = ["power", "dir_spec"][1]
+FEATURE = ["power", "dir_spec", "psi"][2]
 MODE = ["grid", "circle"][0]
 DURATION = 25.0
 WINDOW_DURATION = 5.0
