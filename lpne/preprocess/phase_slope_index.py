@@ -25,8 +25,6 @@ def get_psi(
     """
     Calculate the Phase-Slope Index (PSI).
 
-    This isn't summed over frequencies as in the original, found here:
-
     > Nolte, G., Ziehe, A., Nikulin, V. V., Schlögl, A., Krämer, N., Brismar, T., &
     > Müller, K. R. (2008). Robustly estimating the flow direction of information in
     > complex physical systems. Physical review letters, 100(23), 234101.
@@ -120,7 +118,7 @@ def get_psi(
 
     # Calculate the phase-slope index.
     amp = np.sqrt(np.diagonal(cpsd, 0, 1, 2).real + EPSILON)  # [w,f,r]
-    amp = np.moveaxis(amp, 1, -1) # [w,r,f]
+    amp = np.moveaxis(amp, 1, -1)  # [w,r,f]
     coh = cpsd / (amp[:, np.newaxis] * amp[:, :, np.newaxis])  # [w,r,r,f]
     psi = np.imag(np.conj(coh[..., :-1]) * coh[..., 1:])  # [w,r,r,f]
     psi[nan_mask] = np.nan  # reintroduce NaNs
