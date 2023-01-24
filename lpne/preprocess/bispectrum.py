@@ -52,44 +52,64 @@ def fft_bispec(x, max_f):
 
 def bispectral_power_decomposition(x, f=50):
     """
+    Decompose the the signal into pure power and bispectral power.
     
     Parameters
     ----------
     x : numpy.ndarray
-        Shape: [?]
+        Shape: [n,t]
+    f : int, optional
+        Maximum number of frequency bins
 
     Returns
     -------
-    ?
+    power_decomp : numpy.ndarray
+        The sum along the antidiagonals gives the total power spectrum.
+        Shape: [f,f]
     """
+    assert x.ndim == 2, f"len({x.shape}) != 2"
+    print("x", x.shape)
 
-    power = sp_fft.rfft(x)
-    power = np.mean(power * np.conj(power), axis=0).real
-    f = min(f, len(power))
-    power = power[:f]
+    # Remove the DC offset.
+    x -= np.mean(x, axis=1, keepdims=True)
 
-    bispec = fft_bispec(x, f) # [f,f]
+    # Do an FFT.
+    freq = sp_fft.rfftfreq(x.shape[1]) # [f]
+    fft = sp_fft.rfft(x) # [n,f]
+    print("fft", fft.shape)
+    power = np.mean(fft * np.conj(fft), axis=0).real # [f]
+    print("power", power.shape)
+    # f = min(f, fft.shape[1])
+    f = fft.shape[1]
+    power, freq = power[:f], freq[:f]
+
+    print("f", f)
+
+    # Calculate the bispectrum.
+    idx = np.arange(len(freq)//2 + 1)
+    print("idx", idx.shape)
+    idx2 = idx[:, None] + idx[None, :]
+    bispec = fft[:,idx, None] * fft[:,None, idx] * np.conj(fft[:,idx2])
+    bispec = np.mean(bispec, axis=0) # [f,f]
     bispec = np.abs(bispec)**2 # [f,f]
+
     print("bispec", bispec.shape)
 
-    fft = sp_fft.rfft(x)
-    power = np.mean(fft * np.conj(fft), axis=0).real
-    print("power", power.shape)
 
-    bc2 = np.zeros_like(bispec) # [f,f]
+    bc2 = np.zeros_like(bispec) # squared partial bicoherence [f,f]
 
     # Zero-pad the bispectrum.
-    new_bispec = np.zeros((len(power), len(power)))
-    new_bispec[:len(bispec),:len(bispec)] = bispec
-    bispec = new_bispec
+    diff = len(power) - len(bispec)
+    bispec = np.pad(bispec, ((0,diff),(0,diff)))
+    print("bispec", bispec.shape)
 
-    sum_bc2 = np.zeros_like(power)
 
-    pure_power = np.zeros_like(power)
+    sum_bc2 = np.zeros_like(power) # [f]
+    pure_power = np.zeros_like(power) # [f]
     print("pure_power", pure_power.shape)
     pure_power[:2] = power[:2]
 
-    for k in range(len(power)):
+    for k in range(f):
         for j in range(k // 2 + 1):
             i = k - j
             if (bispec[i,j] > 0 and pure_power[i]*pure_power[j] != 0):
@@ -97,17 +117,11 @@ def bispectral_power_decomposition(x, f=50):
                 bc2[i,j] = bispec[i,j] / (denom + 1e-8)
                 sum_bc2[k] += bc2[i,j]
         # print("sum", sum_bc2[k])
-        # print("power", power[k])
         
         if sum_bc2[k] >= 1.0:
             for j in range(k // 2 + 1):
                 i = k - j
-                try:
-                    bc2[i,j] /= sum_bc2[k]
-                except:
-                    print("caught")
-                    print(i,j,k,sum_bc2.shape, bc2.shape,power.shape)
-                    quit()
+                bc2[i,j] /= sum_bc2[k]
             sum_bc2[k] = 1.0
 
             print("\tsum: ", sum_bc2[k])
@@ -136,7 +150,6 @@ def bispectral_power_decomposition(x, f=50):
 
 
 if __name__ == "__main__":
-    import matplotlib.pyplot as plt
     np.random.seed(42)
 
     N = 200
