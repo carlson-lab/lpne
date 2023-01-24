@@ -1,31 +1,18 @@
 """
-Make features
+Calculate the phase-slope index
 
 """
-__date__ = "July 2021 - November 2022"
+__date__ = "January 2023"
+__all__ = ["get_psi"]
 
 
 import numpy as np
 from scipy.signal import csd
 
-from .directed_spectrum import get_directed_spectrum
-from .. import __commit__ as LPNE_COMMIT
-from .. import __version__ as LPNE_VERSION
-from ..utils.array_utils import squeeze_triangular_array
+from .make_features import EPSILON, DEFAULT_CSD_PARAMS
 
 
-EPSILON = 1e-6
-DEFAULT_CSD_PARAMS = {
-    "detrend": "constant",
-    "window": "hann",
-    "nperseg": 512,
-    "noverlap": 256,
-    "nfft": None,
-}
-"""Default parameters sent to ``scipy.signal.csd``"""
-
-
-def make_features(
+def get_psi(
     lfps,
     fs=1000,
     min_freq=0.0,
@@ -33,21 +20,16 @@ def make_features(
     window_duration=5.0,
     window_step=None,
     max_n_windows=None,
-    directed_spectrum=False,
     csd_params={},
 ):
     """
-    Main function: make features from an LFP waveform.
+    Calculate the Phase-Slope Index (PSI).
 
-    For ``0 <= j <= i < n``, the cross power spectral density feature for ROI
-    ``i`` and ROI ``j`` is stored at index ``i * (i + 1) // 2 + j``, assuming
-    both ``i`` and ``j`` are zero-indexed. When ``i == j``, this is simply the
-    power spectral density of the ROI. The ROI order is sorted by the channel
-    names.
+    This isn't summed over frequencies as in the original, found here:
 
-    See ``lpne.unsqueeze_triangular_array`` and
-    ``lpne.squeeze_triangular_array`` to convert the power between dense and
-    symmetric forms.
+    > Nolte, G., Ziehe, A., Nikulin, V. V., Schlögl, A., Krämer, N., Brismar, T., &
+    > Müller, K. R. (2008). Robustly estimating the flow direction of information in
+    > complex physical systems. Physical review letters, 100(23), 234101.
 
     Parameters
     ----------
@@ -66,30 +48,20 @@ def make_features(
         set to ``window_duration``.
     max_n_windows : None or int, optional
         Maximum number of windows
-    directed_spectrum : bool, optional
-        Whether to make directed spectrum features
     csd_params : dict, optional
         Parameters sent to ``scipy.signal.csd``
 
     Returns
     -------
     res : dict
-        'power' : numpy.ndarray
-            Cross power spectral density features
-            Shape: ``[n_window, n_roi*(n_roi+1)//2, n_freq]``
-        'dir_spec' : numpy.ndarray
-            Directed spectrum features. Only included if ``directed_spectrum``
-            is ``True``.
+        'psi' : numpy.ndarray
+            Phase slope index features
             Shape: ``[n_window, n_roi, n_roi, n_freq]``
         'freq' : numpy.ndarray
             Frequency bins
             Shape: ``[n_freq]``
         'rois' : list of str
             Sorted list of grouped channel names
-        '__commit__' : str
-            Git commit of LPNE package
-        '__version__' : str
-            Version number of LPNE package
     """
     assert (
         window_step is None or window_step > 0.0
@@ -142,32 +114,22 @@ def make_features(
         **csd_params,
     )
     i1, i2 = np.searchsorted(f, [min_freq, max_freq])
+    assert i2 < len(f), f"Need {i1 - len(f) + 1} more frequency bin(s)!"
     f = f[i1:i2]
-    cpsd = np.abs(cpsd[..., i1:i2])
-    cpsd = squeeze_triangular_array(cpsd, dims=(1, 2))  # [w,r*(r+1)//2,f]
-    cpsd[:, :] *= f  # scale the power features by frequency
-    cpsd[nan_mask] = np.nan  # reintroduce NaNs
+    cpsd = cpsd[..., i1 : i2 + 1]  # [w,r,r,f]
 
-    # Assemble features.
+    # Calculate the phase-slope index.
+    amp = np.sqrt(np.diagonal(cpsd, 0, 1, 2).real + EPSILON)  # [w,f,r]
+    amp = np.moveaxis(amp, 1, -1) # [w,r,f]
+    coh = cpsd / (amp[:, np.newaxis] * amp[:, :, np.newaxis])  # [w,r,r,f]
+    psi = np.imag(np.conj(coh[..., :-1]) * coh[..., 1:])  # [w,r,r,f]
+    psi[nan_mask] = np.nan  # reintroduce NaNs
+
     res = {
-        "power": cpsd,
+        "psi": psi,
         "freq": f,
         "rois": rois,
-        "__commit__": LPNE_COMMIT,
-        "__version__": LPNE_VERSION,
     }
-
-    # Make directed spectrum features.
-    if directed_spectrum:
-        # f_temp: [f], dir_spec: [w,f,r,r]
-        f_temp, dir_spec = get_directed_spectrum(X, fs, csd_params=csd_params)
-        i1, i2 = np.searchsorted(f, [min_freq, max_freq])
-        f_temp = f_temp[i1:i2]
-        assert np.allclose(f, f_temp), f"Frequencies don't match:\n{f}\n{f_temp}"
-        dir_spec = np.moveaxis(dir_spec[:, i1:i2], 1, -1)  # [w,r,r,f]
-        dir_spec[nan_mask] = np.nan  # reintroduce NaNs
-        res["dir_spec"] = dir_spec
-
     return res
 
 

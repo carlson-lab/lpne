@@ -4,8 +4,8 @@ LPNE feature pipeline
 Code for preprocessing and building factor models with local field potentials.
 
 """
-__date__ = "July 2021 - December 2022"
-__version__ = "0.1.13"
+__date__ = "July 2021 - January 2023"
+__version__ = "0.1.14"
 try:
     with open(".git/logs/HEAD", "r") as fh:
         __commit__ = fh.read().split("\n")[-2]
@@ -58,6 +58,7 @@ from .preprocess.filter import filter_signal, filter_lfps
 from .preprocess.make_features import make_features
 from .preprocess.normalize import normalize_features, normalize_lfps
 from .preprocess.outlier_detection import mark_outliers
+from .preprocess.phase_slope_index import get_psi
 
 from .utils.array_utils import *
 from .utils.data import *
