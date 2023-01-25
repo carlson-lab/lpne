@@ -417,6 +417,9 @@ class DcsfaNmf(NmfBase):
             X = torch.Tensor(X).float().to(self.device)
         else:
             X = X.to(self.device)
+            
+        if intercept_mask is not None:
+            intercept_mask = torch.Tensor(intercept_mask).to(self.device)
 
         s = self.get_embedding(X)
         X_recon = self.get_all_comp_recon(s)
@@ -649,7 +652,7 @@ class DcsfaNmf(NmfBase):
         y = torch.Tensor(y).float().to("cpu")
         y_pred_weights = torch.Tensor(y_pred_weights).float().to("cpu")
         task_mask = torch.Tensor(task_mask).long().to("cpu")
-        intercept_mask = torch.Tensor(intercept_mask).long().to("cpu")
+        intercept_mask = torch.Tensor(intercept_mask).to("cpu")
         samples_weights = torch.Tensor(samples_weights).to("cpu")
 
         # If validation data is provided, set up the tensors.
@@ -717,8 +720,8 @@ class DcsfaNmf(NmfBase):
                 self.eval()
                 X_recon, y_pred, _ = self.transform(
                     X,
-                    y,
                     intercept_mask,
+                    avg_intercept = False,
                     return_npy=True,
                 )
                 training_mse_loss = np.mean((X.detach().numpy() - X_recon) ** 2)
@@ -737,7 +740,6 @@ class DcsfaNmf(NmfBase):
                 if X_val is not None and y_val is not None:
                     X_recon_val, y_pred_val, _ = self.transform(
                         X_val,
-                        y_val,
                         return_npy=True,
                     )
                     validation_mse_loss = np.mean(
