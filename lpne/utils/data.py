@@ -59,13 +59,7 @@ def load_channel_map(fn):
         assert PANDAS_INSTALLED, f"Pandas needs to be installed to read: {fn}"
         f = pd.read_excel(fn, index_col=False, header=None)
         channel_map_full = f.set_index(0).to_dict()[1]
-        channel_map = {}
-        for channel in channels:
-            if channel not in list(channel_map_full.keys()):
-                warnings.warn(f"{channel} is not present in {fn}!")
-            else:
-                channel_map[channel] = channel_map_full[channel]
-        return channel_map
+        return channel_map_full
     else:
         raise NotImplementedError(f"Cannot load the channel map file: {fn}")
 
