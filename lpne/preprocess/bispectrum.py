@@ -19,6 +19,7 @@ def fft_power(x):
 
 def fft_bispec(x, max_f):
     """
+    Estimate the bispectrum.
     
     Parameters
     ----------
