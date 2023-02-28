@@ -9,6 +9,15 @@ lpne.preprocess package
 Submodules
 ----------
 
+lpne.preprocess.bispectrum module
+---------------------------------
+
+.. automodule:: lpne.preprocess.bispectrum
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
 lpne.preprocess.channel_maps module
 -----------------------------------
 
