@@ -207,25 +207,26 @@ def squeeze_bispec_array(arr):
     ----------
     arr : numpy.ndarray
         The sparse bispectrum array.
-        Shape: [f,f']
+        Shape: [*,f,f']
 
     Returns
     -------
     out : numpy.ndarray
         The dense bispectrum array.
-        Shape: [g,g']
+        Shape: [*,g,g']
     """
-    assert arr.ndim == 2
+    assert arr.ndim >= 2
+    n0 = arr.shape[:-2]
     n1, n2 = arr.shape[-2:]
     top = [2, 1][n1 % 2]
-    out = np.zeros((n1 + top, (n2 + 1) // 2), dtype=arr.dtype)
-    for i in range(out.shape[1]):
-        out[: n1 - 2 * i, i] = arr[i : i + n1 - 2 * i, i]
+    out = np.zeros(n0 + (n1 + top, (n2 + 1) // 2), dtype=arr.dtype)
+    for i in range(out.shape[-1]):
+        out[..., : n1 - 2 * i, i] = arr[..., i : i + n1 - 2 * i, i]
         j = n2 - 1 - i
         if i == j:
-            out[n1 - 2 * i :, i] = np.inf
+            out[..., n1 - 2 * i :, i] = np.inf
         else:
-            out[n1 - 2 * i :, i] = arr[j : j + n1 - 2 * j, j]
+            out[..., n1 - 2 * i :, i] = arr[..., j : j + n1 - 2 * j, j]
     return out
 
 
@@ -245,7 +246,8 @@ def unsqueeze_bispec_array(arr):
         The sparse bispectrum array.
         Shape: [g,g']
     """
-    assert arr.ndim == 2
+    assert arr.ndim >= 2
+    n0 = arr.shape[:-2]
     a1 = arr.shape[-2]
     assert a1 % 2 == 0, f"a1 should be even! Got: {a1}"
     flag = np.isinf(arr).sum() > 0
@@ -255,12 +257,12 @@ def unsqueeze_bispec_array(arr):
     else:
         n1 = a1 - 2
     n2 = (n1 + 1) // 2
-    out = np.zeros((n1, n2), dtype=arr.dtype)
-    for i in range(arr.shape[1]):
-        out[i : i + n1 - 2 * i, i] = arr[: n1 - 2 * i, i]
+    out = np.zeros(n0 + (n1, n2), dtype=arr.dtype)
+    for i in range(arr.shape[-1]):
+        out[..., i : i + n1 - 2 * i, i] = arr[..., : n1 - 2 * i, i]
         j = n2 - 1 - i
         if i != j:
-            out[j : j + n1 - 2 * j, j] = arr[n1 - 2 * i :, i]
+            out[..., j : j + n1 - 2 * j, j] = arr[..., n1 - 2 * i :, i]
     return out
 
 

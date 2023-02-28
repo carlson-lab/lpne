@@ -24,7 +24,7 @@ def get_bispectrum(x, max_freq_bins=None, complex=False, return_power=False):
     Parameters
     ----------
     x : numpy.ndarray
-        Shape: [n,t]
+        Shape: [n,w,t]
     max_freq_bins : None or int, optional
         Maximum number of frequency bins
     complex : bool, optional
@@ -36,24 +36,24 @@ def get_bispectrum(x, max_freq_bins=None, complex=False, return_power=False):
     -------
     bispectrum : numpy.ndarray
         If ``complex``, this is the bispectrum. Otherwise it is the squared modulus of
-        the bispectrum. Shape: [f,f']
+        the bispectrum. Shape: [n,f,f']
     power : numpy.ndarray
-        Returned if ``return_power``. Shape: [f]
+        Returned if ``return_power``. Shape: [n,f]
     """
-    assert x.ndim == 2, f"len({x.shape}) != 2"
-    # Remove the DC offset.
-    x -= np.mean(x, axis=1, keepdims=True)
+    assert x.ndim == 3, f"len({x.shape}) != 3"
+    # Remove the DC offset for each window.
+    x -= np.mean(x, axis=-1, keepdims=True)
 
     # Do an FFT.
-    freq = sp_fft.rfftfreq(x.shape[1])  # [f]
-    fft = sp_fft.rfft(x)  # [n,f]
-    power = np.mean(fft * np.conj(fft), axis=0).real  # [f]
+    freq = sp_fft.rfftfreq(x.shape[-1])  # [f]
+    fft = sp_fft.rfft(x)  # [n,w,f]
+    power = np.mean(fft * np.conj(fft), axis=1).real  # [n,f]
 
     if max_freq_bins is None:
-        f = fft.shape[1]
+        f = fft.shape[-1]
     else:
-        f = min(max_freq_bins, fft.shape[1])
-        power, freq = power[:f], freq[:f]
+        f = min(max_freq_bins, fft.shape[-1])
+        power, freq = power[:, :f], freq[:f]
 
     idx1 = np.arange(len(freq))
     idx2 = idx1[: (len(freq) + 1) // 2]
@@ -62,13 +62,14 @@ def get_bispectrum(x, max_freq_bins=None, complex=False, return_power=False):
     idx3 = idx3a + idx3b
     idx3[idx3 >= len(freq)] = 0
     idx3[idx3a < idx3b] = 0
-    bispec = fft[:, idx1, None] * fft[:, None, idx2] * np.conj(fft[:, idx3])  # [n,f,f']
+    # [n,w,f,f']
+    bispec = fft[..., idx1, None] * fft[..., None, idx2] * np.conj(fft[..., idx3])
+    bispec = np.mean(bispec, axis=1)  # [n,f,f']
     if complex and return_power:
         return bispec, power
     elif complex:
         return bispec
-    bispec = np.mean(bispec, axis=0)  # [f,f']
-    bispec = bispec.real**2 + bispec.imag**2  # [f,f']
+    bispec = bispec.real**2 + bispec.imag**2  # [n,f,f']
     if return_power:
         return bispec, power
     return bispec
@@ -84,7 +85,7 @@ def bispectral_power_decomposition(x, max_freq_bins=None):
     Parameters
     ----------
     x : numpy.ndarray
-        Shape: [n,t]
+        Shape: [n,w,t]
     max_freq_bins : None or int, optional
         Maximum number of frequency bins
 
@@ -92,38 +93,40 @@ def bispectral_power_decomposition(x, max_freq_bins=None):
     -------
     power_decomp : numpy.ndarray
         The sum along the antidiagonals gives the total power spectrum.
-        Shape: [f,f']
+        Shape: [n,f,f']
     """
     # Get the squared bispectrum and the corresponding power spectrum.
     bispec, power = get_bispectrum(
         x, max_freq_bins=max_freq_bins, return_power=True
-    )  # [f,f'], [f]
-    f = len(power)
+    )  # [n,f,f'], [n,f]
+    f = power.shape[1]
 
-    bc2 = np.zeros_like(bispec)  # squared partial bicoherence [f,f]
-    sum_bc2 = np.zeros_like(power)  # [f]
-    pure_power = np.zeros_like(power)  # [f]
-    pure_power[:2] = power[:2]
+    bc2 = np.zeros_like(bispec)  # squared partial bicoherence [n,f,f']
+    sum_bc2 = np.zeros_like(power)  # [n,f]
+    pure_power = np.zeros_like(power)  # [n,f]
+    pure_power[:, :2] = power[:, :2]
 
     # Zero-pad the bispectrum.
-    diff = f - bispec.shape[1]
-    bispec = np.pad(bispec, ((0, 0), (0, diff)))
+    diff = f - bispec.shape[-1]
+    bispec = np.pad(bispec, ((0, 0), (0, 0), (0, diff)))
 
     # Collect the squared partial bicoherence.
     for k in range(f):
         for j in range(k // 2 + 1):
             i = k - j
-            if bispec[i, j] > 0 and pure_power[i] * pure_power[j] != 0:
-                denom = pure_power[i] * pure_power[j] * power[k]
-                bc2[i, j] = bispec[i, j] / (denom + 1e-8)
-                sum_bc2[k] += bc2[i, j]
-        if sum_bc2[k] >= 1.0:
-            for j in range(k // 2 + 1):
-                i = k - j
-                bc2[i, j] /= sum_bc2[k]
-            sum_bc2[k] = 1.0
-        if k > 1:
-            pure_power[k] = power[k] * (1.0 - sum_bc2[k])
+            for n in range(len(bispec)):
+                if bispec[n, i, j] > 0 and pure_power[n, i] * pure_power[n, j] != 0:
+                    denom = pure_power[n, i] * pure_power[n, j] * power[n, k]
+                    bc2[n, i, j] = bispec[n, i, j] / (denom + 1e-8)
+                    sum_bc2[n, k] += bc2[n, i, j]
+        for n in range(len(bispec)):
+            if sum_bc2[n, k] >= 1.0:
+                for j in range(k // 2 + 1):
+                    i = k - j
+                    bc2[n, i, j] /= sum_bc2[n, k]
+                sum_bc2[n, k] = 1.0
+            if k > 1:
+                pure_power[n, k] = power[n, k] * (1.0 - sum_bc2[n, k])
 
     # Convert the partial bicoherence into the power decomposition.
     power_decomp = np.zeros_like(bc2)
@@ -131,10 +134,10 @@ def bispectral_power_decomposition(x, max_freq_bins=None):
         for j in range(bc2.shape[1]):
             k = i + j
             if k < len(power):
-                power_decomp[i, j] = bc2[i, j] * power[k]
+                power_decomp[:, i, j] = bc2[:, i, j] * power[:, k]
 
     # Place the pure power along the first zero-frequency axis and return.
-    power_decomp[:, 0] = pure_power[: power_decomp.shape[0]]
+    power_decomp[..., 0] = pure_power[:, : power_decomp.shape[1]]
     return power_decomp
 
 

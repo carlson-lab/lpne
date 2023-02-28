@@ -11,7 +11,7 @@ import lpne
 
 
 def test_bispec_array_utils():
-    data = np.random.rand(100, 100)
+    data = np.random.rand(2, 100, 100)
     for f in range(17, 23):
         arr = lpne.get_bispectrum(data, max_freq_bins=f)
         temp = lpne.squeeze_bispec_array(arr)
