@@ -3,51 +3,10 @@ Estimate the bispectrum
 
 """
 __date__ = "December 2022 - February 2023"
-__all__ = ["bispectral_power_decomposition"]
+__all__ = ["bispectral_power_decomposition", "get_bispectrum"]
 
 import numpy as np
 import scipy.fft as sp_fft
-
-
-def fft_power(x):
-    # Remove the DC offset.
-    x -= np.mean(x, axis=1, keepdims=True)
-    f = sp_fft.rfftfreq(len(x))
-    return np.abs(sp_fft.rfft(x)) ** 2, f
-
-
-def fft_bispec(x, max_f):
-    """
-    Estimate the bispectrum.
-
-    Parameters
-    ----------
-    x : numpy.ndarray
-        Shape: [n,t]
-    max_f : int
-        HERE
-
-    Returns
-    -------
-    bispec : numpy.ndarray
-        Shape: [f,f]
-    """
-    # Remove the DC offset.
-    x -= np.mean(x, axis=1, keepdims=True)
-    f = sp_fft.rfftfreq(x.shape[1])
-    fft = sp_fft.rfft(x)
-
-    max_f = min(max_f, len(f))
-    f, fft = f[:max_f], fft[:max_f]
-
-    # NOTE: HERE!
-
-    print("f", f.shape, "fft", fft.shape)
-    idx = np.arange(len(f) // 2 + 1)
-    idx2 = idx[:, None] + idx[None, :]
-    bispec = fft[:, idx, None] * fft[:, None, idx] * np.conj(fft[:, idx2])
-    bispec = np.mean(bispec, axis=0)
-    return bispec
 
 
 def get_bispectrum(x, max_freq_bins=None, complex=False, return_power=False):
@@ -168,6 +127,64 @@ def bispectral_power_decomposition(x, max_freq_bins=None):
     return power_decomp
 
 
+def compress_bispec(arr):
+    """
+    Map the sparse bispectrum matrix to a dense matrix.
+
+    ``np.inf`` is inserted for odd f' to be able to recover the original dimensions.
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+
+    """
+    assert arr.ndim == 2
+    n1, n2 = arr.shape[-2:]
+    top = [2, 1][n1 % 2]
+    out = np.zeros((n1 + top, (n2 + 1) // 2), dtype=arr.dtype)
+    for i in range(out.shape[1]):
+        out[: n1 - 2 * i, i] = arr[i : i + n1 - 2 * i, i]
+        j = n2 - 1 - i
+        if i == j:
+            out[n1 - 2 * i :, i] = np.inf
+        else:
+            out[n1 - 2 * i :, i] = arr[j : j + n1 - 2 * j, j]
+    return out
+
+
+def expand_bispec(arr):
+    """
+    Map the dense bispectrum data to a sparse bispectrum matrix.
+
+    Parameters
+    ----------
+
+
+    Returns
+    -------
+
+    """
+    assert arr.ndim == 2
+    a1, a2 = arr.shape[-2:]
+    assert a1 % 2 == 0, f"a1 should be even! Got: {a1}"
+    flag = np.isinf(arr).sum() > 0
+    res = a1 % 4
+    if (flag and res == 2) or (not flag and res == 0):
+        n1 = a1 - 1
+    else:
+        n1 = a1 - 2
+    n2 = (n1 + 1) // 2
+    out = np.zeros((n1, n2), dtype=arr.dtype)
+    for i in range(arr.shape[1]):
+        out[i : i + n1 - 2 * i, i] = arr[: n1 - 2 * i, i]
+        j = n2 - 1 - i
+        if i != j:
+            out[j : j + n1 - 2 * j, j] = arr[n1 - 2 * i :, i]
+    return out
+
+
 if __name__ == "__main__":
     np.random.seed(42)
 
@@ -183,12 +200,28 @@ if __name__ == "__main__":
         xs.append(noise)
     x = np.array(xs)
 
-    decomp = bispectral_power_decomposition(x, max_freq_bins=50)
+    decomp = bispectral_power_decomposition(x, max_freq_bins=23)
+    print("decomp", decomp.shape)
+    for i in range(decomp.shape[1]):
+        decomp[:, i][decomp[:, i] > 0.0] = i
 
     import matplotlib.pyplot as plt
 
-    plt.imshow(decomp.T, origin="lower")
-    plt.colorbar()
+    plt.subplot(311)
+    plt.imshow(decomp)
+    # plt.colorbar()
+
+    plt.subplot(312)
+    temp = compress_bispec(decomp)
+    print("temp", temp.shape)
+
+    plt.imshow(temp)
+
+    temp = expand_bispec(temp)
+
+    print(np.linalg.norm(temp - decomp))
+    plt.subplot(313)
+    plt.imshow(temp)
     plt.savefig("temp.pdf")
 
 
