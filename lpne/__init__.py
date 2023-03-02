@@ -4,7 +4,7 @@ LPNE pipeline
 Code for preprocessing and building factor models with local field potentials.
 
 """
-__date__ = "July 2021 - February 2023"
+__date__ = "July 2021 - March 2023"
 __version__ = "0.1.15"
 try:
     with open(".git/logs/HEAD", "r") as fh:
@@ -36,6 +36,7 @@ from .pipelines import DEFAULT_PIPELINE_PARAMS, standard_pipeline
 from .plotting import (
     circle_plot,
     make_power_movie,
+    plot_bispec,
     plot_db,
     plot_lfps,
     plot_factor,
@@ -45,7 +46,11 @@ from .plotting import (
     simplex_plot,
 )
 
-from .preprocess.bispectrum import bispectral_power_decomposition, get_bispectrum
+from .preprocess.bispectrum import (
+    bispectral_power_decomposition,
+    get_bicoherence,
+    get_bispectrum,
+)
 from .preprocess.channel_maps import (
     average_channels,
     get_excel_channel_map,

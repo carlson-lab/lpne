@@ -230,7 +230,7 @@ def squeeze_bispec_array(arr):
     return out
 
 
-def unsqueeze_bispec_array(arr):
+def unsqueeze_bispec_array(arr, fill=0.0):
     """
     Map the dense bispectrum data to a sparse bispectrum matrix.
 
@@ -239,6 +239,8 @@ def unsqueeze_bispec_array(arr):
     arr : numpy.ndarray
         The dense bispectrum array.
         Shape: [f,f']
+    fill : float, optional
+        Value used to fill the unused bispectral indices
 
     Returns
     -------
@@ -257,7 +259,7 @@ def unsqueeze_bispec_array(arr):
     else:
         n1 = a1 - 2
     n2 = (n1 + 1) // 2
-    out = np.zeros(n0 + (n1, n2), dtype=arr.dtype)
+    out = fill * np.ones(n0 + (n1, n2), dtype=arr.dtype)
     for i in range(arr.shape[-1]):
         out[..., i : i + n1 - 2 * i, i] = arr[..., : n1 - 2 * i, i]
         j = n2 - 1 - i
