@@ -9,6 +9,16 @@ lpne.plotting package
 Submodules
 ----------
 
+
+lpne.plotting.plot_bispec module
+--------------------------------
+
+.. automodule:: lpne.plotting.plot_bispec
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
 lpne.plotting.plot_db module
 ----------------------------
 
