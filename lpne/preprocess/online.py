@@ -5,8 +5,6 @@ Adapted from: https://github.com/HazyResearch/state-spaces
 
 TODO:
 * Hann windows
-* Bispectrum
-* Movies
 """
 __date__ = "March 2023"
 
@@ -24,12 +22,19 @@ class OnlineDecomp:
         window="hann",
         N=64,
         max_freq=55.0,
+        eps=1e-8,
     ):
         """
 
         Parameters
         ----------
-
+        fs : int
+        spec_timescale : float, optional
+        bicoh_timescale : float, optional
+        window : str, optional
+        N : int, optional
+        max_freq : float, optional
+            Maximum frequency, in Hz.
         """
         assert N % 2 == 0, f"{N} % 2 != 0"
         self.fs = fs
@@ -38,13 +43,29 @@ class OnlineDecomp:
         self.bicoh_time_factor = np.exp(-self.dt / bicoh_timescale)
         self.window = window
         self.N = N
+        self.max_freq = max_freq
+        self.eps = eps
 
-        freq = sp_fft.rfftfreq(self.N, 1 / self.dt)
-        fi = np.searchsorted(freq, max_freq)
+        # Truncate the frequencies.
+        freq = sp_fft.rfftfreq(self.N, self.dt)
+        fi = np.searchsorted(freq, self.max_freq)
+        assert fi > 1, f"max_freq is too low! {max_freq}, {fi}, {np.max(freq)}"
+        assert fi <= N // 2, f"max_freq is too high! {max_freq}, {fi}, {N}"
         self.freq = freq[:fi]
 
-        self.spec = None
-        self.bispec = None
+        # Make the bicoherence indices.
+        self.idx1 = np.arange(fi)
+        self.idx2 = self.idx1[: (fi + 1) // 2]
+        idx3a = self.idx1[:, None]
+        idx3b = self.idx2[None, :]
+        self.idx3 = idx3a + idx3b
+        self.idx3[self.idx3 >= fi] = 0
+        self.idx3[idx3a < idx3b] = 0
+
+        self.spec = 0.0
+        self.bicoh_num = 0.0
+        self.bicoh_denom1 = 0.0
+        self.bicoh_denom2 = 0.0
 
         A, B = get_fourier_ssm(self.N)
         system = (A, B, np.ones((1, N)), np.zeros((1,)))
@@ -54,27 +75,47 @@ class OnlineDecomp:
         self.state = np.zeros(self.N)
         self.iter = 0
 
-    def update(self, sample):
+    def observe(self, sample):
         """
+        Update the Fourier decomposition with a new sample.
 
         Parameters
         ----------
         sample : float
         """
+        # Update the state.
         self.state = self.dA @ self.state + self.dB * sample
         self.iter += 1
-        if self.iter >= self.N:
-            temp = self.state.reshape(-1, 2)
-            temp = np.sum(temp**2, axis=1)
-            if self.iter == self.N:
-                self.spec = temp
-            elif self.iter > self.N:
-                p = self.spec_time_factor
-                self.spec = p * self.spec + (1.0 - p) * temp
+
+        # Update the running spectrum and bicoherence.
+        # if self.iter >= self.N:
+        fi = len(self.freq)
+        fft = self.state.reshape(-1, 2)[:fi]
+
+        t_spec = np.sum(fft**2, axis=1)
+        fft2 = fft[:]
+        fft2[0, :] = 0.0  # remove the DC offset
+        fft2c = fft2[..., 0] + 1j * fft2[..., 1]
+        i1, i2, i3 = self.idx1, self.idx2, self.idx3
+        t_bn = fft2c[i1, None] * fft2c[None, i2] * np.conj(fft2c[i3])
+        t_bd1 = np.abs(fft2c[i1, None] * fft2c[None, i2]) ** 2
+        t_bd2 = fft2c.real**2 + fft2c.imag**2
+
+        p, pm = self.spec_time_factor, 1.0 - self.spec_time_factor
+        self.spec = p * self.spec + pm * t_spec
+        p, pm = self.bicoh_time_factor, 1.0 - self.bicoh_time_factor
+        self.bicoh_num = p * self.bicoh_num * pm * t_bn
+        self.bicoh_denom1 = p * self.bicoh_denom1 * pm * t_bd1
+        self.bicoh_denom2 = p * self.bicoh_denom2 * pm * t_bd2
 
     def predict(self, ts):
         mat = get_eval_matrix(self.N, ts + self.dt)
         return (mat @ self.state)[::-1]
+
+    def get_bicoherence(self):
+        num = self.bicoh_num.real**2 + self.bicoh_num.imag**2
+        denom = self.bicoh_denom1 * self.bicoh_denom2[self.idx3] + self.eps
+        return num / denom
 
 
 def get_fourier_ssm(N):
@@ -107,29 +148,36 @@ if __name__ == "__main__":
     ts = 1 / fs * np.arange(200)
     signal = np.sin(5 * ts) + np.cos(20.3 * ts)
 
-    decomp = OnlineDecomp(fs, N=50, spec_timescale=0.3)
+    decomp = OnlineDecomp(
+        fs, N=64, spec_timescale=0.1, bicoh_timescale=0.1, max_freq=50.0
+    )
 
     from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
     from moviepy.video.io.bindings import mplfig_to_npimage
     import matplotlib.pyplot as plt
 
-    fig, axarr = plt.subplots(ncols=2)
+    fig, axarr = plt.subplots(ncols=3)
     axarr[0].plot(ts, signal)
 
     axarr[1].set_ylim(0, 0.5)
 
     frames = []
     for i, x in enumerate(signal):
-        decomp.update(x)
+        decomp.observe(x)
         if i % 4 == 0:
             handles = []
             pred = decomp.predict(ts[:i])
             temp_h = axarr[0].plot(ts[:i], pred, c="tab:orange")
             handles += temp_h
 
-            if decomp.spec is not None:
+            if not isinstance(decomp.spec, float):
                 temp_h = axarr[1].plot(decomp.spec, c="tab:blue")
                 handles += temp_h
+
+                bicoh = decomp.get_bicoherence()
+                temp_h = axarr[2].imshow(bicoh, vmin=0.0, vmax=0.01)
+                handles.append(temp_h)
+
             frames.append(mplfig_to_npimage(fig))
             for handle in handles:
                 handle.remove()
