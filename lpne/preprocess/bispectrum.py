@@ -32,7 +32,7 @@ def get_bispectrum(
     max_freq_bins : None or int, optional
         Maximum number of frequency bins
     complex : bool, optional
-        Whether to return the complex bispectrum or its squared modulus
+        Whether to return the full complex bispectrum or its squared modulus
     return_power : bool, optional
         Whether to return the power spectrum
 
