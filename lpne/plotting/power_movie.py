@@ -2,7 +2,7 @@
 Make a movie of power features.
 
 """
-__date__ = "August 2021 - November 2022"
+__date__ = "August 2021 - January 2023"
 __all__ = ["make_power_movie"]
 
 
@@ -63,7 +63,7 @@ def make_power_movie(
         Duration used to calculate power features
     fs : int, optional
         LFP samplerate, in Hz
-    feature : {``'power'``, ``'dir_spec'``}, optional
+    feature : {``'power'``, ``'dir_spec'``, ``'psi'``}, optional
         What features to plot
     speed_factor : float, optional
     fps : int, optional
@@ -78,28 +78,40 @@ def make_power_movie(
         Movie filename
     """
     assert MOVIEPY_INSTALLED, "moviepy needs to be installed!"
-    assert feature in ["power", "dir_spec"], f"Feature {feature} not valid!"
+    assert feature in ["power", "dir_spec", "psi"], f"Feature {feature} not valid!"
     assert mode in ["grid", "circle"], f"Mode {mode} not valid!"
     assert (
-        feature == "power" or mode == "grid"
+        mode != "circle" or feature == "power"
     ), "Circle plot is only implemented for power features!"
+
     # Get the features.
     window_step = speed_factor / fps
     max_n_windows = int((duration - window_duration) / window_step)
-    res = lpne.make_features(
-        lfps,
-        fs=fs,
-        window_duration=window_duration,
-        window_step=window_step,
-        max_n_windows=max_n_windows,
-        directed_spectrum=(feature == "dir_spec"),
-    )
+    if feature in ["power", "dir_spec"]:
+        res = lpne.make_features(
+            lfps,
+            fs=fs,
+            window_duration=window_duration,
+            window_step=window_step,
+            max_n_windows=max_n_windows,
+            directed_spectrum=(feature == "dir_spec"),
+        )
+    else:  # feature == "psi"
+        res = lpne.get_psi(
+            lfps,
+            fs=fs,
+            window_duration=window_duration,
+            window_step=window_step,
+            max_n_windows=max_n_windows,
+        )
     freq, rois = res["freq"], res["rois"]
     pretty_rois = [roi.replace("_", " ") for roi in rois]
     if feature == "power":
         power = lpne.unsqueeze_triangular_array(res["power"], dim=1)  # [w,r,r,f]
     elif feature == "dir_spec":
         power = res["dir_spec"]  # [w,r,r,f]
+    elif feature == "psi":
+        power = res["psi"]  # [w,r,r,f]
     else:
         raise NotImplementedError(feature)
 
@@ -120,7 +132,7 @@ def make_power_movie(
 
     # Set up the plot and write all the frames.
     if mode == "grid":
-        fig, axarr = _set_up_grid_plot(power, pretty_rois)
+        fig, axarr = _set_up_grid_plot(power, pretty_rois, feature != "psi")
         title = fig.suptitle("", fontsize=GRID_FONTSIZE, y=0.93)
         frames = []
         for k in tqdm(range(power.shape[0])):
@@ -209,7 +221,7 @@ def _update_grid_plot(k, rois, freq, power, alpha, flag, axarr, rec_power):
     return handles
 
 
-def _set_up_grid_plot(power, pretty_rois):
+def _set_up_grid_plot(power, pretty_rois, nonnegative=True):
     """
     Make the base plot.
 
@@ -220,7 +232,11 @@ def _set_up_grid_plot(power, pretty_rois):
     pretty_rois : list of str
         Shape: ``[f]``
     """
-    ylim = (-0.05 * np.max(power), 1.05 * np.max(power))
+    if nonnegative:
+        ylim = (-0.05 * np.max(power), 1.05 * np.max(power))
+    else:
+        temp = np.max(np.abs(power))
+        ylim = (-1.05 * temp, 1.05 * temp)
     n = power.shape[1]
     assert n == len(pretty_rois), f"{n} != len({pretty_rois})"
     fig, axarr = plt.subplots(n, n, figsize=(8, 8))

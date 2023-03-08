@@ -10,6 +10,15 @@ Submodules
 ----------
 
 
+lpne.pipelines.pipeline_params module
+-------------------------------------
+
+.. automodule:: lpne.pipelines.pipeline_params
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
 lpne.pipelines.standard_pipeline module
 ---------------------------------------
 

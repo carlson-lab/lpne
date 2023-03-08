@@ -70,3 +70,12 @@ lpne.preprocess.outlier_detection module
     :members:
     :undoc-members:
     :show-inheritance:
+
+
+lpne.preprocess.phase_slope_index module
+----------------------------------------
+
+.. automodule:: lpne.preprocess.phase_slope_index
+    :members:
+    :undoc-members:
+    :show-inheritance:
