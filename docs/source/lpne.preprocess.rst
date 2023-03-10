@@ -63,6 +63,15 @@ lpne.preprocess.normalize module
     :show-inheritance:
 
 
+lpne.preprocess.online module
+-----------------------------
+
+.. automodule:: lpne.preprocess.online
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
 lpne.preprocess.outlier_detection module
 ----------------------------------------
 

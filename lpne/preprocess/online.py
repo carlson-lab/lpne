@@ -88,7 +88,6 @@ class OnlineDecomp:
         self.iter += 1
 
         # Update the running spectrum and bicoherence.
-        # if self.iter >= self.N:
         fi = len(self.freq)
         fft = self.state.reshape(-1, 2)[:fi]
 
@@ -104,9 +103,9 @@ class OnlineDecomp:
         p, pm = self.spec_time_factor, 1.0 - self.spec_time_factor
         self.spec = p * self.spec + pm * t_spec
         p, pm = self.bicoh_time_factor, 1.0 - self.bicoh_time_factor
-        self.bicoh_num = p * self.bicoh_num * pm * t_bn
-        self.bicoh_denom1 = p * self.bicoh_denom1 * pm * t_bd1
-        self.bicoh_denom2 = p * self.bicoh_denom2 * pm * t_bd2
+        self.bicoh_num = p * self.bicoh_num + pm * t_bn
+        self.bicoh_denom1 = p * self.bicoh_denom1 + pm * t_bd1
+        self.bicoh_denom2 = p * self.bicoh_denom2 + pm * t_bd2
 
     def predict(self, ts):
         mat = get_eval_matrix(self.N, ts + self.dt)

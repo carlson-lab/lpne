@@ -417,7 +417,7 @@ class DcsfaNmf(NmfBase):
             X = torch.Tensor(X).float().to(self.device)
         else:
             X = X.to(self.device)
-            
+
         if intercept_mask is not None:
             intercept_mask = torch.Tensor(intercept_mask).to(self.device)
 
@@ -721,7 +721,7 @@ class DcsfaNmf(NmfBase):
                 X_recon, y_pred, _ = self.transform(
                     X,
                     intercept_mask,
-                    avg_intercept = False,
+                    avg_intercept=False,
                     return_npy=True,
                 )
                 training_mse_loss = np.mean((X.detach().numpy() - X_recon) ** 2)
