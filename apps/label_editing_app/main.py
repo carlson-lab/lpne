@@ -2,7 +2,7 @@
 Label editing app.
 
 """
-__date__ = "September - October 2021"
+__date__ = "September 2021 - March 2023"
 
 
 from bokeh.layouts import column, row
@@ -37,12 +37,18 @@ DEFAULT_HIPP_NAME = "Hipp_D_L_02"
 DEFAULT_CX_NAME = "Cx_Cg_L_01"
 DEFAULT_EMG_NAME = "EMG_trap"
 DEFAULT_DURATION = 2
-LABELS = ["Wake", "NREM", "REM", "Unlabeled"]
-COLORS = ["dodgerblue", "mediumseagreen", "darkorchid", "peru"]
+LABELS = ["Wake (0)", "NREM (1)", "REM (2)", "Unlabeled (3)", "-1"]
+COLORS = ["dodgerblue", "mediumseagreen", "darkorchid", "peru", "tab:orange"]
 COLORS = [to_hex(i) for i in COLORS]
 LFP_TOOLS = "pan,xwheel_zoom,reset,box_zoom"  # wheel_zoom
 LABEL_TOOLS = "box_select,pan,reset"
 NULL_SELECTION = "No selection"
+DEFAULT_HIPP_SOURCE_DATA = dict(
+    lfp_time=[0,1,2,3],
+    emg=[5,5,5,5],
+    hipp=[5,5,5,5],
+    cortex=[5,5,5,5],
+)
 
 
 # FILTERING
@@ -145,7 +151,14 @@ def label_editing_app(doc):
         label_source.data = new_data
         label_source.selected.indices = []
 
-    label_callbacks = [callback_0, callback_1, callback_2, callback_3]
+    def callback_4(label_source=label_source):
+        new_data = {**{}, **label_source.data}
+        for idx in label_source.selected.indices:
+            new_data["color"][idx] = COLORS[4]
+        label_source.data = new_data
+        label_source.selected.indices = []
+
+    label_callbacks = [callback_0, callback_1, callback_2, callback_3, callback_4]
     label_buttons = []
     for i in range(len(LABELS)):
         button = Button(label=LABELS[i], default_size=BUTTON_SIZE)
@@ -172,15 +185,33 @@ def label_editing_app(doc):
             load_dir = new
             if load_dir[-1] == os.path.sep:
                 load_dir = load_dir[:-1]
-            label_select.options = _my_listdir(load_dir)
+            label_select.options = ["make new labels"] + _my_listdir(load_dir)
         else:
             alert_box.text = f"Not a valid directory: {new}"
 
     def save_fn_callback(attr, old, new):
-        npy_savefile_input.value = os.path.join(
-            label_dir_input.value,
-            label_select.value,
-        )
+        if label_select.value == "make new labels" and lfp_select.value.endswith('.mat'):
+            npy_savefile_input.value = os.path.join(
+                label_dir_input.value,
+                lfp_select.value[:-4] + '.npy',
+            )
+            csv_savefile_input.value = os.path.join(
+                label_dir_input.value,
+                lfp_select.value[:-4] + '.csv',
+            )
+        else:
+            temp = label_select.value
+            if len(temp) > 4:
+                npy_temp = temp[:-4] + ".npy"
+                csv_temp = temp[:-4] + ".csv"
+                npy_savefile_input.value = os.path.join(
+                    label_dir_input.value,
+                    npy_temp,
+                )
+                csv_savefile_input.value = os.path.join(
+                    label_dir_input.value,
+                    csv_temp,
+                )
 
     # LFP stuff.
     lfp_dir_input = TextInput(
@@ -203,7 +234,7 @@ def label_editing_app(doc):
     label_select = Select(
         title="Select label file:",
         value=NULL_SELECTION,
-        options=_my_listdir(label_dir_input.value),
+        options=["make new labels"] + _my_listdir(label_dir_input.value),
     )
     label_select.on_change("value", save_fn_callback)
 
@@ -277,15 +308,15 @@ def label_editing_app(doc):
         hipp_channel = hipp_channel_input.value
         cortex_channel = cortical_channel_input.value
         all_keys = sorted(list(lfps.keys()))
-        if emg_channel not in lfps:
+        if len(emg_channel) > 0 and emg_channel not in lfps:
             load_button.button_type = "warning"
             alert_box.text = f"Didn't find the channel '{emg_channel}' in: {all_keys}"
             return
-        if hipp_channel not in lfps:
+        if len(hipp_channel) > 0 and hipp_channel not in lfps:
             load_button.button_type = "warning"
             alert_box.text = f"Didn't find the channel '{hipp_channel}' in: {all_keys}"
             return
-        if cortex_channel not in lfps:
+        if len(cortex_channel) > 0 and cortex_channel not in lfps:
             load_button.button_type = "warning"
             alert_box.text = (
                 f"Didn't find the channel '{cortex_channel}' in: {all_keys}"
@@ -293,41 +324,63 @@ def label_editing_app(doc):
             return
 
         # Assign the source data.
-        emg_trace = lfps[emg_channel].flatten()
-        emg_trace = lpne.filter_signal(emg_trace, fs, EMG_LOWCUT, EMG_HIGHCUT)
-        emg_trace = emg_trace[::subsamp]
-        hipp_trace = lfps[hipp_channel].flatten()
-        hipp_trace = lpne.filter_signal(hipp_trace, fs, LFP_LOWCUT, LFP_HIGHCUT)
-        hipp_trace = hipp_trace[::subsamp]
-        cortex_trace = lfps[cortex_channel].flatten()
-        cortex_trace = lpne.filter_signal(cortex_trace, fs, LFP_LOWCUT, LFP_HIGHCUT)
-        cortex_trace = cortex_trace[::subsamp]
-        lfp_times = subsamp / fs * np.arange(len(emg_trace))
+        lfp_times = None
+        if len(emg_channel) == 0:
+            emg_trace = None
+        else:
+            emg_trace = lfps[emg_channel].flatten()
+            emg_trace = lpne.filter_signal(emg_trace, fs, EMG_LOWCUT, EMG_HIGHCUT)
+            emg_trace = emg_trace[::subsamp]
+            lfp_times = subsamp / fs * np.arange(len(emg_trace))
+        if len(hipp_channel) == 0:
+            hipp_trace = None
+        else:
+            hipp_trace = lfps[hipp_channel].flatten()
+            hipp_trace = lpne.filter_signal(hipp_trace, fs, LFP_LOWCUT, LFP_HIGHCUT)
+            hipp_trace = hipp_trace[::subsamp]
+            lfp_times = subsamp / fs * np.arange(len(hipp_trace))
+        if len(cortex_channel) == 0:
+            cortex_trace = None
+        else:
+            cortex_trace = lfps[cortex_channel].flatten()
+            cortex_trace = lpne.filter_signal(cortex_trace, fs, LFP_LOWCUT, LFP_HIGHCUT)
+            cortex_trace = cortex_trace[::subsamp]
+            lfp_times = subsamp / fs * np.arange(len(cortex_trace))
+        
         label_fn = label_select.value
         if label_fn == NULL_SELECTION:
             load_button.button_type = "warning"
             alert_box.text = "Select a label file!"
             return
-        label_fn = os.path.join(label_dir_input.value, label_fn)
-        if not os.path.isfile(label_fn):
-            load_button.button_type = "warning"
-            alert_box.text = f"Label file doesn't exist: {label_fn}"
-            return
-        # try:
-        labels = lpne.load_labels(label_fn)
-        # except ValueError:
-        # load_button.button_type = "warning"
-        # alert_box.text = f"Error loading labels: {label_fn}"
-        # return
+        elif label_fn == "make new labels":
+            if lfp_times is None:
+                load_button.button_type = "warning"
+                alert_box.text = "Need at least one channel selected!"
+                return
+            n_windows = int(np.floor(lfp_times[-1] / window_slider.value))
+            labels = -1 * np.ones(n_windows, dtype='int')            
+        else:
+            label_fn = os.path.join(label_dir_input.value, label_fn)
+            if not os.path.isfile(label_fn):
+                load_button.button_type = "warning"
+                alert_box.text = f"Label file doesn't exist: {label_fn}"
+                return
+
+            labels = lpne.load_labels(label_fn)
+
         window = window_slider.value
         label_times = window * np.arange(len(labels)) + window / 2
         color = [COLORS[i] for i in labels]
-        new_lfp_data = dict(
-            lfp_time=lfp_times,
-            emg=emg_trace,
-            hipp=hipp_trace,
-            cortex=cortex_trace,
-        )
+
+        if lfp_times is None:
+            new_lfp_data = DEFAULT_HIPP_SOURCE_DATA
+        else:
+            new_lfp_data = dict(
+                lfp_time=lfp_times,
+                emg=np.zeros(len(lfp_times)) if emg_trace is None else emg_trace,
+                hipp=np.zeros(len(lfp_times)) if hipp_trace is None else hipp_trace,
+                cortex=np.zeros(len(lfp_times)) if cortex_trace is None else cortex_trace,
+            )
         new_label_data = dict(
             label_time=label_times,
             label_y=np.zeros(len(labels)),
@@ -399,30 +452,9 @@ def label_editing_app(doc):
             csv_save_button.button_type = "warning"
             alert_box.text = "CSV file should have a .csv or .txt extension."
             return
-        # Format the data.
-        window = window_slider.value
-        t1 = window * np.arange(len(labels))  # onsets
-        t2 = t1 + window  # offsets
-        lines = []
-        idx = 0
-        prev_label, start_t = None, None
-        for j in range(len(t1)):
-            label = labels[j]
-            if label != prev_label:
-                if j > 0 and prev_label != "_":
-                    token = LABELS[prev_label]
-                    line = f"{start_t:.6f}\t{t1[j]:.6f}\t{token}\n"
-                    lines.append(line)
-                start_t = t1[j]
-                prev_label = label
-            if j == len(t1) - 1 and prev_label != "_":
-                token = LABELS[prev_label]
-                line = f"{start_t:.1f}, {t1[j]:.1f}, {token}\n"
-                lines.append(line)
-            idx += 1
-        # Save the data.
-        with open(label_fn, "w+") as f:
-            f.writelines(lines)
+        
+        lpne.save_labels(labels, label_fn, overwrite=overwrite)
+
         csv_save_button.label = "Saved"
         csv_save_button.button_type = "success"
         alert_box.text = ""
@@ -431,15 +463,10 @@ def label_editing_app(doc):
 
     # Fake data.
     x = [1, 2, 3, 4, 5]
-    y = [5, 5, 4, 6, 2]
     label_y = [0] * len(x)
     color = [COLORS[-1]] * len(x)
-    hipp_source.data = dict(
-        lfp_time=x,
-        emg=y,
-        hipp=y,
-        cortex=y,
-    )
+    hipp_source.data = DEFAULT_HIPP_SOURCE_DATA
+
     label_source.data = dict(
         label_time=x,
         label_y=label_y,

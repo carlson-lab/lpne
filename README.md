@@ -43,9 +43,9 @@ Then see `docs/build/html/index.html` for the docs.
 48. Add strict channel map checking options
 49. Add CSV version of CHANS files
 50. save `GridSearchCV` with validation scores for each parameter setting
-51. Load CSV label files
 52. Also save confusion matrices for ``GridSearchCV``
 55. Add `__all__` to files
 56. Add more `model.score` options
 59. Make pipeline app
 60. Fix the docs bugs
+61. Make segments files with onset, offset, and label

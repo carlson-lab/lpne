@@ -8,8 +8,7 @@ __all__ = ["DEFAULT_PIPELINE_PARAMS"]
 import yaml
 
 
-DEFAULT_PIPELINE_PARAMS_STR = (
-  """
+DEFAULT_PIPELINE_PARAMS_STR = """
   file:
     channel_map_fn: channel_map.csv
     chans_subdir: CHANS
@@ -71,14 +70,12 @@ DEFAULT_PIPELINE_PARAMS_STR = (
     param_grid:
       reg_strength: [0.001, 0.01, 0.1]
   """
-)
 
 DEFAULT_PIPELINE_PARAMS = yaml.safe_load(DEFAULT_PIPELINE_PARAMS_STR)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     pass
 
 
 ###
-

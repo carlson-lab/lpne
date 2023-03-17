@@ -2,7 +2,7 @@
 Data utilities
 
 """
-__date__ = "July 2021 - November 2022"
+__date__ = "July 2021 - March 2023"
 __all__ = [
     "load_channel_map",
     "load_features",
@@ -248,7 +248,7 @@ def load_labels(fn, soft_labels=False):
     Parameters
     ----------
     fn : str
-        Where the data is saved. Supported file types: {'.npy'}
+        Where the data is saved. Supported file types: {'.npy', '.csv'}
     soft_labels : bool, optional
         If labels are given as probabilities, don't perform an argmax operation.
 
@@ -261,10 +261,14 @@ def load_labels(fn, soft_labels=False):
     assert isinstance(fn, str)
     if fn.endswith(".npy"):
         labels = np.load(fn)
+    elif fn.endswith(".csv"):
+        labels = np.loadtxt(fn, delimiter=",")
     else:
         raise NotImplementedError(f"Unsupported file type: {fn}")
     if labels.ndim == 2 and not soft_labels:
         labels = np.argmax(labels, axis=1)
+    elif labels.ndim == 1:
+        labels = np.array(labels, dtype=int)
     return labels
 
 
@@ -340,7 +344,7 @@ def save_labels(labels, fn, overwrite=True):
     labels : numpy.ndarray
         Shape: [n_window] or [n_window, n_classes]
     fn : str
-        Where to save the data. Supported file types: {'.npy'}
+        Where to save the data. Supported file types: {'.npy', '.csv'}
     overwrite : bool, optional
         Whether to overwrite an existing file with the same name.
     """
@@ -351,6 +355,9 @@ def save_labels(labels, fn, overwrite=True):
     assert isinstance(labels, np.ndarray)
     if fn.endswith(".npy"):
         np.save(fn, labels)
+    elif fn.endswith(".csv"):
+        fmt = "%.4e" if labels.ndim == 2 else "%d"
+        np.savetxt(fn, labels, fmt=fmt, delimiter=",")
     else:
         raise NotImplementedError(f"Unsupported file type: {fn}")
 
