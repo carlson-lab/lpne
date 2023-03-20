@@ -5,6 +5,7 @@ Label editing app.
 __date__ = "September 2021 - March 2023"
 
 
+from unittest.mock import DEFAULT
 from bokeh.layouts import column, row
 from bokeh.models import (
     Button,
@@ -37,6 +38,7 @@ DEFAULT_HIPP_NAME = "Hipp_D_L_02"
 DEFAULT_CX_NAME = "Cx_Cg_L_01"
 DEFAULT_EMG_NAME = "EMG_trap"
 DEFAULT_DURATION = 2
+DEFAULT_LFP_SUFFIX = "_LFP.mat"
 LABELS = ["Wake (0)", "NREM (1)", "REM (2)", "Unlabeled (3)", "-1"]
 COLORS = ["dodgerblue", "mediumseagreen", "darkorchid", "peru", "tab:orange"]
 COLORS = [to_hex(i) for i in COLORS]
@@ -190,14 +192,15 @@ def label_editing_app(doc):
             alert_box.text = f"Not a valid directory: {new}"
 
     def save_fn_callback(attr, old, new):
+        temp_idx = -4 - len(lfp_suffix_input.value)
         if label_select.value == "make new labels" and lfp_select.value.endswith('.mat'):
             npy_savefile_input.value = os.path.join(
                 label_dir_input.value,
-                lfp_select.value[:-4] + '.npy',
+                lfp_select.value[:temp_idx] + '.npy',
             )
             csv_savefile_input.value = os.path.join(
                 label_dir_input.value,
-                lfp_select.value[:-4] + '.csv',
+                lfp_select.value[:temp_idx] + '.csv',
             )
         else:
             temp = label_select.value
@@ -239,6 +242,12 @@ def label_editing_app(doc):
     label_select.on_change("value", save_fn_callback)
 
     # Parameters
+
+    lfp_suffix_input = TextInput(
+        value=DEFAULT_LFP_SUFFIX,
+        title="Enter LFP suffix:",
+    )
+
     window_slider = Slider(
         start=1,
         end=20,
@@ -475,13 +484,12 @@ def label_editing_app(doc):
         color=color,
     )
 
-    file_inputs = row(
-        column(lfp_dir_input, lfp_select),
-        column(label_dir_input, label_select),
-    )
     file_inputs = column(
-        file_inputs,
+        lfp_dir_input,
+        label_dir_input,
+        row(lfp_select, label_select),
         window_slider,
+        lfp_suffix_input,
         fs_input,
         subsample_input,
         hipp_channel_input,
