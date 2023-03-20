@@ -191,7 +191,8 @@ def label_editing_app(doc):
         else:
             alert_box.text = f"Not a valid directory: {new}"
 
-    def save_fn_callback(attr, old, new):
+    def lfp_select_callback(attr, old, new):
+        """ """
         temp_idx = -len(lfp_suffix_input.value)
         if label_select.value == "make new labels" and lfp_select.value.endswith('.mat'):
             npy_savefile_input.value = os.path.join(
@@ -216,6 +217,22 @@ def label_editing_app(doc):
                     csv_temp,
                 )
 
+    def label_select_callback(attr, old, new):
+        """ """
+        if new == "make new labels":
+            lfp_select_callback(None, None, None)
+        elif len(new) > 4:
+            npy_temp = new[:-4] + ".npy"
+            csv_temp = new[:-4] + ".csv"
+            npy_savefile_input.value = os.path.join(
+                label_dir_input.value,
+                npy_temp,
+            )
+            csv_savefile_input.value = os.path.join(
+                label_dir_input.value,
+                csv_temp,
+            )
+
     # LFP stuff.
     lfp_dir_input = TextInput(
         value=DEFAULT_LFP_DIR,
@@ -227,6 +244,7 @@ def label_editing_app(doc):
         value=NULL_SELECTION,
         options=_my_listdir(lfp_dir_input.value),
     )
+    lfp_select.on_change("value", lfp_select_callback)
 
     # Label stuff.
     label_dir_input = TextInput(
@@ -239,7 +257,7 @@ def label_editing_app(doc):
         value=NULL_SELECTION,
         options=["make new labels"] + _my_listdir(label_dir_input.value),
     )
-    label_select.on_change("value", save_fn_callback)
+    label_select.on_change("value", label_select_callback)
 
     # Parameters
 
