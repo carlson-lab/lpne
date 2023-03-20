@@ -413,7 +413,8 @@ def label_editing_app(doc):
 
     def npy_save_callback():
         overwrite = 0 in npy_overwrite_checkbox.active
-        labels = [COLORS.index(c) for c in label_source.data["color"]]
+        labels = np.array([COLORS.index(c) for c in label_source.data["color"]])
+        labels[labels == len(COLORS)-1] = -1
         label_fn = npy_savefile_input.value
         try:
             lpne.save_labels(labels, label_fn, overwrite=overwrite)
@@ -442,7 +443,8 @@ def label_editing_app(doc):
 
     def csv_save_callback():
         overwrite = 0 in csv_overwrite_checkbox.active
-        labels = [COLORS.index(c) for c in label_source.data["color"]]
+        labels = np.array([COLORS.index(c) for c in label_source.data["color"]])
+        labels[labels == len(COLORS)-1] = -1
         label_fn = csv_savefile_input.value
         if not overwrite and os.path.isfile(label_fn):
             csv_save_button.button_type = "warning"
