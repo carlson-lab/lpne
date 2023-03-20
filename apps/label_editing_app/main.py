@@ -192,7 +192,7 @@ def label_editing_app(doc):
             alert_box.text = f"Not a valid directory: {new}"
 
     def save_fn_callback(attr, old, new):
-        temp_idx = -4 - len(lfp_suffix_input.value)
+        temp_idx = -len(lfp_suffix_input.value)
         if label_select.value == "make new labels" and lfp_select.value.endswith('.mat'):
             npy_savefile_input.value = os.path.join(
                 label_dir_input.value,
