@@ -104,7 +104,7 @@ def load_features(fns, return_counts=False, feature="power", return_freqs=False)
         if prev_rois is not None:
             assert prev_rois == rois, f"Inconsitent ROIs: {rois} != {prev_rois}"
         if prev_freqs is not None:
-            assert np.all_close(
+            assert np.allclose(
                 prev_freqs, freqs
             ), f"Inconsitent frequencies: {freqs} != {prev_freqs}"
         prev_rois = rois
