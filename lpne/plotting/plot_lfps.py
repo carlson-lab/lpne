@@ -2,11 +2,13 @@
 Plot LFPs in the time domain.
 
 """
-__date__ = "August 2021 - June 2022"
+__date__ = "August 2021 - April 2023"
 
-
+from matplotlib.colors import TABLEAU_COLORS
+from matplotlib.patches import Rectangle
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.signal import hilbert
 from scipy.stats import zscore
 
 import lpne
@@ -21,12 +23,20 @@ def plot_lfps(
     y_space=4.0,
     alpha=0.85,
     lw=1.0,
+    colors=None,
+    highlight_bands=[],
+    highlight_colors=None,
+    highlight_threshold=2.0,
+    highlight_alpha=0.4,
     window_duration=None,
     show_windows=True,
     fn="temp.pdf",
 ):
     """
     Plot the LFPs in the specified time range.
+
+    Optionally highlight times and channels where there is high power in particular
+    frequency bands. 
 
     Parameters
     ----------
@@ -47,6 +57,18 @@ def plot_lfps(
         Passed to `pyplot.plot`.
     lw : float, optional
         Passed to `pyplot.plot`.
+    colors : None or list of str, optional
+        Colors to plot
+    highlight_bands : list of tuples, optional
+        Determines which frequency bands to highlight. Each tuple should contain two
+        floats, the lowcut and highcut bandpass filter parameters.
+    highlight_colors : None or list of str, optional
+        Colors of the frequency band highlights
+    highlight_threshold : float, optional
+        Highlight when the norm of the analytic bandpassed signal is above this many
+        standard deviations from the mean.
+    highlight_alpha : float, optional
+        Transparency of the highlights
     window_duration : None or float
         Window duration, in seconds. If `None`, no window markers are plotted.
     show_windows : bool, optional
@@ -56,8 +78,12 @@ def plot_lfps(
     """
     # Figure out ROIs.
     if rois is None:
-        rois = sorted([i for i in lfps.keys() if i not in lpne.IGNORED_KEYS])
+        rois = sorted([i for i in lfps.keys() if i not in lpne.MATLAB_IGNORED_KEYS])
     assert len(rois) > 0
+    if colors is None:
+        colors = list(TABLEAU_COLORS)
+    if highlight_colors is None:
+        highlight_colors = list(TABLEAU_COLORS)
     # Figure out times.
     i1 = int(fs * t1)
     if t2 is None:
@@ -67,22 +93,45 @@ def plot_lfps(
     t2 = i2 / fs
     t_vals = np.linspace(t1, t2, i2 - i1)
     # Plot.
-    lfp_num = 0
+    ax = plt.gca()
     nan_bar = None
-    for roi in rois:
+    for i, roi in enumerate(rois):
         # Plot the single channel.
         trace = _zscore(lfps[roi][i1:i2])
-        plt.plot(t_vals, lfp_num * y_space + trace, lw=lw, alpha=alpha)
+        c = colors[i % len(colors)]
+        plt.plot(t_vals, i * y_space + trace, lw=lw, alpha=alpha, c=c)
+
+        # Plot the channel's outliers (NaNs) on top of that channel.
         if nan_bar is None:
             nan_bar = np.zeros(len(trace), dtype=int)
         nan_trace = np.isnan(trace)
         nan_bar += nan_trace
         idx = np.argwhere(nan_trace > 0).flatten()
-        # Plot the channel's outliers (NaNs) on top of that channel.
         if len(idx) > 0:
-            y_vals = [lfp_num * y_space] * len(idx)
+            y_vals = [i * y_space] * len(idx)
             plt.scatter(t_vals[idx], y_vals, c="k", s=4.0)
-        lfp_num += 1
+
+        # Plot the frequency band highlights.
+        for j, (f1, f2) in enumerate(highlight_bands):
+            temp_lfp = lfps[roi][:]
+            temp_lfp[np.isnan(temp_lfp)] = 0.0
+            lfp_filt = lpne.filter_signal(lfps[roi][:], fs, lowcut=f1, highcut=f2)
+            lfp_filt = zscore(np.abs(hilbert(lfp_filt)))
+            lfp_filt = lfp_filt[i1:i2]
+            idx = np.argwhere(lfp_filt >= highlight_threshold).flatten()
+            onsets, offsets = _indices_to_onsets_offsets(idx)
+            y1, y2 = (i - 0.5) * y_space, (i + 0.5) * y_space
+            for onset, offset in zip(onsets, offsets):
+                x1, x2 = t1 + onset / fs, t1 + offset / fs
+                patch = Rectangle(
+                    (x1, y1),
+                    x2 - x1,
+                    y2 - y1,
+                    alpha=highlight_alpha,
+                    fc=highlight_colors[j % len(highlight_colors)],
+                )
+                ax.add_patch(patch)
+
     # Plot the overall outliers.
     idx = np.argwhere(nan_bar > 0).flatten()
     if len(idx) > 0:
@@ -133,6 +182,17 @@ def _zscore(trace):
     temp = zscore(temp)
     temp[nan_mask] = np.nan
     return temp
+
+
+def _indices_to_onsets_offsets(idx):
+    if len(idx) == 0:
+        return [], []
+    arr = np.zeros(idx[-1] + 3, dtype=int)
+    arr[idx + 1] = 1
+    diff_arr = np.diff(arr)
+    onsets = np.argwhere(diff_arr > 0).flatten()
+    offsets = np.argwhere(diff_arr < 0).flatten()
+    return onsets, offsets
 
 
 if __name__ == "__main__":
