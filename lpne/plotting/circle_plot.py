@@ -1,9 +1,8 @@
 """
 Circle plots for representing power and cross-power features or factors
 
-TODO: clean this up a bit
 """
-__date__ = "November 2022"
+__date__ = "November 2022 - April 2023"
 __all__ = ["circle_plot"]
 
 import numpy as np
@@ -26,7 +25,8 @@ def circle_plot(
     buffer_percent=1.0,
     outer_radius=1.2,
     min_max_quantiles=(0.5, 0.9),
-    color=None,
+    color="tab:blue",
+    negative_color="tab:red",
     fn="temp.pdf",
 ):
     """
@@ -45,7 +45,10 @@ def circle_plot(
     buffer_percent : float, optional
     outer_radius : float, optional
     min_max_quantiles : None or tuple
-    color : None or str, optional
+    color : str, optional
+        The color used to plot the positive values of ``factor``.
+    negative_color : str, optional
+        The color used to plot the negative values of ``factor``.
     fn : str, optional
         Image filename
     """
@@ -58,8 +61,6 @@ def circle_plot(
     if rois is not None:
         assert len(rois) == n_roi, f"{len(rois)} != {n_roi}"
         pretty_rois = [roi.replace("_", " ") for roi in rois]
-    if color is None:
-        color = "tab:blue"
 
     # Make some variables.
     r2 = outer_radius
@@ -68,8 +69,9 @@ def circle_plot(
     start_angles = center_angles[:-1] + buffer
     stop_angles = center_angles[1:] - buffer
     freq_diff = (stop_angles[0] - start_angles[0]) / (n_freq + 1)
-    min_val, max_val = np.quantile(factor, min_max_quantiles)
-    factor = max_alpha * np.clip((factor - min_val) / (max_val - min_val), 0, 1)
+    min_val, max_val = np.quantile(np.abs(factor), min_max_quantiles)
+    factor1 = max_alpha * np.clip((factor - min_val) / (max_val - min_val), 0, 1)
+    factor2 = max_alpha * np.clip((-factor - min_val) / (max_val - min_val), 0, 1)
 
     # Set up axes and labels and ticks.
     _, ax = _set_up_circle_plot(
@@ -78,7 +80,7 @@ def circle_plot(
 
     # Add the power and chord plots.
     _update_circle_plot(
-        factor,
+        factor1,
         ax,
         start_angles,
         stop_angles,
@@ -86,6 +88,18 @@ def circle_plot(
         outer_radius,
         color,
     )
+
+    # Add the negative color.
+    if np.min(factor) < 0.0:
+        _update_circle_plot(
+            factor2,
+            ax,
+            start_angles,
+            stop_angles,
+            freq_diff,
+            outer_radius,
+            negative_color,
+        )
 
     # Save and close.
     plt.savefig(fn)
@@ -218,7 +232,6 @@ def _plot_ticks(
     n=5,
     **kwargs,
 ):
-    """ """
     offset = 0 if np.cos((theta_1 + theta_2) / 2) > 0 else 180
     for freq in freq_ticks:
         theta = theta_1 + (theta_2 - theta_1) * (freq - freqs[0]) / (
@@ -234,7 +247,6 @@ def _plot_ticks(
 
 
 def _plot_roi_name(r, theta, ax, roi, extent=0.25, fontsize=16):
-    """ """
     x, y = (r + extent) * np.cos(theta), (r + extent) * np.sin(theta)
     rotation = -90 + theta * 180 / np.pi
     if np.sin(theta) < 0:
@@ -243,17 +255,18 @@ def _plot_roi_name(r, theta, ax, roi, extent=0.25, fontsize=16):
 
 
 if __name__ == "__main__":
-    model = lpne.CpSae()
-    model.load_state("model_state_v2.npy")
-    factor = model.get_factor(1)
-    factor = lpne.unsqueeze_triangular_array(factor, 0)
-
-    # factor = np.random.randn(8,8,29)
+    factor = np.random.randn(8, 8, 29)
     freqs = np.arange(factor.shape[2])
     freq_ticks = [0, 5, 8, 15]
     rois = ["A_sdfk", "B_asds", "C_asds", "D_qwe", "E_sdf", "F_sadf", "G", "H"]
 
-    circle_plot(factor, freqs=freqs, freq_ticks=freq_ticks, rois=rois)
+    circle_plot(
+        factor,
+        freqs=freqs,
+        freq_ticks=freq_ticks,
+        rois=rois,
+        min_max_quantiles=[0.5, 1.0],
+    )
 
 
 ###
