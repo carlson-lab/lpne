@@ -2,7 +2,7 @@
 Normalize LFPs and features.
 
 """
-__date__ = "July 2021 - July 2022"
+__date__ = "July 2021 - April 2023"
 
 
 import numpy as np
@@ -10,17 +10,19 @@ import numpy as np
 EPSILON = 1e-6
 
 
-def normalize_features(power_features, partition=None, mode="median"):
+def normalize_features(power_features, groups=None, partition=None, mode="median"):
     """
     Normalize the features.
 
-    This is an in-place operation!
+    This is an in-place operation and operates independently over groups.
 
     Parameters
     ----------
     power_features : numpy.ndarray
         LFP power features.
         Shape: ``[n_windows, n_roi*(n_roi+1)//2, n_freq]``
+    groups : None or numpy.ndarray, optional
+        Shape: ``[n_windows]``
     partition : None or dict, optional
         If ``None``, use all the indices to calculate window statistics.
         Otherwise, use only the indices contained in ``partition['train']``. Maps
@@ -38,23 +40,36 @@ def normalize_features(power_features, partition=None, mode="median"):
         Normalized LFP power features.
         Shape: ``[n_windows, n_roi*(n_roi+1)//2, n_freq]``
     """
+    # Figure out the groups.
+    if groups is None:
+        groups = np.zeros(len(power_features), dtype=int)
+    else:
+        assert len(groups) == len(
+            power_features
+        ), f"{len(groups)} != {power_features.shape}[0]"
+    # Figure out the partition.
     if partition is None:
-        idx = np.arange(len(power_features))
+        partition_idx = np.arange(len(power_features))
     else:
-        idx = partition["train"]
-    power_subset = power_features[idx]
-    # Remove NaNs.
-    axes = tuple(i for i in range(1, power_subset.ndim))
-    power_subset = power_subset[np.sum(np.isnan(power_subset), axis=axes) == 0]
-    if mode == "std":
-        temp = np.std(power_subset)
-    elif mode == "max":
-        temp = np.max(power_subset)
-    elif mode == "median":
-        temp = np.median(power_subset)
-    else:
-        raise NotImplementedError(f"Mode {mode} not implemented!")
-    power_features /= temp
+        partition_idx = partition["train"]
+    # Normalize the feature in each group.
+    for group in np.unique(groups):
+        group_idx = np.argwhere(groups == group).flatten()
+        idx = np.intersect1d(partition_idx, group_idx)
+        assert len(idx) > 0, f"No overlap between partition and group {group}!"
+        power_subset = power_features[idx]
+        # Remove NaNs.
+        axes = tuple(i for i in range(1, power_subset.ndim))
+        power_subset = power_subset[np.sum(np.isnan(power_subset), axis=axes) == 0]
+        if mode == "std":
+            temp = np.std(power_subset)
+        elif mode == "max":
+            temp = np.max(power_subset)
+        elif mode == "median":
+            temp = np.median(power_subset)
+        else:
+            raise NotImplementedError(f"Mode {mode} not implemented!")
+        power_features[group_idx] /= temp
     return power_features
 
 
