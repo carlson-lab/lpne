@@ -36,7 +36,7 @@ def plot_lfps(
     Plot the LFPs in the specified time range.
 
     Optionally highlight times and channels where there is high power in particular
-    frequency bands. 
+    frequency bands.
 
     Parameters
     ----------

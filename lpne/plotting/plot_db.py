@@ -2,7 +2,7 @@
 Make decibel plots
 
 """
-__date__ = "July - November 2022"
+__date__ = "July 2022 - April 2023"
 
 
 from matplotlib.colors import TABLEAU_COLORS
@@ -20,6 +20,7 @@ def plot_db(
     freqs,
     labels,
     groups,
+    relative_to=None,
     rois=None,
     colors=None,
     mode="abs",
@@ -33,6 +34,11 @@ def plot_db(
     """
     Plot cross power in decibels for the labels, averaged over groups.
 
+    You can plot absolute decibels by passing ``mode='abs'``, and differences by passing
+    ``mode='diff'``. If ``relative_to is None``, the differences are from the average
+    across labels, and if ``relative_to`` is a label, the differences are from that
+    label.
+
     Labels equal to ``lpne.INVALID_LABEL`` (``-1`` by default) are ignored.
 
     Parameters
@@ -45,6 +51,9 @@ def plot_db(
         Shape: [b]
     groups : numpy.ndarray
         Shape: [b]
+    relative_to : None or int, optional
+        If ``mode == 'diff'``, plot decibels relative to this label. If ``None``, plot
+        decibels relative to the mean across labels.
     rois : None or list of str
         ROI names. Defaults to ``None``.
     colors : None or list of str
@@ -68,43 +77,64 @@ def plot_db(
     assert len(features) == len(labels) and len(labels) == len(groups)
     assert features.shape[1] == len(freqs)
     assert features.shape[2] == features.shape[3]
+    assert mode in ["diff", "abs"]
+
+    # Figure out colors.
+    if colors is None:
+        colors = list(TABLEAU_COLORS)
+
     # Remove NaNs and invalid labels.
     idx1 = np.argwhere(np.isnan(features).sum(axis=(1, 2, 3)) == 0).flatten()
     idx2 = np.argwhere(labels != INVALID_LABEL).flatten()
     idx = np.intersect1d(idx1, idx2)
     features, labels, groups = features[idx], labels[idx], groups[idx]
-    # Get unique groups and labels.
-    unique_groups = np.unique(groups)
-    unique_labels = np.unique(labels)
-    # Figure out colors.
-    if colors is None:
-        colors = list(TABLEAU_COLORS)
+
     # Convert to decibels.
-    db_features = _to_db(features, freqs)
-    if mode == "diff":
-        db_features -= np.mean(db_features, axis=0, keepdims=True)
-    group_avgs = np.zeros((len(unique_labels), len(unique_groups)) + features.shape[1:])
-    for i, group in enumerate(unique_groups):
-        idx_1 = np.argwhere(groups == group).flatten()
-        for j, label in enumerate(unique_labels):
-            idx_2 = np.argwhere(labels == label).flatten()
-            idx = np.intersect1d(idx_1, idx_2)
-            if len(idx) == 0:
-                continue
-            group_avgs[j, i] = np.mean(db_features[idx], axis=0)
+    db_features = _to_db(features, freqs)  # [w,f,r,r]
+
+    # Get unique labels.
+    unique_labels = np.unique(labels)
+    if relative_to is not None:
+        assert relative_to in unique_labels, f"{relative_to} not in {unique_labels}!"
+
+    # Get the label averages and SEMs.
+    label_avgs = np.zeros((len(unique_labels),) + features.shape[1:])
+    label_sems = np.zeros((len(unique_labels),) + features.shape[1:])
+    for i, label in enumerate(unique_labels):
+        idx1 = np.argwhere(labels == label).flatten()
+        label_groups = np.unique(groups[idx1])
+        label_group_avgs = np.zeros((len(label_groups),) + features.shape[1:])
+        for j, group in enumerate(label_groups):
+            idx2 = np.argwhere(groups[idx1] == group).flatten()
+            label_group_avgs[j] = np.mean(db_features[idx1][idx2], axis=0)
+        label_avgs[i] = np.mean(label_group_avgs, axis=0)
+        label_sems[i] = sem(label_group_avgs, axis=0)
+
+    # Normalize in different ways.
     if mode == "diff":
         ymin = None
+        if relative_to is None:
+            label_avgs -= np.mean(label_avgs, axis=0, keepdims=True)
+        else:
+            temp = label_avgs[np.searchsorted(unique_labels, relative_to)]
+            label_avgs -= temp.reshape((1,) + temp.shape)
     else:
-        ymin = np.quantile(group_avgs, min_quantile)
+        temp = np.min(label_avgs - n_sem * label_sems, axis=0)
+        ymin = np.quantile(temp, min_quantile)
+
+    # Plot.
     n_roi = features.shape[2]
     if rois is not None:
         pretty_rois = [roi.replace("_", " ") for roi in rois]
     _, axarr = plt.subplots(nrows=n_roi, ncols=n_roi, figsize=figsize)
     for i in range(n_roi):
         for j in range(n_roi):
+            plt.sca(axarr[i, j])
+            if mode == "diff" and relative_to is not None:
+                plt.axhline(y=0, c="k", ls="--", lw=0.75)
             for k in range(len(unique_labels)):
-                mean_val = np.mean(group_avgs[k], axis=0)[:, i, j]
-                err = n_sem * sem(group_avgs[k], axis=0)[:, i, j]
+                mean_val = label_avgs[k, :, i, j]
+                err = n_sem * label_sems[k, :, i, j]
                 axarr[i, j].plot(
                     freqs,
                     mean_val,
@@ -120,7 +150,6 @@ def plot_db(
                 )
             for direction in ["top", "right"]:
                 axarr[i, j].spines[direction].set_visible(False)
-            plt.sca(axarr[i, j])
             plt.xticks([])
             plt.yticks([])
             plt.ylim(ymin, None)
