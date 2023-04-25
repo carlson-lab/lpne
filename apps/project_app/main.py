@@ -7,24 +7,32 @@ __date__ = "January - October 2022"
 
 from bokeh.plotting import curdoc
 from bokeh.layouts import column
-from bokeh.models import Button, PreText, TextInput, MultiSelect, \
-        RadioButtonGroup, CheckboxGroup, Tabs, Panel
+from bokeh.models import (
+    Button,
+    PreText,
+    TextInput,
+    MultiSelect,
+    RadioButtonGroup,
+    CheckboxGroup,
+    Tabs,
+    Panel,
+)
 import numpy as np
 import os
 
 import lpne
 
 
-DEFAULT_FEATURE_DIR = '/Users/jack/Desktop/lpne/test_data/features/'
-DEFAULT_LABEL_DIR = '/Users/jack/Desktop/lpne/test_data/labels/'
-DEFAULT_SAVE_DIR = '/Users/jack/Desktop/lpne/test_data/projected_labels/'
-DEFAULT_MODEL_FN = '/Users/jack/Desktop/lpne/test_data/model_state.npy'
-DEFAULT_MAT_FN = '/Users/jack/Desktop/lpne/test_data/transition_mat.npy'
+DEFAULT_FEATURE_DIR = "/Users/jack/Desktop/lpne/test_data/features/"
+DEFAULT_LABEL_DIR = "/Users/jack/Desktop/lpne/test_data/labels/"
+DEFAULT_SAVE_DIR = "/Users/jack/Desktop/lpne/test_data/projected_labels/"
+DEFAULT_MODEL_FN = "/Users/jack/Desktop/lpne/test_data/model_state.npy"
+DEFAULT_MAT_FN = "/Users/jack/Desktop/lpne/test_data/transition_mat.npy"
 
 MULTISELECT_HEIGHT = 350
 MULTISELECT_WIDTH = 400
 MODEL_TYPES = ["CP SAE", "FA SAE"]
-NORM_METHODS = ['Median', 'Std. Dev.', 'Maximum']
+NORM_METHODS = ["Median", "Std. Dev.", "Maximum"]
 
 COUNTS = None
 FNS = None
@@ -32,19 +40,18 @@ PREDICTIONS = None
 MAP_SEQ = None
 
 
-
 def project_app(doc):
 
     rbg_title = PreText(text="Select model type:")
     radio_button_group = RadioButtonGroup(
-            labels=MODEL_TYPES,
-            active=0,
+        labels=MODEL_TYPES,
+        active=0,
     )
 
     rbg2_title = PreText(text="Select normalization method:")
     radio_button_group_2 = RadioButtonGroup(
-            labels=NORM_METHODS,
-            active=0,
+        labels=NORM_METHODS,
+        active=0,
     )
 
     if os.path.exists(DEFAULT_FEATURE_DIR):
@@ -53,16 +60,15 @@ def project_app(doc):
         initial_options = []
 
     multi_select = MultiSelect(
-            value=[],
-            options=initial_options,
-            title="Select feature files:",
-            height=MULTISELECT_HEIGHT,
-            width=MULTISELECT_WIDTH,
+        value=[],
+        options=initial_options,
+        title="Select feature files:",
+        height=MULTISELECT_HEIGHT,
+        width=MULTISELECT_WIDTH,
     )
 
     def update_multi_select(new_options, multi_select=multi_select):
         multi_select.options = new_options
-
 
     def feature_dir_input_callback(attr, old, new):
         """If the directory exists, populate the file selector."""
@@ -72,38 +78,37 @@ def project_app(doc):
                 load_dir = load_dir[:-1]
             update_multi_select(_my_listdir(load_dir))
             # Update the save directory too.
-            temp = load_dir.split(os.path.sep)[:-1] + ['projected_labels']
+            temp = load_dir.split(os.path.sep)[:-1] + ["projected_labels"]
             save_dir_in.value = os.path.sep.join(temp)
         else:
             alert_box.text = f"Not a valid directory: {new}"
 
-
     model_in = TextInput(
-            value=DEFAULT_MODEL_FN,
-            title="Enter a model filename (.npy):",
+        value=DEFAULT_MODEL_FN,
+        title="Enter a model filename (.npy):",
     )
 
     label_checkbox = CheckboxGroup(
-            labels=["Load labels?"],
-            active=[0],
+        labels=["Load labels?"],
+        active=[0],
     )
 
     label_dir_in = TextInput(
-            value=DEFAULT_LABEL_DIR,
-            title="Enter a label directory:",
+        value=DEFAULT_LABEL_DIR,
+        title="Enter a label directory:",
     )
 
     feature_dir_in = TextInput(
-            value=DEFAULT_FEATURE_DIR,
-            title="Enter the feature directory:",
+        value=DEFAULT_FEATURE_DIR,
+        title="Enter the feature directory:",
     )
     feature_dir_in.on_change("value", feature_dir_input_callback)
 
     project_button = Button(label="Project Data", width=150)
 
     transition_mat_in = TextInput(
-            value=DEFAULT_MAT_FN,
-            title="Enter a transition matrix filename (.npy):",
+        value=DEFAULT_MAT_FN,
+        title="Enter a transition matrix filename (.npy):",
     )
     stats_button = Button(label="Get Stats", width=300)
 
@@ -111,8 +116,8 @@ def project_app(doc):
     save_button_2 = Button(label="Save Smoothed Predictions", width=150)
 
     overwrite_checkbox = CheckboxGroup(
-            labels=["Overwrite existing files?"],
-            active=[],
+        labels=["Overwrite existing files?"],
+        active=[],
     )
 
     save_dir_in = TextInput(
@@ -123,21 +128,20 @@ def project_app(doc):
 
     alert_box = PreText(text="")
 
-
     def project_callback():
         global COUNTS, FNS, PREDICTIONS, MAP_SEQ
-        if project_button.button_type=="success":
+        if project_button.button_type == "success":
             # Reset
-            project_button.button_type="default"
-            project_button.label="Project Data"
+            project_button.button_type = "default"
+            project_button.label = "Project Data"
             COUNTS = None
             FNS = None
             PREDICTIONS = None
             MAP_SEQ = None
-            save_button_1.button_type="default"
-            save_button_1.label="Save Per-Window Predictions"
-            save_button_2.button_type="default"
-            save_button_2.label="Save Smoothed Predictions"
+            save_button_1.button_type = "default"
+            save_button_1.label = "Save Per-Window Predictions"
+            save_button_2.button_type = "default"
+            save_button_2.label = "Save Smoothed Predictions"
             alert_box.text = "Reset"
             return
         # Load the features.
@@ -147,7 +151,7 @@ def project_app(doc):
             alert_box.text = "Feature directory doesn't exist!"
             return
         feature_fns = sorted(
-                [os.path.join(feature_dir,i) for i in multi_select.value],
+            [os.path.join(feature_dir, i) for i in multi_select.value],
         )
         if len(feature_fns) == 0:
             project_button.button_type = "warning"
@@ -170,26 +174,26 @@ def project_app(doc):
                 label_fns.append(label_fn)
             # Load the features and labels.
             features, labels, rois, counts = lpne.load_features_and_labels(
-                    feature_fns,
-                    label_fns,
-                    return_counts=True,
+                feature_fns,
+                label_fns,
+                return_counts=True,
             )
         else:
             # Just load the features.
             features, rois, counts = lpne.load_features(
-                    feature_fns,
-                    return_counts=True,
+                feature_fns,
+                return_counts=True,
             )
         # Normalize the power features.
         if radio_button_group_2.active == 0:
-            mode = 'median'
+            mode = "median"
         elif radio_button_group_2.active == 1:
-            mode = 'std'
+            mode = "std"
         elif radio_button_group_2.active == 2:
-            mode = 'max'
+            mode = "max"
         features = lpne.normalize_features(features, mode=mode)
         features = lpne.unsqueeze_triangular_array(features, 1)
-        features = np.transpose(features, [0,3,1,2])
+        features = np.transpose(features, [0, 3, 1, 2])
         # Load the model.
         if not os.path.exists(model_in.value):
             project_button.button_type = "warning"
@@ -209,6 +213,14 @@ def project_app(doc):
         # Make predictions and print message.
         predictions = model.predict_proba(features)
         hard_predictions = model.classes_[np.argmax(predictions, axis=1)]
+
+        # Account for the NaNs in the hard predictions.
+        idx = np.argwhere(np.isnan(predictions.sum(axis=1))).flatten()
+        for i in idx:
+            if i == 0:
+                continue
+            hard_predictions[i] = hard_predictions[i - 1]
+
         COUNTS = counts
         FNS = feature_fns
         PREDICTIONS = predictions
@@ -220,21 +232,20 @@ def project_app(doc):
             idx = np.array(idx)
             # Calculate a weighted accuracy.
             acc = model.score(features[idx], labels[idx], None)
-            message = f"Confusion matrix (rows are true labels, columns are " \
-                      f"predicted labels):\n{confusion}\n\n" \
-                      f"Weighted accuracy: {acc}"
+            message = (
+                f"Confusion matrix (rows are true labels, columns are "
+                f"predicted labels):\n{confusion}\n\n"
+                f"Weighted accuracy: {acc}"
+            )
         else:
-            pred_vals, pred_counts = \
-                    np.unique(hard_predictions, return_counts=True)
-            message = f"Predictions: {pred_vals}\n" \
-                      f"Counts: {pred_counts}"
+            pred_vals, pred_counts = np.unique(hard_predictions, return_counts=True)
+            message = f"Predictions: {pred_vals}\n" f"Counts: {pred_counts}"
 
         project_button.label = "Projected (click to reset)"
-        project_button.button_type="success"
+        project_button.button_type = "success"
         alert_box.text = message
 
     project_button.on_click(project_callback)
-
 
     def stats_callback():
         global PREDICTIONS, MAP_SEQ
@@ -253,37 +264,46 @@ def project_app(doc):
         n_classes = PREDICTIONS.shape[1]
         trans_mat = np.load(mat_fn)
         map_seqs, map_scores = lpne.top_k_viterbi(PREDICTIONS, trans_mat)
-        MAP_SEQ = map_seqs[0] # save the top-1 predictions
+        MAP_SEQ = map_seqs[0]  # save the top-1 predictions
         iid_seq = np.argmax(PREDICTIONS, axis=1)
+        # Account for the NaNs in the hard predictions.
+        idx = np.argwhere(np.isnan(PREDICTIONS.sum(axis=1))).flatten()
+        for i in idx:
+            if i == 0:
+                continue
+            iid_seq[i] = iid_seq[i - 1]
         # Make stats.
-        map_counts, map_dur, map_transitions = \
-                lpne.get_label_stats(map_seqs, map_scores, n_classes)
-        iid_counts, iid_dur, iid_transitions = \
-                lpne.get_label_stats(iid_seq, None, n_classes)
+        map_counts, map_dur, map_transitions = lpne.get_label_stats(
+            map_seqs, map_scores, n_classes
+        )
+        iid_counts, iid_dur, iid_transitions = lpne.get_label_stats(
+            iid_seq, None, n_classes
+        )
         # Display stats.
-        msg = f"Results with temporal info:\nNumber of bouts: {map_counts}\n" \
-              f"Average bout durations (windows): {map_dur}\n" \
-              f"Number of transistions:\n{map_transitions}\n\n" \
-              f"Results without temporal info:\nNumber of bouts: {iid_counts}\n" \
-              f"Average bout durations (windows): {iid_dur}\n" \
-              f"Number of transistions:\n{iid_transitions}\n\n" \
-              f"Transition matrix:\n{trans_mat}"
+        msg = (
+            f"Results with temporal info:\nNumber of bouts: {map_counts}\n"
+            f"Average bout durations (windows): {map_dur}\n"
+            f"Number of transistions:\n{map_transitions}\n\n"
+            f"Results without temporal info:\nNumber of bouts: {iid_counts}\n"
+            f"Average bout durations (windows): {iid_dur}\n"
+            f"Number of transistions:\n{iid_transitions}\n\n"
+            f"Transition matrix:\n{trans_mat}"
+        )
         alert_box.text = msg
 
-
     stats_button.on_click(stats_callback)
-
 
     def save_1_callback():
         global COUNTS, FNS, PREDICTIONS
         if COUNTS is None or FNS is None or PREDICTIONS is None:
-            save_button_1.button_type="warning"
-            alert_box.text = "Data needs to be projected before " \
-                             "predictions can be saved!"
+            save_button_1.button_type = "warning"
+            alert_box.text = (
+                "Data needs to be projected before " "predictions can be saved!"
+            )
             return
         save_dir = save_dir_in.value
         if not os.path.exists(save_dir):
-            save_button_1.button_type="warning"
+            save_button_1.button_type = "warning"
             alert_box.text = f"Save directory doesn't exist: {save_dir}"
             return
         overwrite = 0 in overwrite_checkbox.active
@@ -295,29 +315,29 @@ def project_app(doc):
         for fn, count in zip(FNS, counts):
             out_fn = os.path.join(save_dir, os.path.split(fn)[-1])
             if not overwrite and os.path.exists(out_fn):
-                save_button_1.button_type="warning"
+                save_button_1.button_type = "warning"
                 alert_box.text = f"File already exists: {out_fn}"
                 return
-            lpne.save_labels(PREDICTIONS[i:i+count], out_fn, overwrite=overwrite)
+            lpne.save_labels(PREDICTIONS[i : i + count], out_fn, overwrite=overwrite)
             i += count
-        save_button_1.button_type="success"
-        save_button_1.label="Saved Predictions"
+        save_button_1.button_type = "success"
+        save_button_1.label = "Saved Predictions"
         alert_box.text = "Saved predictions."
 
-
     save_button_1.on_click(save_1_callback)
-
 
     def save_2_callback():
         global COUNTS, FNS, MAP_SEQ
         if COUNTS is None or FNS is None or MAP_SEQ is None:
-            save_button_2.button_type="warning"
-            alert_box.text = "Data needs to be projected and smoothed before "\
-                             "smoothed predictions can be saved!"
+            save_button_2.button_type = "warning"
+            alert_box.text = (
+                "Data needs to be projected and smoothed before "
+                "smoothed predictions can be saved!"
+            )
             return
         save_dir = save_dir_in.value
         if not os.path.exists(save_dir):
-            save_button_2.button_type="warning"
+            save_button_2.button_type = "warning"
             alert_box.text = f"Save directory doesn't exist: {save_dir}"
             return
         overwrite = 0 in overwrite_checkbox.active
@@ -329,58 +349,55 @@ def project_app(doc):
         for fn, count in zip(FNS, counts):
             out_fn = os.path.join(save_dir, os.path.split(fn)[-1])
             if not overwrite and os.path.exists(out_fn):
-                save_button_2.button_type="warning"
+                save_button_2.button_type = "warning"
                 alert_box.text = f"File already exists: {out_fn}"
                 return
-            lpne.save_labels(MAP_SEQ[i:i+count], out_fn, overwrite=overwrite)
+            lpne.save_labels(MAP_SEQ[i : i + count], out_fn, overwrite=overwrite)
             i += count
-        save_button_2.button_type="success"
-        save_button_2.label="Saved Predictions"
+        save_button_2.button_type = "success"
+        save_button_2.label = "Saved Predictions"
         alert_box.text = "Saved predictions."
-
 
     save_button_2.on_click(save_2_callback)
 
-
     column_1 = column(
-            model_in,
-            rbg_title,
-            radio_button_group,
-            rbg2_title,
-            radio_button_group_2,
-            label_checkbox,
-            label_dir_in,
-            feature_dir_in,
-            multi_select,
-            project_button,
-            alert_box,
+        model_in,
+        rbg_title,
+        radio_button_group,
+        rbg2_title,
+        radio_button_group_2,
+        label_checkbox,
+        label_dir_in,
+        feature_dir_in,
+        multi_select,
+        project_button,
+        alert_box,
     )
     tab_1 = Panel(child=column_1, title="Data Stuff")
 
     column_2 = column(
-            transition_mat_in,
-            stats_button,
-            alert_box,
+        transition_mat_in,
+        stats_button,
+        alert_box,
     )
     tab_2 = Panel(child=column_2, title="Transitions")
 
     column_3 = column(
-            save_dir_in,
-            overwrite_checkbox,
-            save_button_1,
-            save_button_2,
-            alert_box,
+        save_dir_in,
+        overwrite_checkbox,
+        save_button_1,
+        save_button_2,
+        alert_box,
     )
-    tab_3= Panel(child=column_3, title="Save Projections")
+    tab_3 = Panel(child=column_3, title="Save Projections")
     tabs = Tabs(tabs=[tab_1, tab_2, tab_3])
     doc.add_root(tabs)
 
 
 def _my_listdir(dir):
-    if dir == '':
+    if dir == "":
         return []
-    return sorted([i for i in os.listdir(dir) if not i.startswith('.')])
-
+    return sorted([i for i in os.listdir(dir) if not i.startswith(".")])
 
 
 # Run the app.

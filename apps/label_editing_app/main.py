@@ -46,10 +46,10 @@ LFP_TOOLS = "pan,xwheel_zoom,reset,box_zoom"  # wheel_zoom
 LABEL_TOOLS = "box_select,pan,reset"
 NULL_SELECTION = "No selection"
 DEFAULT_HIPP_SOURCE_DATA = dict(
-    lfp_time=[0,1,2,3],
-    emg=[5,5,5,5],
-    hipp=[5,5,5,5],
-    cortex=[5,5,5,5],
+    lfp_time=[0, 1, 2, 3],
+    emg=[5, 5, 5, 5],
+    hipp=[5, 5, 5, 5],
+    cortex=[5, 5, 5, 5],
 )
 
 
@@ -194,14 +194,16 @@ def label_editing_app(doc):
     def lfp_select_callback(attr, old, new):
         """ """
         temp_idx = -len(lfp_suffix_input.value)
-        if label_select.value == "make new labels" and lfp_select.value.endswith('.mat'):
+        if label_select.value == "make new labels" and lfp_select.value.endswith(
+            ".mat"
+        ):
             npy_savefile_input.value = os.path.join(
                 label_dir_input.value,
-                lfp_select.value[:temp_idx] + '.npy',
+                lfp_select.value[:temp_idx] + ".npy",
             )
             csv_savefile_input.value = os.path.join(
                 label_dir_input.value,
-                lfp_select.value[:temp_idx] + '.csv',
+                lfp_select.value[:temp_idx] + ".csv",
             )
         else:
             temp = label_select.value
@@ -373,7 +375,7 @@ def label_editing_app(doc):
             cortex_trace = lpne.filter_signal(cortex_trace, fs, LFP_LOWCUT, LFP_HIGHCUT)
             cortex_trace = cortex_trace[::subsamp]
             lfp_times = subsamp / fs * np.arange(len(cortex_trace))
-        
+
         label_fn = label_select.value
         if label_fn == NULL_SELECTION:
             load_button.button_type = "warning"
@@ -385,7 +387,7 @@ def label_editing_app(doc):
                 alert_box.text = "Need at least one channel selected!"
                 return
             n_windows = int(np.floor(lfp_times[-1] / window_slider.value))
-            labels = -1 * np.ones(n_windows, dtype='int')            
+            labels = -1 * np.ones(n_windows, dtype="int")
         else:
             label_fn = os.path.join(label_dir_input.value, label_fn)
             if not os.path.isfile(label_fn):
@@ -406,7 +408,9 @@ def label_editing_app(doc):
                 lfp_time=lfp_times,
                 emg=np.zeros(len(lfp_times)) if emg_trace is None else emg_trace,
                 hipp=np.zeros(len(lfp_times)) if hipp_trace is None else hipp_trace,
-                cortex=np.zeros(len(lfp_times)) if cortex_trace is None else cortex_trace,
+                cortex=np.zeros(len(lfp_times))
+                if cortex_trace is None
+                else cortex_trace,
             )
         new_label_data = dict(
             label_time=label_times,
@@ -441,7 +445,7 @@ def label_editing_app(doc):
     def npy_save_callback():
         overwrite = 0 in npy_overwrite_checkbox.active
         labels = np.array([COLORS.index(c) for c in label_source.data["color"]])
-        labels[labels == len(COLORS)-1] = -1
+        labels[labels == len(COLORS) - 1] = -1
         label_fn = npy_savefile_input.value
         try:
             lpne.save_labels(labels, label_fn, overwrite=overwrite)
@@ -471,7 +475,7 @@ def label_editing_app(doc):
     def csv_save_callback():
         overwrite = 0 in csv_overwrite_checkbox.active
         labels = np.array([COLORS.index(c) for c in label_source.data["color"]])
-        labels[labels == len(COLORS)-1] = -1
+        labels[labels == len(COLORS) - 1] = -1
         label_fn = csv_savefile_input.value
         if not overwrite and os.path.isfile(label_fn):
             csv_save_button.button_type = "warning"
@@ -481,7 +485,7 @@ def label_editing_app(doc):
             csv_save_button.button_type = "warning"
             alert_box.text = "CSV file should have a .csv or .txt extension."
             return
-        
+
         lpne.save_labels(labels, label_fn, overwrite=overwrite)
 
         csv_save_button.label = "Saved"

@@ -5,7 +5,7 @@ Adapted from:
 https://gist.github.com/PetrochukM/afaa3613a99a8e7213d2efdd02ae4762
 
 """
-__date__ = "February - July 2022"
+__date__ = "February 2022 - April 2023"
 __all__ = [
     "top_k_viterbi",
     "get_label_stats",
@@ -40,11 +40,17 @@ def top_k_viterbi(emissions, transition_mat, top_k=10):
     viterbi_scores : numpy.ndarray
         Shape: ``[k]``
     """
+    assert emissions.ndim == 2, f"len({emissions.shape}) != 2"
+    assert transition_mat.ndim == 2, f"len({transition_mat.shape}) != 2"
+    assert emissions.shape[1] == transition_mat.shape[0], "Incompatible shapes!"
     # Handle NaNs in the emissions.
+    emissions = np.copy(emissions)
     emissions[np.isnan(emissions)] = 1 / emissions.shape[1]
     # Convert to logspace and torch Tensors.
-    tag_sequence = torch.tensor(np.maximum(np.log(emissions), MIN_LOG_EMISSION))
-    transition_matrix = torch.tensor(np.log(transition_mat))
+    tag_sequence = emissions.clip(np.exp(MIN_LOG_EMISSION))
+    tag_sequence = torch.tensor(np.log(tag_sequence))
+    transition_matrix = np.copy(transition_mat).clip(np.exp(MIN_LOG_EMISSION))
+    transition_matrix = torch.tensor(np.log(transition_matrix))
     sequence_length, num_tags = list(tag_sequence.size())
     path_scores = []
     path_indices = []
