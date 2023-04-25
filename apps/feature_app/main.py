@@ -10,7 +10,6 @@ from bokeh.models import (
     Button,
     CheckboxGroup,
     ColumnDataSource,
-    Select,
     Panel,
     PreText,
     Slider,
@@ -194,7 +193,7 @@ def feature_app(doc):
     )
 
     def window_slider_callback(attr, old, new):
-        load_dir = load_dir_input.value
+        load_dir = lfp_dir_input.value
         if load_dir[-1] == os.path.sep:
             load_dir = load_dir[:-1]
         if os.path.exists(load_dir) and len(load_dir.split(os.path.sep)) > 1:
@@ -227,6 +226,11 @@ def feature_app(doc):
         active=[0],
     )
 
+    use_chans_checkbox = CheckboxGroup(
+        labels=["Use CHANS file?"],
+        active=[0],
+    )
+
     dir_spec_checkbox = CheckboxGroup(
         labels=["Calculate directed features too?"],
         active=[],
@@ -255,12 +259,13 @@ def feature_app(doc):
 
     def save_callback():
         lfp_dir = lfp_dir_input.value
+        use_chans = 0 in use_chans_checkbox.active
         if not os.path.exists(lfp_dir):
             alert_box.text = f"LFP directory does not exist: {lfp_dir}"
             save_button.button_type = "warning"
             return
         chans_dir = chans_dir_input.value
-        if not os.path.exists(chans_dir):
+        if use_chans and not os.path.exists(chans_dir):
             alert_box.text = f"CHANS directory does not exist: {chans_dir}"
             save_button.button_type = "warning"
             return
@@ -277,19 +282,22 @@ def feature_app(doc):
         default_channel_map = 0 in channel_map_checkbox.active
         # Get the filenames.
         saved_channels = {}
-        chans_fns = sorted([os.path.join(chans_dir, i) for i in multi_select_2.value])
+        if use_chans:
+            chans_fns = sorted(
+                [os.path.join(chans_dir, i) for i in multi_select_2.value]
+            )
         lfp_fns = sorted([os.path.join(lfp_dir, i) for i in multi_select_1.value])
-        if len(chans_fns) > 1 and len(chans_fns) != len(lfp_fns):
+        if use_chans and len(chans_fns) > 1 and len(chans_fns) != len(lfp_fns):
             alert_box.text = f"Unequal number of CHANS and LFP files: {len(chans_fns)} {len(lfp_fns)}"
             save_button.button_type = "warning"
             return
-        elif len(chans_fns) == 1:
+        elif use_chans and len(chans_fns) == 1:
             chans_fns = chans_fns * len(lfp_fns)
         if len(lfp_fns) == 0:
             alert_box.text = f"No LFP filenames selected!"
             save_button.button_type = "warning"
             return
-        if len(chans_fns) == 0:
+        if use_chans and len(chans_fns) == 0:
             alert_box.text = f"No CHANS filenames selected!"
             save_button.button_type = "warning"
             return
@@ -300,7 +308,8 @@ def feature_app(doc):
             lfps = lpne.filter_lfps(lfps, int(fs_input.value))
 
             # Remove the bad channels marked in the CHANS file.
-            lfps = lpne.remove_channels_from_lfps(lfps, chans_fns[file_num])
+            if use_chans:
+                lfps = lpne.remove_channels_from_lfps(lfps, chans_fns[file_num])
 
             # Mark outliers with NaNs.
             if mark_outliers:
@@ -360,6 +369,7 @@ def feature_app(doc):
         window_slider,
         save_dir_input,
         hemisphere_checkbox,
+        use_chans_checkbox,
         outlier_checkbox,
         dir_spec_checkbox,
         overwrite_checkbox,
