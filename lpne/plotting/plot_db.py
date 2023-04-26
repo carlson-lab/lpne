@@ -167,7 +167,7 @@ def plot_db(
             if y_ticks is None:
                 plt.yticks([])
             else:
-                plt.xticks(y_ticks, size="xx-small")
+                plt.yticks(y_ticks, size="xx-small")
                 if j != 0:
                     plt.setp(axarr[i, j].get_yticklabels(), visible=False)
             plt.ylim(ymin, None)
