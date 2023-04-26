@@ -13,8 +13,6 @@ import matplotlib.pyplot as plt
 
 R1 = 1.0  # inner radius of power plots
 
-import lpne
-
 
 def circle_plot(
     factor,

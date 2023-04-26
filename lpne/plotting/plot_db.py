@@ -132,7 +132,9 @@ def plot_db(
     n_roi = features.shape[2]
     if rois is not None:
         pretty_rois = [roi.replace("_", " ") for roi in rois]
-    _, axarr = plt.subplots(nrows=n_roi, ncols=n_roi, figsize=figsize)
+    _, axarr = plt.subplots(
+        nrows=n_roi, ncols=n_roi, figsize=figsize, sharex=True, sharey=True
+    )
     for i in range(n_roi):
         for j in range(n_roi):
             plt.sca(axarr[i, j])
