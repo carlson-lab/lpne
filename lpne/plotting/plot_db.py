@@ -160,16 +160,16 @@ def plot_db(
                 axarr[i, j].spines[direction].set_visible(False)
             if x_ticks is None:
                 plt.xticks([])
-            elif i == n_roi - 1:
-                plt.xticks(x_ticks, size="xx-small")
             else:
-                plt.xticks(x_ticks, [""] * len(x_ticks))
+                plt.xticks(x_ticks, size="xx-small")
+                if i != n_roi - 1:
+                    plt.setp(axarr[i, j].get_xticklabels(), visible=False)
             if y_ticks is None:
                 plt.yticks([])
-            elif j == 0:
-                plt.yticks(y_ticks, size="xx-small")
             else:
-                plt.yticks(y_ticks, [""] * len(y_ticks))
+                plt.xticks(y_ticks, size="xx-small")
+                if j != 0:
+                    plt.setp(axarr[i, j].get_yticklabels(), visible=False)
             plt.ylim(ymin, None)
             if (rois is not None) and j == 0:
                 plt.sca(axarr[i, j])
