@@ -28,6 +28,8 @@ def plot_db(
     min_quantile=0.05,
     sem_alpha=0.5,
     lw=1.0,
+    x_ticks=None,
+    y_ticks=None,
     figsize=(8, 8),
     fn="temp.pdf",
 ):
@@ -69,6 +71,10 @@ def plot_db(
         Tranparency of uncertainty ranges. Defaults to ``0.5``.
     lw : float, optional
         Line width. Defaults to ``1``.
+    x_ticks : None or list of float
+        Frequency tick values
+    y_ticks : None or list of float
+        Decibel tick values
     figsize : tuple of float, optional
         Passed to ``plt.subplots``. Defaults to ``(8,8)``.
     fn : str, optional
@@ -150,8 +156,18 @@ def plot_db(
                 )
             for direction in ["top", "right"]:
                 axarr[i, j].spines[direction].set_visible(False)
-            plt.xticks([])
-            plt.yticks([])
+            if x_ticks is None:
+                plt.xticks([])
+            elif i == n_roi - 1:
+                plt.xticks(x_ticks)
+            else:
+                plt.xticks(x_ticks, [""] * len(x_ticks))
+            if y_ticks is None:
+                plt.yticks([])
+            elif j == 0:
+                plt.yticks(y_ticks)
+            else:
+                plt.yticks(y_ticks, [""] * len(y_ticks))
             plt.ylim(ymin, None)
             if (rois is not None) and j == 0:
                 plt.sca(axarr[i, j])
