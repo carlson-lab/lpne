@@ -159,13 +159,13 @@ def plot_db(
             if x_ticks is None:
                 plt.xticks([])
             elif i == n_roi - 1:
-                plt.xticks(x_ticks)
+                plt.xticks(x_ticks, size="xx-small")
             else:
                 plt.xticks(x_ticks, [""] * len(x_ticks))
             if y_ticks is None:
                 plt.yticks([])
             elif j == 0:
-                plt.yticks(y_ticks)
+                plt.yticks(y_ticks, size="xx-small")
             else:
                 plt.yticks(y_ticks, [""] * len(y_ticks))
             plt.ylim(ymin, None)
