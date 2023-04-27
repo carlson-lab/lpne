@@ -59,7 +59,7 @@ def plot_db(
     rois : None or list of str
         ROI names. Defaults to ``None``.
     colors : None or list of str
-        Defaults to ``None``. Colors correspond to unique labels.
+        Defaults to ``None``. Colors correspond to sorted unique labels.
     mode : {``'abs'``, ``'diff'``}, optional
         Whether to plot absolute dB values or differences from the mean.
         Defaults to ``'abs'``.

@@ -1,8 +1,8 @@
 """
-Make a scatterplot on the 2-simplex.
+Make a plot on the 2-simplex.
 
 """
-__date__ = "December 2022"
+__date__ = "December 2022 - April 2023"
 __all__ = ["simplex_plot"]
 
 
@@ -13,18 +13,29 @@ GAP = 0.05
 
 
 def simplex_plot(
-    probs, color="k", alpha=0.7, scatter_size=1.5, class_names=None, fn="temp.pdf"
+    probs,
+    mode="scatter",
+    color="k",
+    alpha=0.7,
+    lw=1.0,
+    scatter_size=1.5,
+    class_names=None,
+    fn="temp.pdf",
 ):
     """
-    Make a scatterplot on the 2-simplex.
+    Make a plot on the 2-simplex.
 
     Parameters
     ----------
     probs : numpy.ndarray
         Class probabilities.
         Shape: ``[n_points, 3]``
+    mode : {``'scatter``, ``'line'``}, optional
+        Plot a scatterplot or a line plot.
     color : str, optional
         Scatter color
+    lw : float, optional
+        Line width
     alpha : float, optional
         Scatter transparency
     scatter_size : float, optional
@@ -34,6 +45,7 @@ def simplex_plot(
     fn : str, optional
         Image filename
     """
+    assert mode in ["scatter", "line"]
     assert probs.ndim == 2, f"len({probs.shape}) != 2"
     assert probs.shape[1] == 3, f"{probs.shape}[1] != 3, probs must have three classes!"
     assert np.allclose(
@@ -41,7 +53,10 @@ def simplex_plot(
     ), f"probs must be normalized!"
     x, y = (probs[:, 0] + 2 * probs[:, 2]) / np.sqrt(3), probs[:, 0]
     plt.plot([0, 1 / np.sqrt(3), 2 / np.sqrt(3), 0], [0, 1, 0, 0], c="k", lw=1.5)
-    plt.scatter(x, y, alpha=alpha, s=scatter_size, c=color)
+    if mode == "scatter":
+        plt.scatter(x, y, alpha=alpha, s=scatter_size, c=color)
+    else:
+        plt.plot(x, y, alpha=alpha, lw=lw, c=color)
     plt.gca().set_aspect("equal")
     plt.axis("off")
     if class_names is not None:
