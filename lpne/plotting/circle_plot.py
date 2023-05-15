@@ -23,6 +23,7 @@ def circle_plot(
     buffer_percent=1.0,
     outer_radius=1.2,
     min_max_quantiles=(0.5, 0.9),
+    min_max_vals=None,
     color="tab:blue",
     negative_color="tab:red",
     fn="temp.pdf",
@@ -41,8 +42,14 @@ def circle_plot(
     max_alpha : float, optional
         Maximum transparency
     buffer_percent : float, optional
+        Controls the spacing between the ROIs
     outer_radius : float, optional
-    min_max_quantiles : None or tuple
+        Controls the thickness of the outer plots.
+    min_max_quantiles : tuple, optional
+        Controls how values of the factor are mapped to transparencies. Ignored if
+        ``min_max_vals`` is not ``None``.
+    min_max_vals : None or tuple, optional
+        Controls how values of the factor are mapped to transparencies.
     color : str, optional
         The color used to plot the positive values of ``factor``.
     negative_color : str, optional
@@ -67,7 +74,10 @@ def circle_plot(
     start_angles = center_angles[:-1] + buffer
     stop_angles = center_angles[1:] - buffer
     freq_diff = (stop_angles[0] - start_angles[0]) / (n_freq + 1)
-    min_val, max_val = np.quantile(np.abs(factor), min_max_quantiles)
+    if min_max_vals is None:
+        min_val, max_val = np.quantile(np.abs(factor), min_max_quantiles)
+    else:
+        min_val, max_val = min_max_vals
     factor1 = max_alpha * np.clip((factor - min_val) / (max_val - min_val), 0, 1)
     factor2 = max_alpha * np.clip((-factor - min_val) / (max_val - min_val), 0, 1)
 
