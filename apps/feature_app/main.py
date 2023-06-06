@@ -2,7 +2,7 @@
 An app for making LFP features.
 
 """
-__date__ = "December 2021 - August 2022"
+__date__ = "December 2021 - June 2023"
 
 
 from bokeh.layouts import column, row
@@ -40,11 +40,6 @@ DEFAULT_DURATION = 2
 NULL_SELECTION = "No selection"
 LFP_SUFFIX = "_LFP.mat"
 
-# FILTERING
-LFP_LOWCUT = 0.5
-LFP_HIGHCUT = 55.0
-Q = 1.5
-
 # CHANNEL MAP
 DEFAULT_MAP = dict(
     channel_names=["foo", "bar"],
@@ -81,7 +76,7 @@ def feature_app(doc):
             channel_map_button.button_type = "warning"
             return
         combine_hemi = 0 in hemisphere_checkbox.active
-        lfp_fns = sorted([os.path.join(lfp_dir, i) for i in multi_select_1.value])
+        lfp_fns = sorted([os.path.join(lfp_dir, i) for i in lfp_multiselect.value])
         if len(lfp_fns) == 0:
             alert_box.text = f"No LFP filenames selected!"
             channel_map_button.button_type = "warning"
@@ -119,7 +114,7 @@ def feature_app(doc):
     else:
         initial_options = []
 
-    multi_select_1 = MultiSelect(
+    lfp_multiselect = MultiSelect(
         value=[],
         options=initial_options,
         title="Select LFP files:",
@@ -127,15 +122,15 @@ def feature_app(doc):
         width=MULTISELECT_WIDTH,
     )
 
-    def update_multi_select_1(new_options):
-        multi_select_1.options = new_options
+    def update_lfp_multiselect(new_options):
+        lfp_multiselect.options = new_options
 
     if os.path.exists(DEFAULT_CHANS_DIR):
         initial_options = _my_listdir(DEFAULT_CHANS_DIR)
     else:
         initial_options = []
 
-    multi_select_2 = MultiSelect(
+    chans_multiselect = MultiSelect(
         value=[],
         options=initial_options,
         title="Select CHANS file or files:",
@@ -143,8 +138,8 @@ def feature_app(doc):
         width=MULTISELECT_WIDTH,
     )
 
-    def update_multi_select_2(new_options):
-        multi_select_2.options = new_options
+    def update_chans_multiselect(new_options):
+        chans_multiselect.options = new_options
 
     def lfp_dir_input_callback(attr, old, new):
         """If the directory exists, populate the file selector."""
@@ -157,7 +152,7 @@ def feature_app(doc):
                 save_dir.append("features")
                 save_dir.append(str(window_slider.value) + "s")
                 save_dir_input.value = os.path.sep + os.path.join(*save_dir)
-            update_multi_select_1(_my_listdir(load_dir))
+            update_lfp_multiselect(_my_listdir(load_dir))
             alert_box.text = ""
         else:
             alert_box.text = f"Not a valid directory: {new}"
@@ -172,7 +167,7 @@ def feature_app(doc):
     def chans_dir_input_callback(attr, old, new):
         """If the directory exists, populate the file selector."""
         if os.path.exists(new):
-            update_multi_select_2(_my_listdir(new))
+            update_chans_multiselect(_my_listdir(new))
             alert_box.text = ""
         else:
             alert_box.text = f"Not a valid directory: {new}"
@@ -205,6 +200,8 @@ def feature_app(doc):
     window_slider.on_change("value", window_slider_callback)
 
     fs_input = TextInput(value="1000", title="Enter samplerate (Hz):")
+
+    max_freq_input = TextInput(value="55.0", title="Enter max frequency (Hz):")
 
     alert_box = PreText(text="")
 
@@ -280,32 +277,53 @@ def feature_app(doc):
         directed_spectrum = 0 in dir_spec_checkbox.active
         overwrite = 0 in overwrite_checkbox.active
         default_channel_map = 0 in channel_map_checkbox.active
-        # Get the filenames.
+
+        # Get the LFP and CHANS filenames.
         saved_channels = {}
         if use_chans:
             chans_fns = sorted(
-                [os.path.join(chans_dir, i) for i in multi_select_2.value]
+                [os.path.join(chans_dir, i) for i in chans_multiselect.value]
             )
-        lfp_fns = sorted([os.path.join(lfp_dir, i) for i in multi_select_1.value])
-        if use_chans and len(chans_fns) > 1 and len(chans_fns) != len(lfp_fns):
-            alert_box.text = f"Unequal number of CHANS and LFP files: {len(chans_fns)} {len(lfp_fns)}"
-            save_button.button_type = "warning"
-            return
-        elif use_chans and len(chans_fns) == 1:
-            chans_fns = chans_fns * len(lfp_fns)
+        lfp_fns = sorted([os.path.join(lfp_dir, i) for i in lfp_multiselect.value])
+
+        if use_chans:
+            if len(chans_fns) > 1 and len(chans_fns) != len(lfp_fns):
+                alert_box.text = (
+                    f"Unequal number of CHANS and LFP files: "
+                    f"{len(chans_fns)} {len(lfp_fns)}"
+                )
+                save_button.button_type = "warning"
+                return
+            elif len(chans_fns) == 1:
+                chans_fns = chans_fns * len(lfp_fns)
+            if use_chans and len(chans_fns) == 0:
+                alert_box.text = f"No CHANS filenames selected!"
+                save_button.button_type = "warning"
+                return
+
         if len(lfp_fns) == 0:
             alert_box.text = f"No LFP filenames selected!"
             save_button.button_type = "warning"
             return
-        if use_chans and len(chans_fns) == 0:
-            alert_box.text = f"No CHANS filenames selected!"
+
+        try:
+            fs = int(fs_input.value)
+        except ValueError:
+            alert_box.text = f"Invalid samplerate: {fs_input.value}"
+            save_button.button_type = "warning"
+            return
+        try:
+            max_freq = float(max_freq_input.value)
+        except ValueError:
+            alert_box.text = f"Invalid max frequency: {max_freq_input.value}"
             save_button.button_type = "warning"
             return
         for file_num in range(len(lfp_fns)):
             # Load LFP data.
             lfps = lpne.load_lfps(lfp_fns[file_num])
+
             # Filter LFPs.
-            lfps = lpne.filter_lfps(lfps, int(fs_input.value))
+            lfps = lpne.filter_lfps(lfps, fs, highcut=max_freq)
 
             # Remove the bad channels marked in the CHANS file.
             if use_chans:
@@ -313,7 +331,7 @@ def feature_app(doc):
 
             # Mark outliers with NaNs.
             if mark_outliers:
-                lfps = lpne.mark_outliers(lfps, int(fs_input.value))
+                lfps = lpne.mark_outliers(lfps, fs)
 
                 # Print outlier summary.
                 msg = lpne.get_outlier_summary(
@@ -337,6 +355,7 @@ def feature_app(doc):
                         source.data["roi_names"],
                     )
                 )
+
             # Average channels in the same region together.
             lfps = lpne.average_channels(lfps, channel_map)
             saved_channels = {**saved_channels, **dict(zip(lfps.keys(), repeat(0)))}
@@ -345,6 +364,7 @@ def feature_app(doc):
             features = lpne.make_features(
                 lfps,
                 window_duration=window_duration,
+                max_freq=max_freq,
                 directed_spectrum=directed_spectrum,
             )
 
@@ -366,6 +386,7 @@ def feature_app(doc):
         lfp_dir_input,
         chans_dir_input,
         fs_input,
+        max_freq_input,
         window_slider,
         save_dir_input,
         hemisphere_checkbox,
@@ -378,7 +399,7 @@ def feature_app(doc):
         reset_save_button,
         alert_box,
     )
-    column_2 = column(multi_select_1, multi_select_2)
+    column_2 = column(lfp_multiselect, chans_multiselect)
     tab_1 = Panel(
         child=row(column_1, column_2),
         title="Data Stuff",

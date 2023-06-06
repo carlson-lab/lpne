@@ -4,8 +4,8 @@ LPNE pipeline
 Code for preprocessing and building factor models with local field potentials.
 
 """
-__date__ = "July 2021 - May 2023"
-__version__ = "0.1.17"
+__date__ = "July 2021 - June 2023"
+__version__ = "0.1.18"
 
 try:
     with open(".git/logs/HEAD", "r") as fh:
