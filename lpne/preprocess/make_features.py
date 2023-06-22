@@ -39,15 +39,13 @@ def make_features(
     """
     Main function: make features from an LFP waveform.
 
-    For ``0 <= j <= i < n``, the cross power spectral density feature for ROI
-    ``i`` and ROI ``j`` is stored at index ``i * (i + 1) // 2 + j``, assuming
-    both ``i`` and ``j`` are zero-indexed. When ``i == j``, this is simply the
-    power spectral density of the ROI. The ROI order is sorted by the channel
-    names.
+    For ``0 <= j <= i < n``, the cross power spectral density feature for ROI ``i`` and
+    ROI ``j`` is stored at index ``i * (i + 1) // 2 + j``, assuming both ``i`` and ``j``
+    are zero-indexed. When ``i == j``, this is simply the power spectral density of the
+    ROI. The ROI order is sorted by the channel names.
 
-    See ``lpne.unsqueeze_triangular_array`` and
-    ``lpne.squeeze_triangular_array`` to convert the power between dense and
-    symmetric forms.
+    See ``lpne.unsqueeze_triangular_array`` and ``lpne.squeeze_triangular_array`` to
+    convert the power between dense and symmetric forms.
 
     Parameters
     ----------
@@ -164,7 +162,10 @@ def make_features(
         i1, i2 = np.searchsorted(f, [min_freq, max_freq])
         f_temp = f_temp[i1:i2]
         assert np.allclose(f, f_temp), f"Frequencies don't match:\n{f}\n{f_temp}"
-        dir_spec = np.moveaxis(dir_spec[:, i1:i2], 1, -1)  # [w,r,r,f]
+        dir_spec = dir_spec[:, i1:i2] * f_temp.reshape(
+            1, -1, 1, 1
+        )  # scale by frequency
+        dir_spec = np.moveaxis(dir_spec, 1, -1)  # [w,r,r,f]
         dir_spec[nan_mask] = np.nan  # reintroduce NaNs
         res["dir_spec"] = dir_spec
 

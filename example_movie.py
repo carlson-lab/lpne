@@ -12,7 +12,7 @@ import lpne
 
 FN = os.path.join("test_data", "data", "example_LFP.mat")
 MODEL_FN = os.path.join("test_data", "model_state.npy")
-FEATURE = ["power", "dir_spec", "psi"][2]
+FEATURE = ["power", "dir_spec", "psi"][1]
 MODE = ["grid", "circle"][0]
 DURATION = 25.0
 WINDOW_DURATION = 5.0
