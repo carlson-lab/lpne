@@ -2,7 +2,7 @@
 CANDECOMP/PARAFAC supervised autoencoder with deterministic factors
 
 """
-__date__ = "November 2021 - July 2022"
+__date__ = "November 2021 - June 2023"
 
 
 import numpy as np
@@ -472,15 +472,15 @@ class CpSae(BaseModel):
         Returns
         -------
         factor : numpy.ndarray
-            Shape: ``[r(r+1)/2,f]``
+            Shape: ``[r,r,f]``
         """
         check_is_fitted(self, attributes=self.FIT_ATTRIBUTES)
         assert isinstance(factor_num, int), f"found {type(factor_num)}"
         assert factor_num >= 0 and factor_num < self.z_dim
         volume = self._get_mean_projection()[factor_num]  # [f,r,r]
         volume = volume.detach().cpu().numpy()  # [f,r,r]
-        volume = squeeze_triangular_array(volume, dims=(1, 2))  # [f,r(r+1)/2]
-        return volume.T  # [r(r+1)/2,f]
+        volume = np.moveaxis(volume, 0, -1)  # [r,r,f]
+        return volume
 
     @torch.no_grad()
     def get_params(self, deep=True):

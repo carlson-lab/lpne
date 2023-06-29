@@ -2,7 +2,7 @@
 Factor Analysis-regularized logistic regression.
 
 """
-__date__ = "June 2021 - July 2022"
+__date__ = "June 2021 - June 2023"
 
 
 import numpy as np
@@ -179,7 +179,7 @@ class FaSae(BaseModel):
         Parameters
         ----------
         features : torch.Tensor
-            Shape: [batch,f,r,r]
+            Shape: [batch,x]
         labels : torch.Tensor
             Shape: [batch]
         groups : None or torch.Tensor
@@ -497,7 +497,7 @@ class FaSae(BaseModel):
         Returns
         -------
         factor : numpy.ndarray
-            Shape: ``[r(r+1)/2,f]``
+            Shape: ``[r,r,f]``
         """
         check_is_fitted(self, attributes=self.FIT_ATTRIBUTES)
         assert isinstance(factor_num, int)
@@ -509,8 +509,8 @@ class FaSae(BaseModel):
         A = A / A_norm
         A = A.detach().cpu().numpy()
         A = A.reshape(self.n_freqs_, self.n_rois_, self.n_rois_)  # [f,r,r]
-        A = squeeze_triangular_array(A, dims=(1, 2))  # [f,r(r+1)/2]
-        return A.T  # [r(r+1)/2,f]
+        A = np.moveaxis(A, 0, -1)  # [r,r,f]
+        return A
 
     def get_params(self, deep=True):
         """Get parameters for this estimator."""

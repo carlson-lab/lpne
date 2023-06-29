@@ -2,7 +2,7 @@
 Plot a linear cross power spectral density feature on a grid.
 
 """
-__date__ = "July 2021 - October 2022"
+__date__ = "July 2021 - June 2023"
 
 
 from matplotlib.colors import TABLEAU_COLORS
@@ -17,7 +17,7 @@ def plot_factor(factor, rois, color=None, alpha=1.0, spines=[], fn="temp.pdf"):
     Parameters
     ----------
     factor : numpy.ndarray
-        Power features. Shape: ``[n_roi*(n_roi+1)//2, n_freq]``
+        Power features. Shape: ``[n_roi, n_roi, n_freq]``
     rois : list of str
         ROI names
     color : None or str, optional
@@ -30,9 +30,9 @@ def plot_factor(factor, rois, color=None, alpha=1.0, spines=[], fn="temp.pdf"):
     fn : str, optional
         Image filename
     """
-    assert factor.ndim == 2, f"len({factor.shape}) != 2"
+    assert factor.ndim == 3, f"len({factor.shape}) != 3"
     plot_factors(
-        factor.reshape(1, factor.shape[0], factor.shape[1]),
+        factor[np.newaxis],
         rois,
         colors=color if color is None else [color],
         alpha=alpha,
@@ -48,7 +48,7 @@ def plot_factors(factors, rois, colors=None, alpha=0.6, spines=[], fn="temp.pdf"
     Parameters
     ----------
     factors : numpy.ndarray
-        Power features. Shape: ``[n_factors,n_roi*(n_roi+1)//2,n_freq]``
+        Power features. Shape: ``[n_factors,n_roi,n_roi,n_freq]``
     rois : list of str
         ROI names
     fn : str, optional
@@ -63,7 +63,7 @@ def plot_factors(factors, rois, colors=None, alpha=0.6, spines=[], fn="temp.pdf"
     fn : str, optional
         Image filename
     """
-    assert factors.ndim == 3, f"len({factors.shape}) != 3"
+    assert factors.ndim == 4, f"len({factors.shape}) != 4"
     if colors is None:
         colors = list(TABLEAU_COLORS)
     pretty_rois = [roi.replace("_", " ") for roi in rois]
@@ -73,17 +73,15 @@ def plot_factors(factors, rois, colors=None, alpha=0.6, spines=[], fn="temp.pdf"
     else:
         ylim = (0, temp)
     n = len(rois)
-    factors = factors.reshape(len(factors), n * (n + 1) // 2, -1)
-    freqs = np.arange(factors.shape[2])
+    freqs = np.arange(factors.shape[3])
     _, axarr = plt.subplots(n, n)
     for f in range(len(factors)):
         color = colors[f % len(colors)]
         for i in range(n):
-            for j in range(i + 1):
-                idx = (i * (i + 1)) // 2 + j
+            for j in range(n):
                 axarr[i, j].fill_between(
                     freqs,
-                    factors[f, idx],
+                    factors[f, i, j],
                     fc=color,
                     alpha=alpha,
                 )
@@ -94,25 +92,9 @@ def plot_factors(factors, rois, colors=None, alpha=0.6, spines=[], fn="temp.pdf"
                 plt.xticks([])
                 plt.yticks([])
                 plt.ylim(ylim)
-                if j < i:
-                    axarr[j, i].fill_between(
-                        freqs,
-                        factors[f, idx],
-                        fc=color,
-                        alpha=alpha,
-                    )
-                    for dir in axarr[i, j].spines:
-                        if dir not in spines:
-                            axarr[j, i].spines[dir].set_visible(False)
-                    plt.sca(axarr[j, i])
-                    plt.xticks([])
-                    plt.yticks([])
-                    plt.ylim(ylim)
                 if j == 0:
-                    plt.sca(axarr[i, j])
                     plt.ylabel(pretty_rois[i], size="xx-small", rotation=30)
                 if i == n - 1:
-                    plt.sca(axarr[i, j])
                     plt.xlabel(pretty_rois[j], size="xx-small", rotation=30)
     plt.savefig(fn)
     plt.close("all")
