@@ -114,12 +114,12 @@ def get_directed_spectrum(
         sub_idx1 = idx1[pair_idx]  # subset of pair_idx in group 1
 
         if pairwise:
-            # Get cross power spectral density matrix corresponding to
-            # indices of selected pairs.
+            # Get cross power spectral density matrix corresponding to ndices of
+            # selected pairs.
             sub_cpsd = cpsd.take(pair_idx, axis=-2).take(pair_idx, axis=-1)
 
-            # Factorize cross power spectral density matrix into transfer
-            # matrix (H) and covariance (Sigma).
+            # Factorize cross power spectral density matrix into transfer matrix (H) and
+            # covariance (Sigma).
             H, Sigma = _wilson_factorize(sub_cpsd, max_iter, tol)
 
             ds01, ds10 = _var_to_ds(H, Sigma, sub_idx1)
@@ -179,8 +179,8 @@ def _wilson_factorize(cpsd, max_iter, tol, eps_multiplier=100):
     cpsd_cond = np.linalg.cond(cpsd)
     if np.any(cpsd_cond > (1 / np.finfo(cpsd.dtype).eps)):
         warn("CPSD matrix is singular!")
-        # Add diagonal of small values to cross-power spectral matrix to prevent
-        # it from being negative semidefinite due to rounding errors
+        # Add diagonal of small values to cross-power spectral matrix to prevent it from
+        # being negative semidefinite due to rounding errors
         this_eps = np.spacing(np.abs(cpsd)).max()
         cpsd = cpsd + np.eye(cpsd.shape[-1]) * this_eps * eps_multiplier
 

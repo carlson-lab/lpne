@@ -2,7 +2,7 @@
 Data utilities
 
 """
-__date__ = "July 2021 - March 2023"
+__date__ = "July 2021 - June 2023"
 __all__ = [
     "load_channel_map",
     "load_features",
@@ -301,7 +301,7 @@ def load_lfps(fn):
             del lfps[channel]
             continue
         try:
-            lfps[channel] = np.array(lfps[channel]).astype(np.float).flatten()
+            lfps[channel] = np.array(lfps[channel]).astype(np.float32).flatten()
         except (ValueError, TypeError):
             warnings.warn(f"Unable to read channel: {channel}")
             del lfps[channel]
