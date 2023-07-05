@@ -22,6 +22,7 @@ DEFAULT_PIPELINE_PARAMS_STR = """
     plot_subdir: plots
     strict_checking: false
   pipeline:
+    fake_labels: false
     make_features: true
     summary_plots: true
     train_model: true

@@ -50,6 +50,11 @@ def standard_pipeline(exp_dir, params=None, params_fn=None):
 
     print("Parameters:\n\n" + yaml.dump(params))
 
+    if params["pipeline"]["fake_labels"]:
+        feature_dir = os.path.join(exp_dir, params["file"]["feature_subdir"])
+        label_dir = os.path.join(exp_dir, params["file"]["label_subdir"])
+        lpne.write_fake_labels(feature_dir, label_dir)
+
     # Load feature, CHANS, label, and LFP filenames with all the checks.
     chans_fns, feature_fns, label_fns, lfp_fns = lpne.get_all_fns(
         exp_dir, **params["file"]
