@@ -237,17 +237,17 @@ def load_features_and_labels(
     return res
 
 
-def load_labels(fn, soft_labels=False):
+def load_labels(fns, soft_labels=False):
     """
     Load the labels saved in the given filename.
 
     Raises
     ------
-    * NotImplementedError if ``fn`` is an unsupported file type.
+    * NotImplementedError if any of the files are an unsupported file type.
 
     Parameters
     ----------
-    fn : str
+    fns : str or list of str
         Where the data is saved. Supported file types: {'.npy', '.csv'}
     soft_labels : bool, optional
         If labels are given as probabilities, don't perform an argmax operation.
@@ -258,18 +258,22 @@ def load_labels(fn, soft_labels=False):
         LFP window labels.
         Shape: [n_windows] or [n_windows,n_classes]
     """
-    assert isinstance(fn, str)
-    if fn.endswith(".npy"):
-        labels = np.load(fn)
-    elif fn.endswith(".csv"):
-        labels = np.loadtxt(fn, delimiter=",")
-    else:
-        raise NotImplementedError(f"Unsupported file type: {fn}")
-    if labels.ndim == 2 and not soft_labels:
-        labels = np.argmax(labels, axis=1)
-    elif labels.ndim == 1:
-        labels = np.array(labels, dtype=int)
-    return labels
+    if isinstance(fns, str):
+        fns = [fns]
+    res = []
+    for fn in fns:
+        if fn.endswith(".npy"):
+            labels = np.load(fn)
+        elif fn.endswith(".csv"):
+            labels = np.loadtxt(fn, delimiter=",")
+        else:
+            raise NotImplementedError(f"Unsupported file type: {fn}")
+        if labels.ndim == 2 and not soft_labels:
+            labels = np.argmax(labels, axis=1)
+        elif labels.ndim == 1:
+            labels = np.array(labels, dtype=int)
+        res.append(labels)
+    return np.concatenate(res, axis=0)
 
 
 def load_lfps(fn):
