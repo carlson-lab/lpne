@@ -2,13 +2,13 @@
 Make features
 
 """
-__date__ = "July 2021 - November 2022"
+__date__ = "July 2021 - January 2024"
 
 
 import numpy as np
 from scipy.signal import csd
 
-from .directed_spectrum import get_directed_spectrum
+from .directed_measures import get_directed_spectral_measures
 from .. import __commit__ as LPNE_COMMIT
 from .. import __version__ as LPNE_VERSION
 from ..utils.array_utils import squeeze_triangular_array
@@ -33,6 +33,7 @@ def make_features(
     window_duration=5.0,
     window_step=None,
     max_n_windows=None,
+    spectral_granger=False,
     directed_spectrum=False,
     csd_params={},
 ):
@@ -75,9 +76,11 @@ def make_features(
         'power' : numpy.ndarray
             Cross power spectral density features
             Shape: ``[n_window, n_roi*(n_roi+1)//2, n_freq]``
+        'spectral_granger' : numpy.ndarray
+            Spectral granger features. Only included if ``spectral_granger``.
+            Shape: ``[n_window, n_roi, n_roi, n_freq]``
         'dir_spec' : numpy.ndarray
-            Directed spectrum features. Only included if ``directed_spectrum``
-            is ``True``.
+            Directed spectrum features. Only included if ``directed_spectrum``.
             Shape: ``[n_window, n_roi, n_roi, n_freq]``
         'freq' : numpy.ndarray
             Frequency bins
@@ -156,18 +159,31 @@ def make_features(
     }
 
     # Make directed spectrum features.
-    if directed_spectrum:
-        # f_temp: [f], dir_spec: [w,f,r,r]
-        f_temp, dir_spec = get_directed_spectrum(X, fs, csd_params=csd_params)
+    if spectral_granger or directed_spectrum:
+        # f_temp: [f], sg and ds: [w,f,r,r]
+        temp_res = get_directed_spectral_measures(
+            X,
+            fs,
+            return_spectral_granger=spectral_granger,
+            return_directed_spectrum=directed_spectrum,
+            csd_params=csd_params,
+        )
+        # Figure out frequencies.
+        f_temp = temp_res[0]
         i1, i2 = np.searchsorted(f, [min_freq, max_freq])
         f_temp = f_temp[i1:i2]
         assert np.allclose(f, f_temp), f"Frequencies don't match:\n{f}\n{f_temp}"
-        dir_spec = dir_spec[:, i1:i2] * f_temp.reshape(
-            1, -1, 1, 1
-        )  # scale by frequency
-        dir_spec = np.moveaxis(dir_spec, 1, -1)  # [w,r,r,f]
-        dir_spec[nan_mask] = np.nan  # reintroduce NaNs
-        res["dir_spec"] = dir_spec
+        f_reshape = f_temp.reshape(1, -1, 1, 1)
+        if spectral_granger:
+            sg = temp_res[1][:, i1:i2] * f_reshape  # scale by frequency
+            sg = np.moveaxis(sg, 1, -1)  # [w,r,r,f]
+            sg[nan_mask] = np.nan  # reintroduce NaNs
+            res["spectral_granger"] = sg
+        if directed_spectrum:
+            ds = temp_res[-1][:, i1:i2] * f_reshape  # scale by frequency
+            ds = np.moveaxis(ds, 1, -1)  # [w,r,r,f]
+            ds[nan_mask] = np.nan  # reintroduce NaNs
+            res["dir_spec"] = ds
 
     return res
 

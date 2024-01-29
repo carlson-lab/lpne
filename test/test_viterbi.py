@@ -22,7 +22,7 @@ def test_viterbi_1():
         assert np.all(true_seq == pred_seqs[0])
 
 
-def test_viterbi_3():
+def test_viterbi_2():
     """Make sure Viterbi respects a forbidden transition."""
     T, K, N = 10, 3, 50
     for test_num in range(N):

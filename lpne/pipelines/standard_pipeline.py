@@ -4,7 +4,7 @@ Standard experimental piepline
 TODO: explicitly check for duplicate mice on different days
 TODO: group the parameters differently or add kwargs to functions?
 """
-__date__ = "October - November 2022"
+__date__ = "October 2022 - January 2024"
 __all__ = [
     "standard_pipeline",
 ]
@@ -112,6 +112,7 @@ def standard_pipeline(exp_dir, params=None, params_fn=None):
                 window_duration=params["preprocess"]["window_duration"],
                 window_step=params["preprocess"]["window_step"],
                 max_n_windows=params["preprocess"]["max_n_windows"],
+                spectral_granger=params["preprocess"]["spectral_granger"],
                 directed_spectrum=params["preprocess"]["directed_spectrum"],
                 csd_params=params["preprocess"]["csd_params"],
             )

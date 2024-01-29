@@ -407,7 +407,7 @@ class FaSae(BaseModel):
         check_is_fitted(self, attributes=self.FIT_ATTRIBUTES)
         if isinstance(features, np.ndarray):
             features = torch.tensor(features, dtype=FLOAT)
-        features = features.reshape(len(features),-1) # [n,x]
+        features = features.reshape(len(features), -1)  # [n,x]
         logits = []
         i = 0
         while i <= len(features):

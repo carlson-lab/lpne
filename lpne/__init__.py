@@ -4,8 +4,8 @@ LPNE pipeline
 Code for preprocessing and building factor models with local field potentials.
 
 """
-__date__ = "July 2021 - June 2023"
-__version__ = "0.1.20"
+__date__ = "July 2021 - January 2024"
+__version__ = "0.1.21"
 
 try:
     with open(".git/logs/HEAD", "r") as fh:
@@ -60,7 +60,7 @@ from .preprocess.channel_maps import (
     remove_channels_from_lfps,
     get_removed_channels_from_file,
 )
-from .preprocess.directed_spectrum import get_directed_spectrum
+from .preprocess.directed_measures import get_directed_spectral_measures
 from .preprocess.filter import filter_signal, filter_lfps
 from .preprocess.make_features import make_features
 from .preprocess.normalize import normalize_features, normalize_lfps

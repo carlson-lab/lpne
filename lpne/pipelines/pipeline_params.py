@@ -2,7 +2,7 @@
 Define the default parameters for the pipeline.
 
 """
-__date__ = "February 2023"
+__date__ = "February 2023 - January 2024"
 __all__ = ["DEFAULT_PIPELINE_PARAMS"]
 
 import yaml
@@ -38,6 +38,7 @@ DEFAULT_PIPELINE_PARAMS_STR = """
       nperseg: 512
       noverlap: 256
       nfft: null
+    spectral_granger: false
     directed_spectrum: false
     feature_min_freq: 0.0
     feature_max_freq: 55.0
