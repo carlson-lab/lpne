@@ -27,10 +27,10 @@ lpne.preprocess.channel_maps module
     :show-inheritance:
 
 
-lpne.preprocess.directed_spectrum module
+lpne.preprocess.directed_measures module
 ----------------------------------------
 
-.. automodule:: lpne.preprocess.directed_spectrum
+.. automodule:: lpne.preprocess.directed_measures
     :members:
     :undoc-members:
     :show-inheritance:

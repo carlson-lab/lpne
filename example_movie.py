@@ -2,7 +2,7 @@
 Make a movie of LFP power features.
 
 """
-__date__ = "August 2021 - January 2023"
+__date__ = "August 2021 - January 2024"
 
 
 import os
@@ -12,7 +12,8 @@ import lpne
 
 FN = os.path.join("test_data", "data", "example_LFP.mat")
 MODEL_FN = os.path.join("test_data", "model_state.npy")
-FEATURE = ["power", "dir_spec", "psi"][1]
+FEATURE = ["power", "spectral_granger", "dir_spec", "psi"][2]
+PAIRWISE = False
 MODE = ["grid", "circle"][0]
 DURATION = 25.0
 WINDOW_DURATION = 5.0
@@ -52,6 +53,7 @@ if __name__ == "__main__":
         mode=MODE,
         model=model,
         circle_params=CIRCLE_PARAMS,
+        pairwise=PAIRWISE,
         fn="out.webm",
     )
 

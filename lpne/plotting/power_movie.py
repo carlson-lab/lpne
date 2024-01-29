@@ -48,6 +48,7 @@ def make_power_movie(
     model=None,
     mode="grid",
     circle_params={},
+    pairwise=True,
     fn="out.mp4",
 ):
     """
@@ -63,7 +64,7 @@ def make_power_movie(
         Duration used to calculate power features
     fs : int, optional
         LFP samplerate, in Hz
-    feature : {``'power'``, ``'dir_spec'``, ``'psi'``}, optional
+    feature : {``'power'``, ``'spectral_granger'``, ``'dir_spec'``, ``'psi'``}, optional
         What features to plot
     speed_factor : float, optional
     fps : int, optional
@@ -78,7 +79,8 @@ def make_power_movie(
         Movie filename
     """
     assert MOVIEPY_INSTALLED, "moviepy needs to be installed!"
-    assert feature in ["power", "dir_spec", "psi"], f"Feature {feature} not valid!"
+    assert feature in ["power", "spectral_granger", "dir_spec", "psi"], \
+        f"Feature {feature} not valid!"
     assert mode in ["grid", "circle"], f"Mode {mode} not valid!"
     assert (
         mode != "circle" or feature == "power"
@@ -87,14 +89,16 @@ def make_power_movie(
     # Get the features.
     window_step = speed_factor / fps
     max_n_windows = int((duration - window_duration) / window_step)
-    if feature in ["power", "dir_spec"]:
+    if feature in ["power", "spectral_granger", "dir_spec"]:
         res = lpne.make_features(
             lfps,
             fs=fs,
             window_duration=window_duration,
             window_step=window_step,
             max_n_windows=max_n_windows,
+            spectral_granger=(feature == "spectral_granger"),
             directed_spectrum=(feature == "dir_spec"),
+            pairwise=pairwise,
         )
     else:  # feature == "psi"
         res = lpne.get_psi(
@@ -108,6 +112,8 @@ def make_power_movie(
     pretty_rois = [roi.replace("_", " ") for roi in rois]
     if feature == "power":
         power = lpne.unsqueeze_triangular_array(res["power"], dim=1)  # [w,r,r,f]
+    elif feature == "spectral_granger":
+        power = res["spectral_granger"]  # [w,r,r,f]
     elif feature == "dir_spec":
         power = res["dir_spec"]  # [w,r,r,f]
     elif feature == "psi":

@@ -35,6 +35,7 @@ def make_features(
     max_n_windows=None,
     spectral_granger=False,
     directed_spectrum=False,
+    pairwise=True,
     csd_params={},
 ):
     """
@@ -65,8 +66,12 @@ def make_features(
         set to ``window_duration``.
     max_n_windows : None or int, optional
         Maximum number of windows
+    spectral_granger : bool, optional
+        Whether to make spectral Granger features
     directed_spectrum : bool, optional
         Whether to make directed spectrum features
+    pairwise : bool, optional
+        Whether spectral Granger and directed spectrum should be pairwise
     csd_params : dict, optional
         Parameters sent to ``scipy.signal.csd``
 
@@ -166,6 +171,7 @@ def make_features(
             fs,
             return_spectral_granger=spectral_granger,
             return_directed_spectrum=directed_spectrum,
+            pairwise=pairwise,
             csd_params=csd_params,
         )
         # Figure out frequencies.
@@ -175,7 +181,7 @@ def make_features(
         assert np.allclose(f, f_temp), f"Frequencies don't match:\n{f}\n{f_temp}"
         f_reshape = f_temp.reshape(1, -1, 1, 1)
         if spectral_granger:
-            sg = temp_res[1][:, i1:i2] * f_reshape  # scale by frequency
+            sg = temp_res[1][:, i1:i2] # * f_reshape  # scale by frequency
             sg = np.moveaxis(sg, 1, -1)  # [w,r,r,f]
             sg[nan_mask] = np.nan  # reintroduce NaNs
             res["spectral_granger"] = sg

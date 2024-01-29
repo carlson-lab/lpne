@@ -52,6 +52,8 @@ def get_directed_spectral_measures(
     pairwise=True,
     max_iter=1000,
     tol=1e-6,
+    cpsd_diag_reg=0.0,
+    granger_reg=1e-2,
     csd_params={},
     conditional_covar_epsilon=1e-10,
 ):
@@ -75,6 +77,12 @@ def get_directed_spectral_measures(
         Maximum number of Wilson factorization iterations. Default: ``1000``
     tol : float, optional
         Tolerance for Wilson factorization. Default: ``1e-6``
+    cpsd_diag_reg : float, optional
+        Regularize the CPSD diagonal by multiplying by 1 plus this value. Default:
+        ``0.0``
+    granger_reg : float, optional
+        Regularize spectral Granger by multiplying the ratio of the directed spectrum
+        to receiving region spectrum by one minus this number. Default: ``1e-2``.
     csd_params : dict, optional
         Parameters sent to ``scipy.signal.csd``. Default: ``DEFAULT_CSD_PARAMS``
     conditional_covar_epsilon : float, optional
@@ -118,6 +126,10 @@ def get_directed_spectral_measures(
         **csd_params,
     )  # [f], [n,r,r,f]
     cpsd = np.moveaxis(cpsd, 3, 1)  # [n,r,r,f] -> [n,f,r,r]
+    
+    # Regularize the diagonal of the CPSD volume.
+    if cpsd_diag_reg != 0.0:
+        cpsd[:,:,np.arange(r),np.arange(r)] *= 1.0 + cpsd_diag_reg
 
     # Calculate the directed spectrum measure.
     if pairwise:
@@ -138,7 +150,9 @@ def get_directed_spectral_measures(
     # Now calculate spectral Granger.
     if return_spectral_granger:
         S_bb = np.diagonal(np.abs(cpsd), axis1=-1, axis2=-2)[:, :, None]  # [n,f,1,r]
-        sg = np.log(S_bb / (S_bb - ds))  # [n,f,r,r]
+        reg = 1.0 - granger_reg
+        ratio = np.clip(reg * ds / S_bb, 0.0, reg)
+        sg = -np.log(1.0 - ratio)
 
     # Zero-out the diagonals.
     ds[:, :, np.arange(r), np.arange(r)] = 0.0
