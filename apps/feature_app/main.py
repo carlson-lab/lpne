@@ -233,6 +233,11 @@ def feature_app(doc):
         active=[],
     )
 
+    spectral_granger_checkbox = CheckboxGroup(
+        labels=["Calculate spectral granger too?"],
+        active=[],
+    )
+
     channel_map_checkbox = CheckboxGroup(
         labels=["Use default ROIs?"],
         active=[],
@@ -275,6 +280,7 @@ def feature_app(doc):
         combine_hemi = 0 in hemisphere_checkbox.active
         mark_outliers = 0 in outlier_checkbox.active
         directed_spectrum = 0 in dir_spec_checkbox.active
+        spectral_granger = 0 in spectral_granger_checkbox.active
         overwrite = 0 in overwrite_checkbox.active
         default_channel_map = 0 in channel_map_checkbox.active
 
@@ -366,6 +372,7 @@ def feature_app(doc):
                 window_duration=window_duration,
                 max_freq=max_freq,
                 directed_spectrum=directed_spectrum,
+                spectral_granger=spectral_granger,
             )
 
             # Save features.

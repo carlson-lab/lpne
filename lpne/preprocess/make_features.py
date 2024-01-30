@@ -181,7 +181,7 @@ def make_features(
         assert np.allclose(f, f_temp), f"Frequencies don't match:\n{f}\n{f_temp}"
         f_reshape = f_temp.reshape(1, -1, 1, 1)
         if spectral_granger:
-            sg = temp_res[1][:, i1:i2] # * f_reshape  # scale by frequency
+            sg = temp_res[1][:, i1:i2] # don't scale by frequency
             sg = np.moveaxis(sg, 1, -1)  # [w,r,r,f]
             sg[nan_mask] = np.nan  # reintroduce NaNs
             res["spectral_granger"] = sg
