@@ -243,6 +243,11 @@ def feature_app(doc):
         active=[],
     )
 
+    magic_channel_map_checkbox = CheckboxGroup(
+        labels=["Use magic ROIs?"],
+        active=[0],
+    )
+
     save_dir_input = TextInput(
         value=DEFAULT_FEATURE_DIR,
         title="Enter feature directory:",
@@ -283,6 +288,7 @@ def feature_app(doc):
         spectral_granger = 0 in spectral_granger_checkbox.active
         overwrite = 0 in overwrite_checkbox.active
         default_channel_map = 0 in channel_map_checkbox.active
+        magic_channel_map = 0 in magic_channel_map_checkbox.active
 
         # Get the LFP and CHANS filenames.
         saved_channels = {}
@@ -349,7 +355,11 @@ def feature_app(doc):
                 print(msg)
 
             # Get the default channel grouping.
-            if default_channel_map:
+            if magic_channel_map:
+                channel_map = lpne.get_magic_channel_map(
+                    list(lfps.keys()),
+                )
+            elif default_channel_map:
                 channel_map = lpne.get_default_channel_map(
                     list(lfps.keys()),
                     combine_hemispheres=combine_hemi,
@@ -400,8 +410,10 @@ def feature_app(doc):
         use_chans_checkbox,
         outlier_checkbox,
         dir_spec_checkbox,
+        spectral_granger_checkbox,
         overwrite_checkbox,
         channel_map_checkbox,
+        magic_channel_map_checkbox,
         save_button,
         reset_save_button,
         alert_box,

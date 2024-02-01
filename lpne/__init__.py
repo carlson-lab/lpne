@@ -5,7 +5,7 @@ Code for preprocessing and building factor models with local field potentials.
 
 """
 __date__ = "July 2021 - January 2024"
-__version__ = "0.1.21"
+__version__ = "0.1.22"
 
 try:
     with open(".git/logs/HEAD", "r") as fh:
@@ -52,14 +52,7 @@ from .preprocess.bispectrum import (
     get_bicoherence,
     get_bispectrum,
 )
-from .preprocess.channel_maps import (
-    average_channels,
-    get_excel_channel_map,
-    get_default_channel_map,
-    remove_channels,
-    remove_channels_from_lfps,
-    get_removed_channels_from_file,
-)
+from .preprocess.channel_maps import *
 from .preprocess.directed_measures import get_directed_spectral_measures
 from .preprocess.filter import filter_signal, filter_lfps
 from .preprocess.make_features import make_features

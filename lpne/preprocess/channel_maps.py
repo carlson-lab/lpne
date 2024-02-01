@@ -2,11 +2,11 @@
 Channel maps are used to determine which channels to average together.
 
 """
-__date__ = "July 2021 - November 2022"
+__date__ = "July 2021 - February 2024"
 __all__ = [
     "average_channels",
     "get_default_channel_map",
-    "get_excel_channel_map",
+    "get_magic_channel_map",
     "remove_channels",
     "remove_channels_from_lfps",
     "get_removed_channels_from_file",
@@ -18,13 +18,11 @@ from scipy.io import loadmat
 import warnings
 
 from .. import MATLAB_IGNORED_KEYS
-from ..utils.data import load_channel_map
 
 
 def average_channels(
     lfps,
     channel_map,
-    check_channel_map=None,
     assert_onto=False,
     check_lfp_channels_in_map=True,
     check_map_channels_in_lfps=False,
@@ -42,8 +40,6 @@ def average_channels(
         Maps ROI names to LFP waveforms
     channel_map : dict
         Maps ROI names to grouped ROI names
-    check_channel_map : None, optional
-        Ignored. Will be deprecated soon!
     assert_onto : bool, optional
         Assert that the map from channels to ROIs is onto, there is a channel in
         ``lfps`` that maps to every value in ``channel_map``.
@@ -61,8 +57,6 @@ def average_channels(
         Maps ROI names to LFP waveforms
     """
     # Check the channels.
-    if check_channel_map is not None:
-        warnings.warn("check_channel_map is ignored and will be deprecated soon!")
     if check_lfp_channels_in_map:
         _check_lfp_channels_in_map(lfps, channel_map, strict_checking=strict_checking)
     if check_map_channels_in_lfps:
@@ -75,7 +69,7 @@ def average_channels(
             if roi in channel_map and channel_map[roi] == grouped_roi:
                 avg.append(lfps[roi].flatten())
         if len(avg) == 0:
-            msg = f"No channels to make grouped channel {grouped_roi}!"
+            msg = f"No channels to make grouped channel: {grouped_roi}!"
             if assert_onto:
                 assert False, msg
             else:
@@ -147,25 +141,69 @@ def get_default_channel_map(channels, combine_hemispheres=True):
     return channel_map
 
 
-def get_excel_channel_map(channels, fn):
+def get_magic_channel_map(channels, combine_amy=True, combine_nac=True, whitelist=None):
     """
-    Load a channel map from an excel file.
-
+    Get a channel map that should magically work.
+    
     Parameters
     ----------
     channels : list of str
-        Ignored
-    fn : str
-        Excel sheet filename
+        Names of channels
+    combine_amy : bool, optional
+        Whether to combine Amygdala channels
+    combine_nac : bool, optional
+        Whether to combine Nucleus Accumbens channels
+    whitelist : None or list of str, optional
+        A list specifiying a list of allowable channel prefixes.
 
     Returns
     -------
     channel_map : dict
         Maps individual channel names to grouped channel names
     """
-    msg = "get_excel_channel_map is deprecated! Use lpne.load_channel_map instead."
-    warnings.warn(msg)
-    return load_channel_map(fn)
+    group_names = ["Cx_Cg", "Cx_IL", "Cx_PrL", "Hipp_V", "VTA", "Thal_MD"]
+    if combine_amy:
+        group_names.append("Amy")
+    else:
+        group_names += ["Amy_BLA", "Amy_CeA"]
+    if combine_nac:
+        group_names.append("NAc")
+    else:
+        group_names += ["NAc_Core", "NAc_Shell"]
+    
+    channel_map = {}
+    for channel in channels:
+        lower_channel = channel.lower()
+        flag = False
+        
+        # Check the whitelist.
+        if whitelist is not None:
+            if sum(lower_channel.startswith(i) for i in whitelist) == 0:
+                continue
+        
+        # Check the group names.
+        for group_name in group_names:
+            if group_name.lower() in lower_channel:
+                channel_map[channel] = group_name
+                flag = True
+                break
+
+        if flag:
+            continue
+
+        if "md_thal" in lower_channel:
+            channel_map[channel] = "Thal_MD"
+        elif "hipp" in lower_channel:
+            if "hipp_d" not in lower_channel and "d_hipp" not in lower_channel:
+                channel_map[channel] = "Hipp_V"
+        elif "cg_cx" in lower_channel:
+            channel_map[channel] = "Cx_Cg"
+        elif "il_cx" in lower_channel:
+            channel_map[channel] = "Cx_IL"
+        elif "prl_cx" in lower_channel:
+            channel_map[channel] = "Cx_PrL"
+        
+    return channel_map
 
 
 def remove_channels(channel_map, to_remove):
