@@ -248,6 +248,16 @@ def feature_app(doc):
         active=[0],
     )
 
+    combine_amy_checkbox = CheckboxGroup(
+        labels=["Combine Amy (magic only)?"],
+        active=[0],
+    )
+
+    combine_nac_checkbox = CheckboxGroup(
+        labels=["Combine NAc (magic only)?"],
+        active=[0],
+    )
+
     save_dir_input = TextInput(
         value=DEFAULT_FEATURE_DIR,
         title="Enter feature directory:",
@@ -289,6 +299,8 @@ def feature_app(doc):
         overwrite = 0 in overwrite_checkbox.active
         default_channel_map = 0 in channel_map_checkbox.active
         magic_channel_map = 0 in magic_channel_map_checkbox.active
+        combine_amy = 0 in combine_amy_checkbox
+        combine_nac = 0 in combine_nac_checkbox
 
         # Get the LFP and CHANS filenames.
         saved_channels = {}
@@ -358,6 +370,8 @@ def feature_app(doc):
             if magic_channel_map:
                 channel_map = lpne.get_magic_channel_map(
                     list(lfps.keys()),
+                    combine_amy=combine_amy,
+                    combine_nac=combine_nac,
                 )
             elif default_channel_map:
                 channel_map = lpne.get_default_channel_map(
@@ -414,6 +428,8 @@ def feature_app(doc):
         overwrite_checkbox,
         channel_map_checkbox,
         magic_channel_map_checkbox,
+        combine_amy_checkbox,
+        combine_nac_checkbox,
         save_button,
         reset_save_button,
         alert_box,
