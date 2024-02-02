@@ -299,8 +299,8 @@ def feature_app(doc):
         overwrite = 0 in overwrite_checkbox.active
         default_channel_map = 0 in channel_map_checkbox.active
         magic_channel_map = 0 in magic_channel_map_checkbox.active
-        combine_amy = 0 in combine_amy_checkbox
-        combine_nac = 0 in combine_nac_checkbox
+        combine_amy = 0 in combine_amy_checkbox.active
+        combine_nac = 0 in combine_nac_checkbox.active
 
         # Get the LFP and CHANS filenames.
         saved_channels = {}
