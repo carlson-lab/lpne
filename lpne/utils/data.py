@@ -2,7 +2,7 @@
 Data utilities
 
 """
-__date__ = "July 2021 - June 2023"
+__date__ = "July 2021 - June 2024"
 __all__ = [
     "load_channel_map",
     "load_features",
@@ -28,6 +28,8 @@ import warnings
 
 
 from .. import MATLAB_IGNORED_KEYS
+
+VALID_FEATURES = ["power", "dir_spec", "spectral_granger"]
 
 
 def load_channel_map(fn):
@@ -75,7 +77,7 @@ def load_features(fns, return_counts=False, feature="power", return_freqs=False)
     return_counts : bool, optional
         Return the number of windows for each file.
     feature : str, optional
-        Which feature in {"power","dir_spec"} to load.
+        Which feature in {"power","dir_spec","spectral_granger"} to load.
 
     Returns
     -------
@@ -90,7 +92,7 @@ def load_features(fns, return_counts=False, feature="power", return_freqs=False)
     frequencies : np.ndarray
         Feature frequencies. Returned if ``return_freqs`` is ``True``.
     """
-    assert feature in ["power", "dir_spec"], f"Unsupported feature: {feature}"
+    assert feature in VALID_FEATURES, f"Unsupported feature: {feature}"
     if isinstance(fns, str):
         fns = [fns]
     assert isinstance(fns, list)
@@ -128,6 +130,7 @@ def load_features_and_labels(
     return_counts=False,
     soft_labels=False,
     return_freqs=False,
+    feature="power",
 ):
     """
     Load the features and labels.
@@ -153,6 +156,8 @@ def load_features_and_labels(
         If labels are given as probabilities, don't perform an argmax operation.
     return_freqs : bool, optional
         Whether to return the frequencies associated with the features
+    feature : str, optional
+        Which feature in {"power","dir_spec","spectral_granger"} to load.
 
     Returns
     -------
@@ -183,6 +188,7 @@ def load_features_and_labels(
         f"Expected the same number of feature and label filenames. "
         f"Found {len(feature_fns)} and {len(label_fns)}."
     )
+    assert feature in VALID_FEATURES, f"Unsupported feature: {feature}"
     # Translate the group_map to a group_func.
     if group_map is not None:
 
@@ -196,7 +202,11 @@ def load_features_and_labels(
     features, labels, groups, counts = [], [], [], []
     prev_rois, prev_freqs = None, None
     for i, (feature_fn, label_fn) in enumerate(zip(feature_fns, label_fns)):
-        power, rois, freqs = load_features(feature_fn, return_freqs=True)
+        power, rois, freqs = load_features(
+            feature_fn,
+            return_freqs=True,
+            feature=feature,
+        )
         if prev_rois is not None:
             assert prev_rois == rois, (
                 f"Inconsitent ROIs: {prev_rois} != {rois}"
