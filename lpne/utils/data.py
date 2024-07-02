@@ -131,6 +131,7 @@ def load_features_and_labels(
     soft_labels=False,
     return_freqs=False,
     feature="power",
+    truncate=False,
 ):
     """
     Load the features and labels.
@@ -158,6 +159,9 @@ def load_features_and_labels(
         Whether to return the frequencies associated with the features
     feature : str, optional
         Which feature in {"power","dir_spec","spectral_granger"} to load.
+    truncate : bool, optional
+        Truncate labels and features so they have the same number of windows. If
+        ``False``, an error is raised if the number of windows doesn't match.
 
     Returns
     -------
@@ -221,14 +225,19 @@ def load_features_and_labels(
                 f"\n\tFile 2: {feature_fns[i]}"
             )
         prev_freqs = freqs
-        features.append(power)
-        counts.append(len(power))
-        labels.append(load_labels(label_fn))
-        assert len(power) == len(labels[-1]), (
+        temp_labels = load_labels(label_fn)
+        if truncate:
+            n = min(len(power), len(temp_labels))
+            power, temp_labels = power[:n], temp_labels[:n]
+        assert len(power) == len(temp_labels), (
             f"Number of windows doesn't match for feature and label file!"
             f"\n\tFeatures: {feature_fn} (len({power.shape}))"
-            f"\n\tLabels: {label_fn} ({len(labels[-1])})"
+            f"\n\tLabels: {label_fn} (len({temp_labels.shape}))"
         )
+        features.append(power)
+        counts.append(len(power))
+        labels.append(temp_labels)
+        
         if group_func is not None:
             groups.append([group_func(feature_fn)] * len(labels[-1]))
     # Concatenate and return.
