@@ -2,11 +2,14 @@
 Hunter's supervised autoencoder model
 
 """
+
 __date__ = "September - October 2022"
 
 
 import numpy as np
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import mean_squared_error
+from scipy.stats import mannwhitneyu
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -37,6 +40,8 @@ class DcsfaNmf(NmfBase):
     n_sup_networks : int, optional
         Number of networks that will be supervised
         ``0 < n_sup_networks < n_components``. Defaults to ``1``.
+    sup_type : ``{'mc','sc'}``, optional
+        Defines multiclass or single class classification. Defaults to ``mc``
     optim_name : ``{'SGD','Adam','AdamW'}``, optional
         torch.optim algorithm to use in . Defaults to ``'AdamW'``.
     recon_loss : ``{'IS', 'MSE'}``, optional
@@ -91,6 +96,7 @@ class DcsfaNmf(NmfBase):
         device="auto",
         n_intercepts=1,
         n_sup_networks=1,
+        sup_type="mc",
         optim_name="AdamW",
         recon_loss="MSE",
         recon_weight=1.0,
@@ -124,9 +130,10 @@ class DcsfaNmf(NmfBase):
             verbose,
         )
         self.n_intercepts = n_intercepts
+        self.sup_type = sup_type
         self.optim_name = optim_name
         self.optim_alg = self.get_optim(optim_name)
-        self.pred_loss_f = nn.BCELoss
+        self.pred_loss_f = nn.HuberLoss
         self.recon_weight = recon_weight
         self.sup_weight = sup_weight
         self.use_deep_encoder = use_deep_encoder
@@ -170,17 +177,23 @@ class DcsfaNmf(NmfBase):
                 nn.Linear(dim_in, self.n_components),
                 nn.Softplus(),
             )
+
         # Initialize logistic regression parameters.
         # NOTE: these could larger torch tensors instead of lists.
-        self.phi_list = nn.ParameterList(
-            [nn.Parameter(torch.randn(1)) for _ in range(self.n_sup_networks)]
-        )
-        self.beta_list = nn.ParameterList(
-            [
-                nn.Parameter(torch.randn(self.n_intercepts, 1))
-                for _ in range(self.n_sup_networks)
-            ]
-        )
+
+        if self.sup_type == "mc":
+            self.phi_list = nn.ParameterList(
+                [nn.Parameter(torch.randn(1)) for _ in range(self.n_sup_networks)]
+            )
+            self.beta_list = nn.ParameterList(
+                [
+                    nn.Parameter(torch.randn(self.n_intercepts, 1))
+                    for _ in range(self.n_sup_networks)
+                ]
+            )
+        else:
+            self.classifier = nn.Sequential(nn.Linear(self.n_sup_networks, 1))
+
         self.to(self.device)
 
     def instantiate_optimizer(self):
@@ -201,6 +214,72 @@ class DcsfaNmf(NmfBase):
         else:
             optimizer = self.optim_alg(self.parameters(), lr=self.lr)
         return optimizer
+
+    def get_bal_nmf_idxs(self, nmf_groups, y):
+        # Find the number of samples per group and class
+        n_samps_list = []
+        for group in np.unique(nmf_groups):
+            group_mask = nmf_groups == group
+
+            pos_group_idxs = np.logical_and(group_mask, y[:, 0] == 1)
+            neg_group_idxs = np.logical_and(group_mask, y[:, 0] == 0)
+
+            n_samps_list.append(np.sum(pos_group_idxs))
+            n_samps_list.append(np.sum(neg_group_idxs))
+
+        min_samps = np.min(n_samps_list)
+
+        group_keep_idxs = []
+        for group in np.unique(nmf_groups):
+            group_mask = nmf_groups == group
+
+            pos_group_idxs = np.logical_and(group_mask, y[:, 0] == 1)
+            neg_group_idxs = np.logical_and(group_mask, y[:, 0] == 0)
+
+            sub_idxs_pos = np.random.choice(
+                np.arange(np.sum(pos_group_idxs)), min_samps, replace=False
+            )
+            sub_idxs_neg = np.random.choice(
+                np.arange(np.sum(neg_group_idxs)), min_samps, replace=False
+            )
+
+            pos_group_idxs = np.where(pos_group_idxs == 1)[0]
+            neg_group_idxs = np.where(neg_group_idxs == 1)[0]
+
+            pos_keep = pos_group_idxs[sub_idxs_pos]
+            neg_keep = neg_group_idxs[sub_idxs_neg]
+
+            group_keep_idxs.append(np.hstack([pos_keep, neg_keep]))
+        nmf_pretrain_idxs = np.hstack(group_keep_idxs)
+        return nmf_pretrain_idxs
+
+    def get_balanced_bootstrap(self, X, y, nmf_groups):
+        groups, counts = np.unique(nmf_groups, return_counts=True)
+
+        max_group = np.argmax(counts)
+        max_count = np.max(counts)
+
+        X_aug_list = []
+        y_aug_list = []
+
+        for group, count in zip(groups, counts):
+            if count < max_count:
+                group_mask = nmf_groups == group
+
+                sample_diff = max_count - count
+                X_group = X[group_mask == 1]
+                y_group = y[group_mask == 1].reshape(-1, y.shape[1])
+                bootstrap_idxs = np.random.choice(
+                    np.arange(X_group.shape[0]), size=sample_diff, replace=True
+                )
+                X_aug_list.append(X_group[bootstrap_idxs])
+                y_aug_list.append(y_group[bootstrap_idxs].reshape(-1, y.shape[1]))
+
+        bootstrap_X = np.vstack(X_aug_list)
+        bootstrap_y = np.vstack(y_aug_list).reshape(-1, y.shape[1])
+
+        print(bootstrap_X.shape, bootstrap_y.shape)
+        return np.vstack((X, bootstrap_X)), np.vstack((y, bootstrap_y))
 
     def get_all_class_predictions(self, X, s, intercept_mask, avg_intercept):
         """
@@ -234,34 +313,42 @@ class DcsfaNmf(NmfBase):
             avg_intercept = True
         # Get predictions for each class.
         # NOTE: it seems like this could be vectorized
-        y_pred_list = []
-        for sup_net in range(self.n_sup_networks):
-            if self.n_intercepts == 1:
-                # NOTE: use torch.sigmoid instead of torch.nn.Sigmoid
-                # NOTE: squeeze() without a dimension argument could result in
-                # unexpected behavior if there's a batch dimension of 1
-                # somewhere.
-                y_pred_proba = torch.sigmoid(
-                    s[:, sup_net].view(-1, 1) * self.get_phi(sup_net)
-                    + self.beta_list[sup_net],
-                ).squeeze()
-            elif self.n_intercepts > 1 and not avg_intercept:
-                y_pred_proba = torch.sigmoid(
-                    s[:, sup_net].view(-1, 1) * self.get_phi(sup_net)
-                    + intercept_mask @ self.beta_list[sup_net],
-                ).squeeze()
-            else:
-                intercept_mask = (
-                    torch.ones(X.shape[0], self.n_intercepts).to(self.device)
-                    / self.n_intercepts
-                )
-                y_pred_proba = torch.sigmoid(
-                    s[:, sup_net].view(-1, 1) * self.get_phi(sup_net)
-                    + intercept_mask @ self.beta_list[sup_net]
-                ).squeeze()
-            y_pred_list.append(y_pred_proba.view(-1, 1))
-        # Concatenate predictions into a single matrix [n_samples,n_tasks]
-        y_pred_proba = torch.cat(y_pred_list, dim=1)
+
+        if self.sup_type == "mc":
+            y_pred_list = []
+            for sup_net in range(self.n_sup_networks):
+                if self.n_intercepts == 1:
+                    # NOTE: use torch.sigmoid instead of torch.nn.Sigmoid
+                    # NOTE: squeeze() without a dimension argument could result in
+                    # unexpected behavior if there's a batch dimension of 1
+                    # somewhere.
+                    y_pred_proba = torch.sigmoid(
+                        s[:, sup_net].view(-1, 1) * self.get_phi(sup_net)
+                        + self.beta_list[sup_net],
+                    ).squeeze()
+                elif self.n_intercepts > 1 and not avg_intercept:
+                    y_pred_proba = torch.sigmoid(
+                        s[:, sup_net].view(-1, 1) * self.get_phi(sup_net)
+                        + intercept_mask @ self.beta_list[sup_net],
+                    ).squeeze()
+                else:
+                    intercept_mask = (
+                        torch.ones(X.shape[0], self.n_intercepts).to(self.device)
+                        / self.n_intercepts
+                    )
+                    y_pred_proba = torch.sigmoid(
+                        s[:, sup_net].view(-1, 1) * self.get_phi(sup_net)
+                        + intercept_mask @ self.beta_list[sup_net]
+                    ).squeeze()
+                y_pred_list.append(y_pred_proba.view(-1, 1))
+            # Concatenate predictions into a single matrix [n_samples,n_tasks]
+            y_pred_proba = torch.cat(y_pred_list, dim=1)
+
+        else:
+            y_pred_proba = self.classifier(
+                s[:, : self.n_sup_networks].view(-1, self.n_sup_networks)
+            ).view(-1, 1)
+
         return y_pred_proba
 
     def get_embedding(self, X):
@@ -375,7 +462,7 @@ class DcsfaNmf(NmfBase):
             intercept_mask,
             avg_intercept,
         )
-        pred_loss_f = self.pred_loss_f(weight=pred_weight)
+        pred_loss_f = self.pred_loss_f()
         pred_loss = self.sup_weight * pred_loss_f(
             y_pred * task_mask,
             y * task_mask,
@@ -523,6 +610,8 @@ class DcsfaNmf(NmfBase):
         n_epochs=100,
         n_pre_epochs=100,
         nmf_max_iter=100,
+        nmf_groups=None,
+        bootstrap=False,
         batch_size=128,
         lr=1e-3,
         pretrain=True,
@@ -567,6 +656,9 @@ class DcsfaNmf(NmfBase):
             number of pretraining epochs. Defaults to 100.
         nmf_max_iter (int, optional):
             max iterations for NMF pretraining solver. Defaults to 100.
+        nmf_groups (np.ndarray, optional):
+            Identifies subgroups for balanced initialization. Mostly useful
+            in the case of imbalanced data. Defaults to None.
         batch_size (int, optional):
             batch size for gradient descent. Defaults to 128.
         lr (_type_, optional):
@@ -633,9 +725,28 @@ class DcsfaNmf(NmfBase):
             ).squeeze()
             samples_weights = torch.Tensor(samples_weights)
 
+        if self.sup_type == "sc":
+            y_nmf = np.hstack([y for i in range(self.n_sup_networks)])
+        else:
+            y_nmf = y
+
+        # Get data subset for NMF pretraining
+        if nmf_groups is not None:
+            if bootstrap:
+                X_nmf_pretrain, y_nmf_pretrain = self.get_balanced_bootstrap(
+                    X, y_nmf, nmf_groups
+                )
+            else:
+                nmf_pretrain_idxs = self.get_bal_nmf_idxs(nmf_groups, y_nmf)
+                X_nmf_pretrain = X[nmf_pretrain_idxs]
+                y_nmf_pretrain = y_nmf[nmf_pretrain_idxs]
+        else:
+            X_nmf_pretrain = X
+            y_nmf_pretrain = y_nmf
+
         # Pretrain the model.
         if pretrain:
-            self.pretrain_NMF(X, y, nmf_max_iter)
+            self.pretrain_NMF(X_nmf_pretrain, y_nmf_pretrain, nmf_max_iter)
             self.pretrain_encoder(
                 X,
                 y,
@@ -726,13 +837,19 @@ class DcsfaNmf(NmfBase):
                 )
                 training_mse_loss = np.mean((X.detach().numpy() - X_recon) ** 2)
                 training_auc_list = []
-                for sup_net in range(self.n_sup_networks):
-                    temp_mask = task_mask[:, sup_net].detach().numpy()
-                    auc = roc_auc_score(
-                        y.detach().numpy()[temp_mask == 1, sup_net],
-                        y_pred[temp_mask == 1, sup_net],
-                    )
+
+                if self.sup_type == "mc":
+                    for sup_net in range(self.n_sup_networks):
+                        temp_mask = task_mask[:, sup_net].detach().numpy()
+                        auc = mean_squared_error(
+                            y.detach().numpy()[temp_mask == 1, sup_net],
+                            y_pred[temp_mask == 1, sup_net],
+                        )
+                        training_auc_list.append(auc)
+                else:
+                    auc = mean_squared_error(y.detach().numpy(), y_pred)
                     training_auc_list.append(auc)
+
                 self.recon_hist.append(training_mse_loss)
                 self.pred_hist.append(training_auc_list)
 
@@ -746,12 +863,17 @@ class DcsfaNmf(NmfBase):
                         (X_val.detach().numpy() - X_recon_val) ** 2
                     )
                     validation_auc_list = []
-                    for sup_net in range(self.n_sup_networks):
-                        temp_mask = task_mask_val[:, sup_net].detach().numpy()
-                        auc = roc_auc_score(
-                            y_val.detach().numpy()[temp_mask == 1, sup_net],
-                            y_pred_val[temp_mask == 1, sup_net],
-                        )
+
+                    if self.sup_type == "mc":
+                        for sup_net in range(self.n_sup_networks):
+                            temp_mask = task_mask_val[:, sup_net].detach().numpy()
+                            auc = mean_squared_error(
+                                y_val.detach().numpy()[temp_mask == 1, sup_net],
+                                y_pred_val[temp_mask == 1, sup_net],
+                            )
+                            validation_auc_list.append(auc)
+                    else:
+                        auc = mean_squared_error(y_val.detach().numpy(), y_pred_val)
                         validation_auc_list.append(auc)
 
                     self.val_recon_hist.append(validation_mse_loss)
@@ -759,7 +881,6 @@ class DcsfaNmf(NmfBase):
 
                     mse_var_rat = validation_mse_loss / torch.std(X_val) ** 2
                     auc_err = 1 - np.mean(validation_auc_list)
-
                     if mse_var_rat + auc_err < self.best_performance:
                         self.best_epoch = epoch
                         self.best_performance = mse_var_rat + auc_err
@@ -803,7 +924,7 @@ class DcsfaNmf(NmfBase):
         # NOTE: is this necessary?
         torch.save(
             self.state_dict(),
-            self.save_folder + "dCSFA-NMF-last-epoch.pt",
+            self.save_folder + "dCSFA-NMF-linear.pt",
         )
 
         if X_val is not None and y_val is not None:
@@ -953,10 +1074,28 @@ class DcsfaNmf(NmfBase):
             auc_dict = {}
             for group in np.unique(groups):
                 auc_list = []
-                for sup_net in range(self.n_sup_networks):
-                    auc = roc_auc_score(y[:, sup_net], y_pred[:, sup_net])
+                group_mask = groups == group
+                if self.sup_type == "mc":
+                    for sup_net in range(self.n_sup_networks):
+
+                        if len(np.unique(y[group_mask == 1, sup_net])) < 2:
+                            auc = np.nan
+                        else:
+                            auc = mean_squared_error(
+                                y[group_mask == 1, sup_net],
+                                y_pred[group_mask == 1, sup_net],
+                            )
+                        auc_list.append(auc)
+                else:
+                    if len(np.unique(y[group_mask == 1])) < 2:
+                        auc = np.nan
+                    else:
+                        auc = mean_squared_error(
+                            y[group_mask == 1], y_pred[group_mask == 1]
+                        )
                     auc_list.append(auc)
                 auc_dict[group] = auc_list
+
             if return_dict:
                 score_results = auc_dict
             else:
@@ -964,10 +1103,86 @@ class DcsfaNmf(NmfBase):
                 score_results = np.mean(auc_array, axis=0)
         else:
             auc_list = []
-            for sup_net in range(self.n_sup_networks):
-                auc = roc_auc_score(y[:, sup_net], y_pred[:, sup_net])
-                auc_list.append(auc)
-            score_results = np.array(auc_list)
+            if self.sup_type == "mc":
+                for sup_net in range(self.n_sup_networks):
+                    auc = mean_squared_error(y[:, sup_net], y_pred[:, sup_net])
+                    auc_list.append(auc)
+                score_results = np.array(auc_list)
+            else:
+                score_results = mean_squared_error(y, y_pred)
+
+        return score_results
+
+    def mw_auc(self, s, y):
+        s_pos = s[y == 1]
+        s_neg = s[y == 0]
+
+        U, pval = mannwhitneyu(s_pos, s_neg)
+        auc = U / (np.sum(y == 1) * np.sum(y == 0))
+
+        return auc, pval
+
+    def score_mw(self, X, y, groups=None, return_dict=False, net=None):
+        """
+        Gets the mann-whitney-u auc for a given network projection. The user
+        may select a single network, or allow all supervised networks to be used
+        together.
+
+        Parameters
+        ----------
+        X : numpy.ndarray
+            Input Features
+            Shape: ``[n_samples,n_features]
+        y : numpy.ndarray
+            Ground Truth Labels
+            Shape: ``[n_samples,n_sup_networks]``
+        groups : numpy.ndarray, optional
+            per window group assignment labels. Defaults to None.
+            Shape: ``[n_samples,1]``
+        return_dict : bool, optional
+            Whether or not to return a dictionary with values for each group. Defaults to False.
+        net : int
+            Index of the network for which you want to calculate the mann-whitney AUC
+
+        Returns
+        -------
+        score_results: numpy.ndarray or dict
+            Array or dictionary of results either as the mean performance of all groups,
+            the performance of all samples, or a dictionary of results for each group.
+        """
+
+        s = self.project(X)
+
+        # Slice the aggregate or single network score
+        if net is None:
+            coeffs = self.classifier[0].weight[0].detach().cpu().numpy()
+            s = s[:, : self.n_sup_networks] @ coeffs
+        else:
+            s = s[:, net]
+
+        # If operating by group, make a dictionary and get the auc for each group
+        if groups is not None:
+            auc_dict = {}
+
+            for group in np.unique(groups):
+                group_mask = groups == group
+
+                # If there is only one class in the group, don't collect AUC
+                if len(np.unique(y[group_mask == 1])) < 2:
+                    auc = np.nan
+                else:
+                    auc = self.mw_auc(s[group_mask == 1], y[group_mask == 1])[0]
+
+                auc_dict[group] = auc
+
+            if return_dict:
+                score_results = auc_dict
+            else:
+                auc_array = np.vstack([auc_dict[key] for key in np.unique(groups)])
+                score_results = np.mean(auc_array, axis=0)
+        else:
+            score_results = self.mw_auc(s, y)[0]
+
         return score_results
 
 
