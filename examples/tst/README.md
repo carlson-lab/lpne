@@ -2,7 +2,7 @@
 
 The tail suspension test (TST) is a behavioral assay used in mice that measures response to stress [Carlson et al., 2017](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6013844/).
 
-This example marks the open source release of a TST dataset collected by the [Collective for Psychiatric Neuroengineering](https://www.dzirasalabs.com/). The dataset, as well as other files relevant to preprocessing, can be downloaded [here](https://duke.box.com/s/kbjtsxanvpyczyxgypzu0jkr6k9cluco)
+This example marks the open source release of a TST dataset collected by the [Collective for Psychiatric Neuroengineering](https://www.dzirasalabs.com/). The dataset, as well as other files relevant to preprocessing, can be downloaded [here](https://research.repository.duke.edu/concern/datasets/zc77sr31x?locale=en)
 
 The downloaded files are organized in several subfolders.
 
