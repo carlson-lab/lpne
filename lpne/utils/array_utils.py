@@ -2,7 +2,7 @@
 Array-related utilities
 
 """
-__date__ = "July 2021 - February 2023"
+__date__ = "July 2021 - August 2023"
 __all__ = [
     "flatten_dir_spec_features",
     "flatten_power_features",
@@ -129,15 +129,20 @@ def flatten_power_features(features, rois, f):
     return flat_features, feature_ids
 
 
-def unsqueeze_triangular_array(arr, dim=0):
+def unsqueeze_triangular_array(arr, dim=0, skew_symmetric=False):
     """
     Transform a numpy array from condensed triangular form to symmetric form.
+
+    The condensed form is assumed to contain the lower-triangular portion of the matrix.
 
     Parameters
     ----------
     arr : numpy.ndarray
     dim : int
         Axis to expand
+    skew_symmetric : bool, optional
+        Whether the matrix is skew-symmetric. If ``False``, the matrix is assumed to be
+        symmetric. This is useful for expanding skew-symmetric phase data.
 
     Returns
     -------
@@ -151,12 +156,13 @@ def unsqueeze_triangular_array(arr, dim=0):
     arr = np.swapaxes(arr, dim, -1)
     new_shape = arr.shape[:-1] + (n, n)
     new_arr = np.zeros(new_shape, dtype=arr.dtype)
+    factor = -1 if skew_symmetric else 1
     for i in range(n):
         for j in range(i + 1):
             idx = (i * (i + 1)) // 2 + j
             new_arr[..., i, j] = arr[..., idx]
             if i != j:
-                new_arr[..., j, i] = arr[..., idx]
+                new_arr[..., j, i] = factor * arr[..., idx]
     dim_list = list(range(new_arr.ndim - 2)) + [dim]
     dim_list = dim_list[:dim] + [-2, -1] + dim_list[dim + 1 :]
     new_arr = np.transpose(new_arr, dim_list)
@@ -165,7 +171,9 @@ def unsqueeze_triangular_array(arr, dim=0):
 
 def squeeze_triangular_array(arr, dims=(0, 1)):
     """
-    Inverse of `unsqueeze_triangular_array`.
+    Save the lower triangular portion of the array in a flattened form.
+    
+    This is the inverse of `unsqueeze_triangular_array`.
 
     Parameters
     ----------
@@ -186,7 +194,7 @@ def squeeze_triangular_array(arr, dims=(0, 1)):
     dim_list = list(range(arr.ndim))
     dim_list = dim_list[: dims[0]] + dim_list[dims[1] + 1 :] + list(dims)
     arr = np.transpose(arr, dim_list)
-    new_arr = np.zeros(arr.shape[:-2] + ((n * (n + 1)) // 2,))
+    new_arr = np.zeros(arr.shape[:-2] + ((n * (n + 1)) // 2,), dtype=arr.dtype)
     for i in range(n):
         for j in range(i + 1):
             idx = (i * (i + 1)) // 2 + j

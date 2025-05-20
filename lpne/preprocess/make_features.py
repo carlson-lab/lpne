@@ -2,7 +2,7 @@
 Make features
 
 """
-__date__ = "July 2021 - January 2024"
+__date__ = "July 2021 - August 2024"
 
 
 import numpy as np
@@ -36,6 +36,7 @@ def make_features(
     spectral_granger=False,
     directed_spectrum=False,
     pairwise=True,
+    phases=False,
     csd_params={},
 ):
     """
@@ -72,6 +73,8 @@ def make_features(
         Whether to make directed spectrum features
     pairwise : bool, optional
         Whether spectral Granger and directed spectrum should be pairwise
+    phases : bool, optional
+        Whether to make phase features
     csd_params : dict, optional
         Parameters sent to ``scipy.signal.csd``
 
@@ -87,6 +90,9 @@ def make_features(
         'dir_spec' : numpy.ndarray
             Directed spectrum features. Only included if ``directed_spectrum``.
             Shape: ``[n_window, n_roi, n_roi, n_freq]``
+        'phase' : numpy.ndarray
+            Phase features. Only included if ``phases``.
+            Shape: ``[n_window, n_roi*(n_roi+1)//2, n_freq]``
         'freq' : numpy.ndarray
             Frequency bins
             Shape: ``[n_freq]``
@@ -99,7 +105,7 @@ def make_features(
     """
     assert (
         window_step is None or window_step > 0.0
-    ), f"Nonpositive window step: {window_step}"
+    ), f"Window step ({window_step}) must be greater than zero!"
     assert max_n_windows is None or max_n_windows > 0
     rois = sorted(lfps.keys())
     n = len(rois)
@@ -147,10 +153,22 @@ def make_features(
         fs=fs,
         **csd_params,
     )
+
+    # Truncate the frequencies.
     i1, i2 = np.searchsorted(f, [min_freq, max_freq])
     f = f[i1:i2]
-    cpsd = np.abs(cpsd[..., i1:i2])
+    cpsd = cpsd[..., i1:i2]
+
+    # Condense the cross power to a symmetric form.
     cpsd = squeeze_triangular_array(cpsd, dims=(1, 2))  # [w,r*(r+1)//2,f]
+    
+    # Collect the phase information.
+    if phases:
+        phase = np.angle(cpsd) # [w,r*(r+1)//2,f]
+        phase[nan_mask] = np.nan  # reintroduce NaNs
+
+    # Get the frequency-scaled cross power.
+    cpsd = np.abs(cpsd)
     cpsd[:, :] *= f  # scale the power features by frequency
     cpsd[nan_mask] = np.nan  # reintroduce NaNs
 
@@ -162,6 +180,10 @@ def make_features(
         "__commit__": LPNE_COMMIT,
         "__version__": LPNE_VERSION,
     }
+
+    # Add the phase features.
+    if phases:
+        res["phase"] = phase
 
     # Make directed spectrum features.
     if spectral_granger or directed_spectrum:
