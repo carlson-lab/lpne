@@ -5,7 +5,7 @@ TO DO
 -----
 * check CHANS files
 """
-__date__ = "September 2021 - August 2022"
+__date__ = "September 2021 - May 2025"
 
 
 from bokeh.layouts import column, row
@@ -473,6 +473,59 @@ def sleep_app(doc):
 
     save_button.on_click(save_callback)
 
+    # Export figure.
+    export_button = Button(label="Export Figure", default_size=200)
+
+    # 2) callback that re-draws in matplotlib
+    def export_callback():
+        import matplotlib.pyplot as plt
+
+        # grab the data
+        data = source.data
+        x1 = data['hipp_rms']
+        y1 = data['emg_power']
+        x2 = data['ratio_2']
+        y2 = data['ratio_1']
+        cols = data['color']
+
+        # grab current axis limits from Bokeh
+        x1_min, x1_max = plot_1.x_range.start, plot_1.x_range.end
+        y1_min, y1_max = plot_1.y_range.start, plot_1.y_range.end
+        x2_min, x2_max = plot_2.x_range.start, plot_2.x_range.end
+        y2_min, y2_max = plot_2.y_range.start, plot_2.y_range.end
+
+        # make the matplotlib figure
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 4))
+
+        # subfigure 1
+        ax1.scatter(x1, y1,
+                    s=SCATTER_SIZE_1,
+                    c=cols,
+                    alpha=ALPHA_1)
+        ax1.set_xlim(x1_min, x1_max)
+        ax1.set_ylim(y1_min, y1_max)
+        ax1.set_xlabel(plot_1.xaxis[0].axis_label)
+        ax1.set_ylabel(plot_1.yaxis[0].axis_label)
+        ax1.set_title("Dhipp RMS vs EMG Power")
+
+        # subfigure 2
+        ax2.scatter(x2, y2,
+                    s=SCATTER_SIZE_2,
+                    c=cols,
+                    alpha=ALPHA_2)
+        ax2.set_xlim(x2_min, x2_max)
+        ax2.set_ylim(y2_min, y2_max)
+        ax2.set_xlabel(plot_2.xaxis[0].axis_label)
+        ax2.set_ylabel(plot_2.yaxis[0].axis_label)
+        ax2.set_title("Frequency Ratio 2 vs 1")
+
+        plt.tight_layout()
+        fig.savefig("scatter_export.pdf")
+        plt.close(fig)
+
+    export_button.on_click(export_callback)
+
+
     # Fake data.
     x = [1, 2, 3, 4, 5]
     y = [5, 5, 4, 6, 2]
@@ -510,7 +563,14 @@ def sleep_app(doc):
         child=row(buttons, plot_1, plot_2),
         title="Sleep Selection",
     )
-    save_column = column(save_dir_input, overwrite_checkbox, save_button)
+
+    save_column = column(
+        save_dir_input,
+        overwrite_checkbox,
+        save_button,
+        export_button,
+    )
+
     tab_3 = Panel(
         child=row(save_column, alert_box),
         title="Save Labels",
