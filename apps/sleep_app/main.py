@@ -75,6 +75,7 @@ EMG_HIGHCUT = 249.0
 LFP_LOWCUT = 0.5
 LFP_HIGHCUT = 55.0
 Q = 1.5
+MICROVOLTS = 250.0 # μV for each blackrock unit
 
 
 def sleep_app(doc):
@@ -87,8 +88,8 @@ def sleep_app(doc):
     plot_1 = figure(
         tools=TOOLS,
         sizing_mode="stretch_width",
-        x_axis_label="Dhipp RMS Amplitude",
-        y_axis_label="EMG Power",
+        x_axis_label="LFP RMS Amplitude (mV)",
+        y_axis_label="Filtered EMG Amplitude (mV)",
     )
     SCATTER_1 = plot_1.scatter(
         x="hipp_rms",
@@ -506,7 +507,7 @@ def sleep_app(doc):
         ax1.set_ylim(y1_min, y1_max)
         ax1.set_xlabel(plot_1.xaxis[0].axis_label)
         ax1.set_ylabel(plot_1.yaxis[0].axis_label)
-        ax1.set_title("Dhipp RMS vs EMG Power")
+        ax1.set_title("LFP vs EMG Amplitude")
 
         # subfigure 2
         ax2.scatter(x2, y2,
@@ -605,8 +606,8 @@ def get_emg_lfp_features(
         assert hipp_channel in lfps, (
             f"{hipp_channel} not in " f"{list(lfps.keys())} in file {lfp_fn}"
         )
-        emg_tr = lfps[emg_channel].flatten()
-        dhipp_tr = lfps[hipp_channel].flatten()
+        emg_tr = lfps[emg_channel].flatten() * MICROVOLTS / 1e3
+        dhipp_tr = lfps[hipp_channel].flatten() * MICROVOLTS / 1e3
         # Calculate features of the LFP and EMG.
         emg_power = _process_emg_trace(
             emg_tr,
