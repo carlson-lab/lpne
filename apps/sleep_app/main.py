@@ -44,7 +44,7 @@ DEFAULT_LFP_NAME = "Hipp_D_L_02"
 # DEFAULT_LABEL_DIR = '/home/jg420/r_drive/Internal/Network/labels/2s/'
 TOOLS = "lasso_select,pan,wheel_zoom,reset,box_zoom"
 LABELS = ["Wake", "NREM", "REM", "Unlabeled"]
-COLORS = ["tab:blue", "tab:orange", "tab:green", "peru"]
+COLORS = ["tab:blue", "tab:orange", "tab:green", "dimgray"]
 COLORS = [to_hex(i) for i in COLORS]
 MAX_N_POINTS = 5000
 
