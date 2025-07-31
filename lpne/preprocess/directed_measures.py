@@ -54,6 +54,7 @@ def get_directed_spectral_measures(
     tol=1e-6,
     cpsd_diag_reg=0.0,
     granger_reg=1e-2,
+    granger_reg_2=1e-2,
     csd_params={},
     conditional_covar_epsilon=1e-10,
 ):
@@ -83,6 +84,8 @@ def get_directed_spectral_measures(
     granger_reg : float, optional
         Regularize spectral Granger by multiplying the ratio of the directed spectrum
         to receiving region spectrum by one minus this number. Default: ``1e-2``.
+    granger_reg_2 : float, optional
+        Another regularization parameter for spectral Granger.
     csd_params : dict, optional
         Parameters sent to ``scipy.signal.csd``. Default: ``DEFAULT_CSD_PARAMS``
     conditional_covar_epsilon : float, optional
@@ -151,7 +154,7 @@ def get_directed_spectral_measures(
     if return_spectral_granger:
         S_bb = np.diagonal(np.abs(cpsd), axis1=-1, axis2=-2)[:, :, None]  # [n,f,1,r]
         reg = 1.0 - granger_reg
-        ratio = np.clip(reg * ds / S_bb, 0.0, reg)
+        ratio = np.clip(reg * ds / (S_bb + granger_reg_2), 0.0, reg)
         sg = -np.log(1.0 - ratio)
 
     # Zero-out the diagonals.
